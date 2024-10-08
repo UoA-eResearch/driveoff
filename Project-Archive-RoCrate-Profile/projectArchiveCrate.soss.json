@@ -1,0 +1,597 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.1/context",
+    {
+      "@vocab": "http://schema.org/"
+    },
+    {
+      "dataClassification": "https://w3id.org/ro/terms/eres-project-archive#dataClassification",
+      "project": "https://w3id.org/ro/terms/eres-project-archive#project",
+      "dataContact": "https://w3id.org/ro/terms/eres-project-archive#dataContact",
+      "dataOwner": "https://w3id.org/ro/terms/eres-project-archive#dataOwner",
+      "division": "https://w3id.org/ro/terms/eres-project-archive#division",
+      "dropbox": "https://w3id.org/ro/terms/eres-project-archive#dropbox",
+      "projectOwner": "https://w3id.org/ro/terms/eres-project-archive#projectOwner",
+      "researchDrive": "https://w3id.org/ro/terms/eres-project-archive#researchDrive",
+      "service": "https://w3id.org/ro/terms/eres-project-archive#service"
+    },
+    {
+      "eres-project-archive": "https://w3id.org/ro/terms/eres-project-archive#"
+    }
+  ],
+  "@graph": [
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "mentions": [
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#dataClassification"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#project"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#dataContact"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#dataOwner"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#division"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#dropbox"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#projectOwner"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#researchDrive"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#service"
+        }
+      ]
+    },
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "identifier": "ro-crate-metadata.json",
+      "about": {
+        "@id": "./"
+      }
+    },
+    {
+      "@id": "http://schema.org/Dataset",
+      "@type": "rdfs:Class",
+      "source": {
+        "@id": "http://www.w3.org/wiki/WebSchemas/SchemaDotOrgSources#source_DatasetClass"
+      },
+      "rdfs:comment": "A body of structured information describing some topic(s) of interest.",
+      "rdfs:label": "Dataset",
+      "rdfs:subClassOf": {
+        "@id": "http://schema.org/CreativeWork"
+      },
+      "http://www.w3.org/2002/07/owl#equivalentClass": [
+        {
+          "@id": "http://purl.org/dc/dcmitype/Dataset"
+        },
+        {
+          "@id": "http://www.w3.org/ns/dcat#Dataset"
+        },
+        {
+          "@id": "http://rdfs.org/ns/void#Dataset"
+        }
+      ]
+    },
+    {
+      "@id": "http://purl.org/dc/terms/conformsTo",
+      "@type": "DefinedTerm",
+      "name": "conformsTo",
+      "termCode": "conformsTo",
+      "rdfs:label": "conformsTo",
+      "domainIncludes": {
+        "@id": "http://schema.org/Dataset"
+      },
+      "rangeIncludes": []
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#dataClassification",
+      "@type": "rdf:Property",
+      "name": "dataClassification",
+      "rdfs:label": "dataClassification",
+      "rdfs:comment": "The classification of the data for research data retention and information security. MUST be ONE of [“Public”, “Internal”, “Sensitive”, or “Restricted”]. Default “Sensitive”",
+      "domainIncludes": {
+        "@id": "http://schema.org/Dataset"
+      }
+    },
+    {
+      "@id": "http://schema.org/datePublished",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/CreativeWork"
+        },
+        {
+          "@id": "http://schema.org/Dataset"
+        }
+      ],
+      "rdfs:comment": "Date of first broadcast/publication.",
+      "rdfs:label": "datePublished"
+    },
+    {
+      "@id": "http://schema.org/hasPart",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/CreativeWork"
+        },
+        {
+          "@id": "http://schema.org/Dataset"
+        }
+      ],
+      "inverseOf": {
+        "@id": "http://schema.org/isPartOf"
+      },
+      "rangeIncludes": [
+        {
+          "@id": "http://schema.org/Dataset"
+        },
+        {
+          "@id": "http://schema.org/MediaObject"
+        }
+      ],
+      "source": {
+        "@id": "http://www.w3.org/wiki/WebSchemas/SchemaDotOrgSources#source_bibex"
+      },
+      "rdfs:comment": "Indicates an item or CreativeWork that is part of this item, or CreativeWork (in some sense).",
+      "rdfs:label": "hasPart"
+    },
+    {
+      "@id": "http://schema.org/MediaObject",
+      "@type": "rdfs:Class",
+      "rdfs:comment": "A media object, such as an image, video, or audio object embedded in a web page or a downloadable dataset, i.e. DataDownload. Note that a creative work may have many media objects associated with it on the same web page. For example, a page about a single song (MusicRecording) may have a music video (VideoObject), and a high and low bandwidth audio stream (2 [[AudioObject]]s).",
+      "rdfs:label": "MediaObject",
+      "rdfs:subClassOf": {
+        "@id": "http://schema.org/CreativeWork"
+      }
+    },
+    {
+      "@id": "http://schema.org/name",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/Thing"
+        },
+        {
+          "@id": "http://schema.org/Dataset"
+        },
+        {
+          "@id": "http://schema.org/Project"
+        },
+        {
+          "@id": "http://schema.org/Organization"
+        },
+        {
+          "@id": "http://schema.org/Person"
+        }
+      ],
+      "rangeIncludes": [],
+      "rdfs:comment": "The name of the item.",
+      "rdfs:label": "name",
+      "rdfs:subPropertyOf": {
+        "@id": "rdfs:label"
+      },
+      "http://www.w3.org/2002/07/owl#equivalentProperty": {
+        "@id": "dct:title"
+      }
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#project",
+      "@type": "rdf:Property",
+      "name": "project",
+      "rdfs:label": "project",
+      "rdfs:comment": "The Project associated with this data",
+      "rangeIncludes": {
+        "@id": "http://schema.org/Project"
+      },
+      "domainIncludes": {
+        "@id": "http://schema.org/Dataset"
+      }
+    },
+    {
+      "@id": "http://schema.org/Project",
+      "@type": "rdfs:Class",
+      "isPartOf": {
+        "@id": "http://pending.schema.org"
+      },
+      "source": [
+        {
+          "@id": "https://www.w3.org/wiki/WebSchemas/SchemaDotOrgSources#FundInfoCollab"
+        },
+        {
+          "@id": "https://github.com/schemaorg/schemaorg/issues/383"
+        }
+      ],
+      "rdfs:comment": "An enterprise (potentially individual but typically collaborative), planned to achieve a particular aim.\nUse properties from [[Organization]], [[subOrganization]]/[[parentOrganization]] to indicate project sub-structures. \n   ",
+      "rdfs:label": "Project",
+      "rdfs:subClassOf": {
+        "@id": "http://schema.org/Organization"
+      }
+    },
+    {
+      "@id": "http://schema.org/Organization",
+      "@type": "rdfs:Class",
+      "rdfs:comment": "An organization such as a school, NGO, corporation, club, etc.",
+      "rdfs:label": "Organization",
+      "rdfs:subClassOf": {
+        "@id": "http://schema.org/Thing"
+      }
+    },
+    {
+      "@id": "http://schema.org/sourceOrganization",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/CreativeWork"
+        },
+        {
+          "@id": "http://schema.org/Dataset"
+        }
+      ],
+      "rangeIncludes": {
+        "@id": "http://schema.org/Organization"
+      },
+      "rdfs:comment": "The Organization on whose behalf the creator was working.",
+      "rdfs:label": "sourceOrganization"
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#dataContact",
+      "@type": "rdf:Property",
+      "name": "dataContact",
+      "rdfs:label": "dataContact",
+      "rdfs:comment": "a contact for ownership of this data.",
+      "rangeIncludes": {
+        "@id": "http://schema.org/Person"
+      },
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "http://schema.org/Person",
+      "@type": "rdfs:Class",
+      "source": {
+        "@id": "http://www.w3.org/wiki/WebSchemas/SchemaDotOrgSources#source_rNews"
+      },
+      "rdfs:comment": "A person (alive, dead, undead, or fictional).",
+      "rdfs:label": "Person",
+      "rdfs:subClassOf": {
+        "@id": "http://schema.org/Thing"
+      },
+      "http://www.w3.org/2002/07/owl#equivalentClass": {
+        "@id": "foaf:Person"
+      }
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#dataOwner",
+      "@type": "rdf:Property",
+      "name": "dataOwner",
+      "rdfs:label": "dataOwner",
+      "rdfs:comment": "Project members who own the data stored within, for example PHD students.",
+      "rangeIncludes": {
+        "@id": "http://schema.org/Person"
+      },
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "http://schema.org/description",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/Thing"
+        },
+        {
+          "@id": "http://schema.org/Project"
+        }
+      ],
+      "rangeIncludes": [],
+      "rdfs:comment": "A description of the item.",
+      "rdfs:label": "description",
+      "http://www.w3.org/2002/07/owl#equivalentProperty": {
+        "@id": "dct:description"
+      }
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#division",
+      "@type": "rdf:Property",
+      "name": "division",
+      "rdfs:label": "division",
+      "rdfs:comment": "The division linked with this project. e.g. “CIVENV”",
+      "rangeIncludes": [],
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#dropbox",
+      "@type": "rdf:Property",
+      "name": "dropbox",
+      "rdfs:label": "dropbox",
+      "rdfs:comment": "The URL or identifier of a Dropbox associated with a project.",
+      "rangeIncludes": [],
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "http://schema.org/endDate",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/CreativeWorkSeason"
+        },
+        {
+          "@id": "http://schema.org/MerchantReturnPolicySeasonalOverride"
+        },
+        {
+          "@id": "http://schema.org/EducationalOccupationalProgram"
+        },
+        {
+          "@id": "http://schema.org/CreativeWorkSeries"
+        },
+        {
+          "@id": "http://schema.org/DatedMoneySpecification"
+        },
+        {
+          "@id": "http://schema.org/Role"
+        },
+        {
+          "@id": "http://schema.org/Schedule"
+        },
+        {
+          "@id": "http://schema.org/Event"
+        },
+        {
+          "@id": "http://schema.org/Project"
+        }
+      ],
+      "rangeIncludes": [],
+      "source": {
+        "@id": "https://github.com/schemaorg/schemaorg/issues/2486"
+      },
+      "rdfs:comment": "The end date and time of the item (in [ISO 8601 date format](http://en.wikipedia.org/wiki/ISO_8601)).",
+      "rdfs:label": "endDate"
+    },
+    {
+      "@id": "http://schema.org/identifier",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/Thing"
+        },
+        {
+          "@id": "http://schema.org/Project"
+        },
+        {
+          "@id": "http://schema.org/Person"
+        }
+      ],
+      "rangeIncludes": [],
+      "rdfs:comment": "The identifier property represents any kind of identifier for any kind of [[Thing]], such as ISBNs, GTIN codes, UUIDs etc. Schema.org provides dedicated properties for representing many of these, either as textual strings or as URL (URI) links. See [background notes](/docs/datamodel.html#identifierBg) for more details.\n        ",
+      "rdfs:label": "identifier",
+      "http://www.w3.org/2002/07/owl#equivalentProperty": {
+        "@id": "dct:identifier"
+      }
+    },
+    {
+      "@id": "http://schema.org/member",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/Organization"
+        },
+        {
+          "@id": "http://schema.org/ProgramMembership"
+        },
+        {
+          "@id": "http://schema.org/Project"
+        }
+      ],
+      "inverseOf": {
+        "@id": "http://schema.org/memberOf"
+      },
+      "rangeIncludes": {
+        "@id": "http://schema.org/Person"
+      },
+      "rdfs:comment": "A member of an Organization or a ProgramMembership. Organizations can be members of organizations; ProgramMembership is typically for individuals.",
+      "rdfs:label": "member"
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#projectOwner",
+      "@type": "rdf:Property",
+      "name": "projectOwner",
+      "rdfs:label": "projectOwner",
+      "rdfs:comment": "...",
+      "rangeIncludes": {
+        "@id": "http://schema.org/Person"
+      },
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "http://schema.org/requirements",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/SoftwareApplication"
+        },
+        {
+          "@id": "http://schema.org/Project"
+        }
+      ],
+      "rangeIncludes": [],
+      "supersededBy": {
+        "@id": "http://schema.org/softwareRequirements"
+      },
+      "rdfs:comment": "Component dependency requirements for application. This includes runtime environments and shared libraries that are not included in the application distribution package, but required to run the application (examples: DirectX, Java or .NET runtime).",
+      "rdfs:label": "requirements"
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#researchDrive",
+      "@type": "rdf:Property",
+      "name": "researchDrive",
+      "rdfs:label": "researchDrive",
+      "rdfs:comment": "...",
+      "rangeIncludes": [],
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#service",
+      "@type": "rdf:Property",
+      "name": "service",
+      "rdfs:label": "service",
+      "rdfs:comment": "...",
+      "rangeIncludes": [],
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "http://schema.org/startDate",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/MerchantReturnPolicySeasonalOverride"
+        },
+        {
+          "@id": "http://schema.org/CreativeWorkSeries"
+        },
+        {
+          "@id": "http://schema.org/DatedMoneySpecification"
+        },
+        {
+          "@id": "http://schema.org/Role"
+        },
+        {
+          "@id": "http://schema.org/Schedule"
+        },
+        {
+          "@id": "http://schema.org/Event"
+        },
+        {
+          "@id": "http://schema.org/EducationalOccupationalProgram"
+        },
+        {
+          "@id": "http://schema.org/CreativeWorkSeason"
+        },
+        {
+          "@id": "http://schema.org/Project"
+        }
+      ],
+      "rangeIncludes": [],
+      "source": {
+        "@id": "https://github.com/schemaorg/schemaorg/issues/2486"
+      },
+      "rdfs:comment": "The start date and time of the item (in [ISO 8601 date format](http://en.wikipedia.org/wiki/ISO_8601)).",
+      "rdfs:label": "startDate"
+    },
+    {
+      "@id": "http://schema.org/email",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/Organization"
+        },
+        {
+          "@id": "http://schema.org/ContactPoint"
+        },
+        {
+          "@id": "http://schema.org/Person"
+        }
+      ],
+      "rangeIncludes": [],
+      "rdfs:comment": "Email address.",
+      "rdfs:label": "email"
+    },
+    {
+      "@id": "http://schema.org/DeleteAction",
+      "@type": "rdfs:Class",
+      "rdfs:comment": "The act of editing a recipient by removing one of its objects.",
+      "rdfs:label": "DeleteAction",
+      "rdfs:subClassOf": {
+        "@id": "http://schema.org/UpdateAction"
+      }
+    },
+    {
+      "@id": "http://schema.org/actionStatus",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/Action"
+        },
+        {
+          "@id": "http://schema.org/DeleteAction"
+        }
+      ],
+      "rangeIncludes": [],
+      "rdfs:comment": "Indicates the current disposition of the Action.",
+      "rdfs:label": "actionStatus"
+    },
+    {
+      "@id": "http://schema.org/endTime",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/InteractionCounter"
+        },
+        {
+          "@id": "http://schema.org/FoodEstablishmentReservation"
+        },
+        {
+          "@id": "http://schema.org/Schedule"
+        },
+        {
+          "@id": "http://schema.org/Action"
+        },
+        {
+          "@id": "http://schema.org/MediaObject"
+        },
+        {
+          "@id": "http://schema.org/DeleteAction"
+        }
+      ],
+      "rangeIncludes": [],
+      "source": {
+        "@id": "https://github.com/schemaorg/schemaorg/issues/2493"
+      },
+      "rdfs:comment": "The endTime of something. For a reserved event or service (e.g. FoodEstablishmentReservation), the time that it is expected to end. For actions that span a period of time, when the action was performed. E.g. John wrote a book from January to *December*. For media, including audio and video, it's the time offset of the end of a clip within a larger file.\\n\\nNote that Event uses startDate/endDate instead of startTime/endTime, even when describing dates with times. This situation may be clarified in future revisions.",
+      "rdfs:label": "endTime"
+    },
+    {
+      "@id": "http://schema.org/targetCollection",
+      "@type": "rdf:Property",
+      "domainIncludes": [
+        {
+          "@id": "http://schema.org/UpdateAction"
+        },
+        {
+          "@id": "http://schema.org/DeleteAction"
+        }
+      ],
+      "rangeIncludes": {
+        "@id": "http://schema.org/Dataset"
+      },
+      "rdfs:comment": "A sub property of object. The collection target of the action.",
+      "rdfs:label": "targetCollection",
+      "rdfs:subPropertyOf": {
+        "@id": "http://schema.org/object"
+      }
+    }
+  ]
+}
