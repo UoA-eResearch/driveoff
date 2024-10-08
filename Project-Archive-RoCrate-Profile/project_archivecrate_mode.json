@@ -1,0 +1,451 @@
+{
+  "metadata": {
+    "name": "Test Project Archive Crate",
+    "description": "Test Project Archive Crate",
+    "version": 0,
+    "license": "GPLv3.0",
+    "author": "University of Auckland"
+  },
+  "rootDataEntity": [
+    {
+      "type": [
+        "Dataset"
+      ],
+      "conformsToUri": ["https://uoa-eresearch.github.io/Project-Archive-RoCrate-Profile/"],
+      "description": ""
+    }
+  ],
+  "inputGroups" : 
+  [
+    {
+      "name": "About",
+      "help": "The core metadata for this RO-Crate and its subject matter.",
+      "inputs": [
+        "@id",
+        "@type",
+        "http://purl.org/dc/terms/conformsTo",
+        "http://schema.org/project",
+        "http://schema.org/name",
+        "http://schema.org/identifier",
+        "http://schema.org/description",
+        "http://schema.org/conformsTo",
+        "http://schema.org/datePublished",
+        "https://w3id.org/ro/terms/eres-project-archive#dataClassification",
+        "https://w3id.org/ro/terms/eres-project-archive#startDate",
+        "https://w3id.org/ro/terms/eres-project-archive#endDate",
+        "https://w3id.org/ro/terms/eres-project-archive#requirements",
+        "http://schema.org/requirements",
+        "http://schema.org/email",
+        "http://schema.org/actionStatus",
+        "http://schema.org/endTime",
+        "http://schema.org/endDate",
+        "http://schema.org/startDate"
+      ]
+    },
+    {
+      "name": "Related People, Orgs & Services",
+      "help": "The context for the creation of this RO-Crate; who made it, funded it etc.",
+      "inputs": [
+        "http://schema.org/sourceOrganization",
+        "https://w3id.org/ro/terms/eres-project-archive#projectOwner",
+        "https://w3id.org/ro/terms/eres-project-archive#dataOwner",
+        "https://w3id.org/ro/terms/eres-project-archive#dataContact",
+        "http://schema.org/member",
+        "https://w3id.org/ro/terms/eres-project-archive#service",
+        "https://w3id.org/ro/terms/eres-project-archive#division",
+        "https://w3id.org/ro/terms/eres-project-archive#dropbox",
+        "https://w3id.org/ro/terms/eres-project-archive#researchDrive"
+      ]
+    },
+    {
+      "name": "Structure",
+      "help": "For groups of elements, such as DefinedTerms",
+      "inputs": [
+        "http://pcdm.org/models#memberOf",
+        "http://pcdm.org/models#hasMember",
+        "http://schema.org/isPartOf",
+        "http://schema.org/hasPart",
+        "http://schema.org/targetCollection"
+
+      ]
+    }
+  ],
+  "lookup": {
+    "Language": {
+      "module": "datapack",
+      "fields": [
+        "@id",
+        "name"
+      ]
+    },
+    "Organization": {
+      "module": "ror"
+    }
+  },
+  "enabledClasses": [
+    "Dataset",
+    "Person",
+    "Project"
+  ],
+  "classes": {
+    "Dataset": {
+      "hasSubclass": [],
+      "inputs": [
+        {
+          "id": "http://purl.org/dc/terms/conformsTo",
+          "name": "conformsTo",
+          "help": "UNDOCUMENTED",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#dataClassification",
+          "name": "dataClassification",
+          "help": "The classification of the data for research data retention and information security. MUST be ONE of [“Public”, “Internal”, “Sensitive”, or “Restricted”]",
+          "multiple": false,
+          "type": [
+            "SelectObject"
+          ],
+          "values": [
+            {
+              "@id": "https://w3id.org/ro/terms/eres-project-archive#Public",
+              "@type": "DefinedTerm",
+              "name": "Public",
+              "description": "These data are public and do not have a restricted audience.",
+              "inDefinedTermSet": {
+                "@id": "https://w3id.org/ro/terms/eres-project-archive#dataClassificationTerms"
+              }
+            },
+            {
+              "@id": "https://w3id.org/ro/terms/eres-project-archive#Internal",
+              "@type": "DefinedTerm",
+              "name": "Internal",
+              "description": "These data have a restricted audience.",
+              "inDefinedTermSet": {
+                "@id": "https://w3id.org/ro/terms/eres-project-archive#dataClassificationTerms"
+              }
+            },
+            {
+              "@id": "https://w3id.org/ro/terms/eres-project-archive#Sensitive",
+              "@type": "DefinedTerm",
+              "name": "Sensitive",
+              "description": "These data have a highly restricted audience.",
+              "inDefinedTermSet": {
+                "@id": "https://w3id.org/ro/terms/eres-project-archive#dataClassificationTerms"
+              }
+            },
+            {
+              "@id": "https://w3id.org/ro/terms/eres-project-archive#Restricted",
+              "@type": "DefinedTerm",
+              "name": "Restricted",
+              "description": "Access to these data is limited to specific individuals approved by the University Custodian (or nominee)",
+              "inDefinedTermSet": {
+                "@id": "https://w3id.org/ro/terms/eres-project-archive#dataClassificationTerms"
+              }
+            }
+          ]
+        },
+        {
+          "id": "http://schema.org/datePublished",
+          "name": "datePublished",
+          "help": "Date of first broadcast/publication.",
+          "multiple": false,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/hasPart",
+          "name": "hasPart",
+          "help": "Indicates an item or CreativeWork that is part of this item, or CreativeWork (in some sense).",
+          "multiple": true,
+          "type": [
+            "Dataset",
+            "File"
+          ]
+        },
+        {
+          "id": "http://schema.org/name",
+          "name": "name",
+          "help": "The name of the item.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#project",
+          "name": "project",
+          "help": "The Project associated with this data",
+          "multiple": false,
+          "type": [
+            "Project"
+          ]
+        },
+        {
+          "id": "http://schema.org/sourceOrganization",
+          "name": "sourceOrganization",
+          "help": "The Organization on whose behalf the creator was working.",
+          "multiple": false,
+          "type": [
+            "Organization"
+          ]
+        }
+      ]
+    },
+    "File": {
+      "hasSubclass": [],
+      "inputs": [
+        {
+          "id": "http://schema.org/endTime",
+          "name": "endTime",
+          "help": "The endTime of something. For a reserved event or service (e.g. FoodEstablishmentReservation), the time that it is expected to end. For actions that span a period of time, when the action was performed. E.g. John wrote a book from January to *December*. For media, including audio and video, it's the time offset of the end of a clip within a larger file.\\n\\nNote that Event uses startDate/endDate instead of startTime/endTime, even when describing dates with times. This situation may be clarified in future revisions.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        }
+      ]
+    },
+    "Project": {
+      "hasSubclass": [],
+      "inputs": [
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#dataContact",
+          "name": "dataContact",
+          "help": "A contact for ownership of this data.",
+          "multiple": true,
+          "type": [
+            "Person"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#dataOwner",
+          "name": "dataOwner",
+          "help": " Project members who own the data stored within, for example PHD students.",
+          "multiple": true,
+          "type": [
+            "Person"
+          ]
+        },
+        {
+          "id": "http://schema.org/description",
+          "name": "description",
+          "help": "A description of the item.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#division",
+          "name": "division",
+          "help": "The division linked with this project. e.g. “CIVENV”",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#dropbox",
+          "name": "dropbox",
+          "help": "The URL or identifier of a Dropbox associated with this project ",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/endDate",
+          "name": "endDate",
+          "help": "The end date and time of the item (in [ISO 8601 date format](http://en.wikipedia.org/wiki/ISO_8601)).",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/identifier",
+          "name": "identifier",
+          "help": "The identifier property represents any kind of identifier for any kind of [[Thing]], such as ISBNs, GTIN codes, UUIDs etc. Schema.org provides dedicated properties for representing many of these, either as textual strings or as URL (URI) links. See [background notes](/docs/datamodel.html#identifierBg) for more details.\n        ",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/member",
+          "name": "member",
+          "help": "A member of an Organization or a ProgramMembership. Organizations can be members of organizations; ProgramMembership is typically for individuals.",
+          "multiple": true,
+          "type": [
+            "Person"
+          ]
+        },
+        {
+          "id": "http://schema.org/name",
+          "name": "name",
+          "help": "The name of the item.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#projectOwner",
+          "name": "projectOwner",
+          "help": "The owner of this project and primary contact for data retention. (Usually Primary Investigator)",
+          "multiple": false,
+          "type": [
+            "Person"
+          ]
+        },
+        {
+          "id": "http://schema.org/requirements",
+          "name": "requirements",
+          "help": "Component dependency requirements for application. This includes runtime environments and shared libraries that are not included in the application distribution package, but required to run the application (examples: DirectX, Java or .NET runtime).",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#researchDrive",
+          "name": "researchDrive",
+          "help": "the research storage drive associated with this project and archive crate.",
+          "multiple": false,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#service",
+          "name": "service",
+          "help": "Unique ID’s of services associated with this project such as Virtual Machines or storage.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/startDate",
+          "name": "startDate",
+          "help": "The start date and time of the item (in [ISO 8601 date format](http://en.wikipedia.org/wiki/ISO_8601)).",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/email",
+          "name": "email",
+          "help": "Email address.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        }
+      ]
+    },
+    "Organization": {
+      "hasSubclass": [
+        "Project"
+      ],
+      "inputs": [
+        {
+          "id": "http://schema.org/member",
+          "name": "member",
+          "help": "A member of an Organization or a ProgramMembership. Organizations can be members of organizations; ProgramMembership is typically for individuals.",
+          "multiple": true,
+          "type": [
+            "Person"
+          ]
+        },
+        {
+          "id": "http://schema.org/name",
+          "name": "name",
+          "help": "The name of the item.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/email",
+          "name": "email",
+          "help": "Email address.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        }
+      ]
+    },
+    "Person": {
+      "hasSubclass": [],
+      "inputs": [
+        {
+          "id": "http://schema.org/email",
+          "name": "email",
+          "help": "Email address.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/identifier",
+          "name": "identifier",
+          "help": "The identifier property represents any kind of identifier for any kind of [[Thing]], such as ISBNs, GTIN codes, UUIDs etc. Schema.org provides dedicated properties for representing many of these, either as textual strings or as URL (URI) links. See [background notes](/docs/datamodel.html#identifierBg) for more details.\n        ",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/name",
+          "name": "name",
+          "help": "The name of the item.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        }
+      ]
+    },
+    "DeleteAction": {
+      "hasSubclass": [],
+      "inputs": [
+        {
+          "id": "http://schema.org/actionStatus",
+          "name": "actionStatus",
+          "help": "Indicates the current disposition of the Action.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/endTime",
+          "name": "endTime",
+          "help": "The endTime of something. For a reserved event or service (e.g. FoodEstablishmentReservation), the time that it is expected to end. For actions that span a period of time, when the action was performed. E.g. John wrote a book from January to *December*. For media, including audio and video, it's the time offset of the end of a clip within a larger file.\\n\\nNote that Event uses startDate/endDate instead of startTime/endTime, even when describing dates with times. This situation may be clarified in future revisions.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "http://schema.org/targetCollection",
+          "name": "targetCollection",
+          "help": "A sub property of object. The collection target of the action.",
+          "multiple": true,
+          "type": [
+            "Dataset"
+          ]
+        }
+      ]
+    }
+  }
+}
