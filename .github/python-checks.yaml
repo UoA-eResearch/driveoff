@@ -1,0 +1,55 @@
+name: Test and Lint Python code
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "**.py"
+      - "pyproject.toml"
+      - "poetry.lock"
+  # Allow manual triggering through GitHub
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    name: Python ${{ matrix.python-version }}
+    steps:
+      - uses: actions/checkout@v1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
+      - name: Install Dependencies
+        run: poetry install
+        if: steps.cache.outputs.cache-hit != 'true'
+
+      - name: isort - check import formatting
+        run: PYTHONPATH=src/ poetry run python -m isort --check --diff --profile black src
+
+      - name: Black - check code formatting
+        run: PYTHONPATH=src/ poetry run python -m black --check --diff src
+
+      - name: pylint - static code analysis
+        run: PYTHONPATH=src/ poetry run python -m pylint src/ --rcfile .pylintrc
+
+      - name: mypy - static type checking
+        # Takes configuration from pyproject.toml
+        run: PYTHONPATH=src/ poetry run python -m mypy
+
+      - name: pytest - run the tests
+        run: PYTHONPATH=src/ poetry run python -m pytest -v --cov=src/ tests/
+
+      - name: Run Coverage
+        run: PYTHONPATH=src/ poetry run python -m coverage report -m;
+
+      - name: Generate test coverage XML Report
+        run: PYTHONPATH=src/ poetry run python -m coverage xml
