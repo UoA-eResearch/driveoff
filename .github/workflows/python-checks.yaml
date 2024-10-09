@@ -39,7 +39,7 @@ jobs:
         run: PYTHONPATH=src/ poetry run python -m black --check --diff src
 
       - name: pylint - static code analysis
-        run: PYTHONPATH=src/ poetry run python -m pylint src/ --rcfile .pylintrc
+        run: PYTHONPATH=src/ poetry run python -m pylint src/
 
       - name: mypy - static type checking
         # Takes configuration from pyproject.toml
