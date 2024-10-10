@@ -1,5 +1,5 @@
 import re
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import FastAPI
 from pydantic.functional_validators import AfterValidator
@@ -9,6 +9,7 @@ app = FastAPI()
 
 RESEARCH_DRIVE_REGEX = re.compile(r"res[a-z]{3}[0-9]{9}-[a-zA-Z0-9-_]+")
 
+ENDPOINT_PREFIX = "/api/v1"
 
 def validate_resdrive_identifier(drive_id: str) -> str:
     """Check if the string is a valid Research Drive identifier."""
@@ -21,7 +22,23 @@ def validate_resdrive_identifier(drive_id: str) -> str:
 ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 
-@app.get("/resdrive")
+
+# TODO: should this also accept the manifest?
+@app.post(ENDPOINT_PREFIX + "/resdriveinfo")
+def set_drive_info(drive_id: ResearchDriveID, ro_crate_metadata: dict[str, Any]) -> dict[str, str]:
+    return {
+        "message": f"Received RO-Crate metadata for {drive_id}.",
+    }
+
+# TODO: should this accept manifest updates?
+@app.put(ENDPOINT_PREFIX + "/resdriveinfo")
+def append_drive_info(drive_id: ResearchDriveID, ro_crate_metadata: dict[str, str]) -> dict[str, str]:
+    return {
+        "message": f"Received additional RO-Crate metadata for {drive_id}.",
+    }
+
+
+@app.get(ENDPOINT_PREFIX + "/resdriveinfo")
 def get_drive_info(drive_id: ResearchDriveID) -> dict[str, str]:
     return {
         "drive_id": drive_id,
