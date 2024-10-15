@@ -19,3 +19,13 @@ coverage = "^7.6.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+files = [
+       "src/**/*.py"
+	  ]
+ignore_missing_imports = true
+exclude = [
+       "^tests/.*$"
+       ]
+strict = true
