@@ -26,7 +26,7 @@ ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 
 @app.post(ENDPOINT_PREFIX + "/resdriveinfo")
-def set_drive_info(
+async def set_drive_info(
     drive_id: ResearchDriveID, ro_crate_metadata: dict[str, Any]
 ) -> dict[str, str]:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
@@ -37,7 +37,7 @@ def set_drive_info(
 
 
 @app.put(ENDPOINT_PREFIX + "/resdriveinfo")
-def append_drive_info(
+async def append_drive_info(
     drive_id: ResearchDriveID, ro_crate_metadata: dict[str, str]
 ) -> dict[str, str]:
     """Submit additional RO-Crate metadata. NOTE: this may need to accept manifest deltas too."""
@@ -48,7 +48,7 @@ def append_drive_info(
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo")
-def get_drive_info(drive_id: ResearchDriveID) -> dict[str, str]:
+async def get_drive_info(drive_id: ResearchDriveID) -> dict[str, str]:
     """Retrieve information about the specified Research Drive."""
     return {
         "drive_id": drive_id,
