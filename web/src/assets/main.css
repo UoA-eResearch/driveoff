@@ -1,0 +1,106 @@
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities; */
+
+/*UoA official fonts.*/
+@import url(btn.css);
+@import url(text.css);
+
+@font-face {
+  font-family: 'NationalBold';
+  font-weight: bold;
+  src: url("../uoa//NationalWeb-Bold.eot");
+  src: url("../uoa//NationalWeb-Bold.woff2") format("woff2"), url("../uoa//NationalWeb-Bold.woff") format("woff")
+}
+
+@font-face {
+  font-family: 'NationalBoldItalic';
+  font-weight: bold;
+  font-style: italic;
+  src: url("../uoa//NationalWeb-BoldItalic.eot");
+  src: url("../uoa//NationalWeb-BoldItalic.woff2") format("woff2"), url("../uoa//NationalWeb-BoldItalic.woff") format("woff")
+}
+
+@font-face {
+  font-family: 'NationalBook';
+  src: url("../uoa//NationalWeb-Book.eot");
+  src: url("../uoa//NationalWeb-Book.woff2") format("woff2"), url("../uoa//NationalWeb-Book.woff") format("woff")
+}
+
+@font-face {
+  font-family: 'NationalBookItalic';
+  font-style: italic;
+  src: url("../uoa//NationalWeb-BookItalic.eot");
+  src: url("../uoa//NationalWeb-BookItalic.woff2") format("woff2"), url("../uoa//NationalWeb-BookItalic.woff") format("woff")
+}
+
+body {
+  padding: 0 1rem;
+  margin: 0 auto;
+  width: 100%;
+  font-family: NationalBook;
+  font-weight: 400;
+  font-size: 18px;
+  color: rgb(74, 76, 76);
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+p:last-of-type {
+  margin-bottom: 0;
+}
+
+a {
+  color: rgb(0, 70, 127);
+  text-decoration: underline;
+}
+
+ul {
+  margin: 0.5rem 0;
+}
+
+li {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+}
+
+strong {
+  font-family: NationalBold, sans-serif;
+}
+
+.h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-family: NationalBold, sans-serif;
+}
+
+
+@media (min-width: 34em) {
+  body {
+    max-width: 34rem;
+  }
+}
+
+@media (min-width: 48em) {
+  body {
+    max-width: 44rem;
+  }
+}
+
+@media(min-width: 62em) {
+  body {
+    max-width: 52rem;
+  }
+}
+
+@media(min-width: 75em) {
+  body {
+    max-width: 64rem;
+  }
+}
+
+.forward-btn {
+  margin: 2rem 0;
+}
