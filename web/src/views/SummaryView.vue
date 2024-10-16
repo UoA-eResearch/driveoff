@@ -1,4 +1,4 @@
-<script lang="ts">
+<script setup lang="ts">
 import { RouterLink } from 'vue-router';
 
 </script>
@@ -10,42 +10,6 @@ import { RouterLink } from 'vue-router';
         <section class="drive-details-card">
             <h3 class="drive-name">reslig-202200001-Tītoki-metabolomics</h3>
             <p class="storage-size">5120GB</p>
-            <!-- <table>
-                <tbody>
-                    <tr>
-                        <td>
-                            Capacity
-                        </td>
-                        <td>
-                            5120GB
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            For project
-                        </td>
-                        <td>
-                            Tītoki metabolomics
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            Project owners
-                        </td>
-                        <td>
-                            Samina Nicholas
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            Ended on
-                        </td>
-                        <td>
-                            31 January 2025
-                        </td>
-                    </tr>
-                </tbody>
-            </table> -->
             <a href="#" class="btn-link">See files in drive...</a>
         </section>
         <form>

@@ -11,7 +11,7 @@
             </tr>
             <tr>
                 <td>Project description</td>
-                <td> Tītoki (Piper excelsum) is an endemic New Zealand plant with a long history of cultural and medicinal use amongst Mori. Tītoki aqueous extracts are reported to contain a significant number of chemical compounds of different class. Some of these have been reported to influence nutrient uptake and other physiological activities such as inflammation and related pathways. However, not much is known about the possible toxicity and biological activity of its metabolites in humans. We have performed clinical studies to investigate the Bioavailability of kawakawa metabolites and the mechanisms of human metabolism upon ingestion of kawakawa tea. Metabolomic analysis of tea, urine, and plasma was performed using Orbitrap-LC-MS/MS analysis. Data analysis was carried out to interpret the mass spectrometric data. </td>
+                <td> Stress in plants could be defined as any change in growth condition(s) that disrupts metabolic homeostasis and requires an adjustment of metabolic pathways in a process that is usually referred to as acclimation. Metabolomics could contribute significantly to the study of stress biology in plants and other organisms by identifying different compounds, such as by-products of stress metabolism, stress signal transduction molecules or molecules that are part of the acclimation response of plants. </td>
                 <td><a href="#" class="btn-link">Change</a></td>
             </tr>
             <tr>
