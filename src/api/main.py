@@ -3,8 +3,10 @@
 import re
 from typing import Annotated, Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Security
 from pydantic.functional_validators import AfterValidator
+
+from api.security import ApiKey, validate_api_key, validate_permissions
 
 app = FastAPI()
 
@@ -27,9 +29,14 @@ ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 @app.post(ENDPOINT_PREFIX + "/resdriveinfo")
 async def set_drive_info(
-    drive_id: ResearchDriveID, ro_crate_metadata: dict[str, Any]
+    drive_id: ResearchDriveID,
+    ro_crate_metadata: dict[str, Any],
+    api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
+
+    validate_permissions("POST", api_key)
+
     _ = ro_crate_metadata
     return {
         "message": f"Received RO-Crate metadata for {drive_id}.",
@@ -38,9 +45,14 @@ async def set_drive_info(
 
 @app.put(ENDPOINT_PREFIX + "/resdriveinfo")
 async def append_drive_info(
-    drive_id: ResearchDriveID, ro_crate_metadata: dict[str, str]
+    drive_id: ResearchDriveID,
+    ro_crate_metadata: dict[str, str],
+    api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
     """Submit additional RO-Crate metadata. NOTE: this may need to accept manifest deltas too."""
+
+    validate_permissions("PUT", api_key)
+
     _ = ro_crate_metadata
     return {
         "message": f"Received additional RO-Crate metadata for {drive_id}.",
@@ -48,8 +60,14 @@ async def append_drive_info(
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo")
-async def get_drive_info(drive_id: ResearchDriveID) -> dict[str, str]:
+async def get_drive_info(
+    drive_id: ResearchDriveID,
+    api_key: ApiKey = Security(validate_api_key),
+) -> dict[str, str]:
     """Retrieve information about the specified Research Drive."""
+
+    validate_permissions("GET", api_key)
+
     return {
         "drive_id": drive_id,
         "ro_crate": "TODO: Make RO-Crate",
