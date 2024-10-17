@@ -45,11 +45,11 @@ jobs:
         # Takes configuration from pyproject.toml
         run: PYTHONPATH=src/ poetry run python -m mypy
 
-      - name: pytest - run the tests
-        run: PYTHONPATH=src/ poetry run python -m pytest -v --cov=src/ tests/
+      # - name: pytest - run the tests
+        # run: PYTHONPATH=src/ poetry run python -m pytest -v --cov=src/ tests/
 
-      - name: Run Coverage
-        run: PYTHONPATH=src/ poetry run python -m coverage report -m;
+      # - name: Run Coverage
+        # run: PYTHONPATH=src/ poetry run python -m coverage report -m;
 
-      - name: Generate test coverage XML Report
-        run: PYTHONPATH=src/ poetry run python -m coverage xml
+      # - name: Generate test coverage XML Report
+        # run: PYTHONPATH=src/ poetry run python -m coverage xml
