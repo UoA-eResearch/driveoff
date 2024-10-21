@@ -13,6 +13,10 @@ _api_key_query = APIKeyQuery(name="api-key", auto_error=False)
 _api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
 
 
+# Ideally set this in main module and inject
+API_KEY_PATH = Path.home() / ".driveoff" / "api_keys.json"
+
+
 class ApiKey(BaseModel):
     """Container for an API key and its metadata (access-level)"""
 
@@ -26,7 +30,7 @@ class KeyList(BaseModel):
     keys: list[ApiKey]
 
 
-def read_api_keys(path: Path = Path(".") / ".api_keys.json") -> dict[str, ApiKey]:
+def read_api_keys(path: Path = API_KEY_PATH) -> dict[str, ApiKey]:
     """Read a set of API keys from a JSON file."""
 
     if not path.is_file() or not path.suffix == ".json":
