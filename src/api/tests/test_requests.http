@@ -1,0 +1,31 @@
+
+# Test requests for the driveoff webserver
+#
+# Intended to be used with the VS Code "REST Client" extension, which defines the syntax used here.
+#
+# NOTE: need to set an environment variable with your API key.
+# Add something like this to VS Code's settings.json:
+#
+# "rest-client.environmentVariables": {
+#     "$shared": {
+#          "api_key": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+#     },
+# }
+#
+
+@server_url = https://driveoff-server.uoamytardistest.cloud.edu.au
+@drive_id = ressci202200056-MUSIC-data-ingestion
+
+###
+
+GET {{server_url}}/api/v1/resdriveinfo
+    ?drive_id={{drive_id}}
+    &api-key={{api_key}}
+
+###
+
+GET {{server_url}}/api/v1/resdriveinfo
+    ?drive_id={{drive_id}}
+x-api-key: {{api_key}}
+
+###
