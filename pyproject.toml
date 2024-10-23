@@ -6,6 +6,7 @@ authors = ["Chris Seal <c.seal@auckland.ac.nz>", "Noel Zeng", "Libby Li", "James
 readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
+fastapi = {extras = ["standard"], version = "^0.115.0"}
 
 
 [tool.poetry.group.dev.dependencies]
