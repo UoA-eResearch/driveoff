@@ -1,14 +1,42 @@
 """Definition of endpoints/routers for the webserver."""
 
 import re
-from typing import Annotated, Any
+from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, Security
+from fastapi import Depends, FastAPI, Security
 from pydantic.functional_validators import AfterValidator
+from sqlmodel import Session, SQLModel, create_engine
 
 from api.security import ApiKey, validate_api_key, validate_permissions
+from models.project import Project
 
-app = FastAPI()
+db_file_name = "database.db"
+db_url = f"sqlite:///{db_file_name}"
+
+connect_args = {"check_same_thread": False}
+engine = create_engine(db_url, connect_args=connect_args)
+
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
+SessionDep = Annotated[Session, Depends(get_session)]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 RESEARCH_DRIVE_REGEX = re.compile(r"res[a-z]{3}[0-9]{9}-[a-zA-Z0-9-_]+")
@@ -29,18 +57,16 @@ ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 @app.post(ENDPOINT_PREFIX + "/resdriveinfo")
 async def set_drive_info(
-    drive_id: ResearchDriveID,
-    ro_crate_metadata: dict[str, Any],
+    project_archive: Project,
+    # session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> dict[str, str]:
+) -> Project:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
-
     validate_permissions("POST", api_key)
-
-    _ = ro_crate_metadata
-    return {
-        "message": f"Received RO-Crate metadata for {drive_id}.",
-    }
+    # session.add(project_archive)
+    # session.commit()
+    # session.refresh(project_archive)
+    return project_archive
 
 
 @app.put(ENDPOINT_PREFIX + "/resdriveinfo")
