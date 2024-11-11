@@ -9,7 +9,8 @@ from pydantic.functional_validators import AfterValidator
 from sqlmodel import Session, SQLModel, create_engine
 
 from api.security import ApiKey, validate_api_key, validate_permissions
-from models.project import Project
+from models.person import Person
+from models.project import InputProject, Project
 
 db_file_name = "database.db"
 db_url = f"sqlite:///{db_file_name}"
@@ -57,16 +58,34 @@ ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 @app.post(ENDPOINT_PREFIX + "/resdriveinfo")
 async def set_drive_info(
-    project_archive: Project,
+    project: InputProject,
     # session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
 ) -> Project:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
     validate_permissions("POST", api_key)
-    # session.add(project_archive)
-    # session.commit()
-    # session.refresh(project_archive)
-    return project_archive
+    stored_people = []
+    for member in project.members:
+        # print("Username is ", member.identities.items[0]["username"])
+        stored_people.append(
+            Person(
+                email=member.email,
+                full_name=member.full_name,
+                username=member.identities.items[0].username,
+            )
+        )
+    stored_codes = [code_item.code for code_item in project.codes]
+    stored_project = Project(
+        title=project.title,
+        description=project.description,
+        division=project.division,
+        start_date=project.start_date,
+        end_date=project.end_date,
+        members=stored_people,
+        codes=stored_codes,
+        services=project.services,
+    )
+    return stored_project
 
 
 @app.put(ENDPOINT_PREFIX + "/resdriveinfo")

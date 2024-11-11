@@ -1,10 +1,10 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from sqlmodel import SQLModel
 
 
-class ResearchDriveService(BaseModel):
+class ResearchDriveService(SQLModel):
     """Object describing a research drive service."""
 
     allocated_gb: float
@@ -18,7 +18,7 @@ class ResearchDriveService(BaseModel):
     used_gb: float
 
 
-class Services(BaseModel):
+class Services(SQLModel):
     """Object describing relevant storage services."""
 
     research_drive: list[ResearchDriveService]
