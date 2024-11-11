@@ -8,7 +8,6 @@ readme = "README.md"
 python = "^3.11"
 fastapi = {extras = ["standard"], version = "^0.115.0"}
 
-
 [tool.poetry.group.dev.dependencies]
 isort = "^5.13.2"
 black = "^24.10.0"
@@ -16,6 +15,9 @@ pylint = "^3.3.1"
 pytest = "^8.3.3"
 mypy = "^1.11.2"
 coverage = "^7.6.1"
+ceradmin_cli = { git = "https://github.com/LibbyLi667/ceradmin_cli.git", branch = "project_query_rocrate" }
+ceradmin_common = {git = "https://github.com/UoA-eResearch/ceradmin_common.git", branch = "master"}
+humanfriendly = "^10.0"
 
 [build-system]
 requires = ["poetry-core"]

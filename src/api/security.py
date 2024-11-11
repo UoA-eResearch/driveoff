@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader, APIKeyQuery
 from pydantic import BaseModel
+from config.config import settings
 
 HttpAction = Literal["GET", "POST", "PUT"]
 
@@ -60,6 +61,10 @@ def validate_api_key(
     Raises:
         HTTPException: If the API key is invalid or missing.
     """
+    if settings.environment != "production":
+        # Return a mock API key in development mode to bypass validation
+        return ApiKey(value="dev_key", actions=["GET", "POST", "PUT"])
+    
     if key_info := api_keys.get(api_key_query):
         return key_info
     if key_info := api_keys.get(api_key_header):
