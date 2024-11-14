@@ -56,5 +56,7 @@ class Project(BaseProject, table=True):
     codes: list[Code] = Relationship(link_model=ProjectCodeLink)
     services: Services = Relationship()
     members: list["Member"] = Relationship(
-        back_populates="project", cascade_delete=True
+        # cascade_delete enabled so session.merge() works for project save.
+        back_populates="project",
+        cascade_delete=True,
     )
