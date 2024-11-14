@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class Code(SQLModel, table=True):
-    """Input model for project codes."""
+    """Model for project codes."""
 
     id: Optional[int] = Field(primary_key=True)
     code: str

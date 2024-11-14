@@ -4,13 +4,14 @@ from sqlmodel import Field, SQLModel
 
 
 class Role(SQLModel, table=True):
-    """Project"""
+    """Project roles for people."""
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
 
 
 def prepopulate_roles() -> list[Role]:
+    """Returns fixtures for known roles in the CeR database."""
     return [
         Role(id=9, name="CeR Contact"),
         Role(id=4, name="Contact Person"),
