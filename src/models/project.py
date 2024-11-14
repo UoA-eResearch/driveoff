@@ -8,6 +8,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from models.person import InputPerson
 from models.services import InputServices, Services
 
+# Only import Member during typechecking to prevent circular dependency error.
 if TYPE_CHECKING:
     from models.member import Member
 
