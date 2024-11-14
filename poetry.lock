@@ -286,9 +286,9 @@ sh = "*"
 
 [package.source]
 type = "git"
-url = "https://github.com/UoA-eResearch/ceradmin_cli.git"
-reference = "master"
-resolved_reference = "c4d446828df32b08c589744f390b3aedf8af8630"
+url = "https://github.com/LibbyLi667/ceradmin_cli.git"
+reference = "project_query_rocrate"
+resolved_reference = "c9b960a23c888245b6477422711263447876d5b1"
 
 [[package]]
 name = "ceradmin_common"
@@ -3022,6 +3022,26 @@ files = [
 typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
+name = "pydantic-settings"
+version = "2.6.1"
+description = "Settings management using Pydantic"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "pydantic_settings-2.6.1-py3-none-any.whl", hash = "sha256:7fb0637c786a558d3103436278a7c4f1cfd29ba8973238a50c5bb9a55387da87"},
+    {file = "pydantic_settings-2.6.1.tar.gz", hash = "sha256:e0f92546d8a9923cb8941689abf85d6601a8c19a23e97a34b2964a2e3f813ca0"},
+]
+
+[package.dependencies]
+pydantic = ">=2.7.0"
+python-dotenv = ">=0.21.0"
+
+[package.extras]
+azure-key-vault = ["azure-identity (>=1.16.0)", "azure-keyvault-secrets (>=4.8.0)"]
+toml = ["tomli (>=2.0.1)"]
+yaml = ["pyyaml (>=6.0.1)"]
+
+[[package]]
 name = "pyflakes"
 version = "3.1.0"
 description = "passive checker of Python programs"
@@ -5002,4 +5022,4 @@ test = ["gevent (>=20.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "ea60951d4589427cee9181a9b26c2d0321e56c65ef0d9cb52834600fb8aa0683"
+content-hash = "e2bbed958607bf73c6e48ea6fa16fd0ef6c2b40fa9d3b6ba8d632a543a27ba9b"

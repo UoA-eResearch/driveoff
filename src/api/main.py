@@ -7,7 +7,6 @@ from fastapi import FastAPI, Security
 from pydantic.functional_validators import AfterValidator
 
 from api.security import ApiKey, validate_api_key, validate_permissions
-from helper.ro_crate import transform_ro_crate_metadata
 from config.config import settings
 
 app = FastAPI()
@@ -28,7 +27,6 @@ def validate_resdrive_identifier(drive_id: str) -> str:
 # Annotate ResearchDriveID type to validate
 ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
-
 @app.post(ENDPOINT_PREFIX + "/resdriveinfo")
 async def set_drive_info(
     drive_id: ResearchDriveID,
@@ -36,16 +34,11 @@ async def set_drive_info(
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
-    # Check if we're in production and validate permissions
-    if settings.environment == "production":
-        validate_permissions("POST", api_key)
-    # Process the metadata
-    transformed_data = transform_ro_crate_metadata(ro_crate_metadata)
-
+    validate_permissions("POST", api_key)
     _ = ro_crate_metadata
     return {
         "message": f"Received RO-Crate metadata for {drive_id}.",
-        "data": transformed_data,
+        "data": ro_crate_metadata,
     }
 
 

@@ -1,5 +1,4 @@
-import os
-from dotenv import load_dotenv
+# Fetch project information and post it to an API endpoint.
 import json
 import requests
 from argparse import ArgumentParser, Namespace
@@ -7,14 +6,10 @@ from ceradmin_cli.api_client import eresearch_project
 from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from ceradmin_cli.command.role import ListRoleAssignmentRoCrate
 from ceradmin_cli.utils import get_dict_properties_rocrate, resource_id_parenthesized
-
-# Load environment variables from .env file
-load_dotenv()
-API_URL = os.getenv("API_URL")
-API_KEY = os.getenv("API_KEY")
+from config.config import settings
 
 class ProjectInfoHandler:
-    """Fetch project information and save it to a JSON file."""
+    """Fetch project information from project database and save it to a JSON file."""
     def __init__(self, environment: str='test') -> None:
         # Initialize the API client
         self.api_client = ProjectDBApi.from_config(environment=environment)
@@ -53,13 +48,13 @@ class ProjectInfoHandler:
     def transform_data(self, data: dict) -> dict:
         """Transform and filter data as needed"""
         data['codes'] = [
-            {"code": code['code'], "href": code['href'], "id": code['id']}
-            for code in data['codes']['items']
+            {"code": code.get('code'), "href": code.get('href'), "id": code.get('id')}
+            for code in data.get('codes', {}).get('items', [])
         ]
-        for member in data["members"]:
-            member["person.identities"]["items"] = [
-                item for item in member["person.identities"]["items"]
-                if not item["username"].endswith("@auckland.ac.nz")
+        for member in data.get("members", []):
+            member.get("person.identities", {})["items"] = [
+                item for item in member.get("person.identities", {}).get("items", [])
+                if not item.get("username", "").endswith("@auckland.ac.nz")
             ]
         return data
 
@@ -74,12 +69,11 @@ class ProjectInfoHandler:
         data = self.get_project_data(args.pid)
         data['members'] = self.fetch_member_data(args.pid)
         transformed_data = self.transform_data(data)
-        
         # Save the transformed data to a file
-        self.save_data_to_file(transformed_data, args.pid)
-        
+        #self.save_data_to_file(transformed_data, args.pid)
         return transformed_data
 
+    """
     @staticmethod
     def post_data(data: dict, url: str, headers=None, params=None) -> dict:
         """Posts JSON data to the specified API endpoint."""
@@ -91,20 +85,32 @@ class ProjectInfoHandler:
         except requests.exceptions.RequestException as e:
             print(f"An error occurred during the POST request: {e}")
             return None
-
+    """
 # Run the main functionality if executed directly
 if __name__ == "__main__":
     handler = ProjectInfoHandler()
     data = handler.run()  # Run and get transformed data
 
+    """
     # Define headers and parameters if POST is needed
     headers = {
         'Content-Type': 'application/json',
-        'x-api-key': API_KEY
+        'x-api-key': settings.api_key
     }
-    params = {"drive_id": data['services']['research_drive']['name']}
-
-    # Optional: Post the data if required
-    response = ProjectInfoHandler.post_data(data, API_URL, headers=headers, params=params)
-    if response:
-        print("API responded with:", response)
+    # Check if 'services' key exists in the data
+    if isinstance(data['services']['research_drive'], list) and len(data['services']['research_drive']) > 0:
+        # Loop through each dictionary in the 'research_drive' list
+        for drive in data['services']['research_drive']:
+            # Check if 'name' key exists in each dictionary
+            if 'name' in drive:
+                # Process each drive as needed, for example, by setting up params
+                params = {"drive_id": drive['name']}
+                print(f"Processing drive with ID: {params['drive_id']}")
+                print(settings.api_url,settings.api_key)
+                response = ProjectInfoHandler.post_data(data, settings.api_url, headers={'Content-Type': 'application/json', 'x-api-key': settings.api_key}, params=params)
+                response.raise_for_status()
+                if response:
+                    print(f"POST succeeded for drive ID {params['drive_id']}:", response)
+                else:
+                    print(f"POST failed for drive ID {params['drive_id']}")
+    """

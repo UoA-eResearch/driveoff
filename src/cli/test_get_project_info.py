@@ -81,6 +81,7 @@ with patch("requests.post") as mock_post:
 """
 
 # Define the URL
+"""
 url = "http://localhost:8000"
 headers = {'Content-Type': 'application/json',
         'x-api-key': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}
@@ -99,4 +100,3 @@ except requests.exceptions.RequestException as e:
 """
 with open(f"project_data_{args.pid}.json", 'w') as json_file:
     json.dump(data, json_file, indent=4)
-"""
