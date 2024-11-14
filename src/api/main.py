@@ -74,50 +74,45 @@ ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 @app.post(ENDPOINT_PREFIX + "/resdriveinfo", response_model=Project)
 async def set_drive_info(
-    project: InputProject,
+    input_project: InputProject,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
 ) -> Project:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
     validate_permissions("POST", api_key)
-    stored_project = Project(
-        id=project.id,
-        title=project.title,
-        description=project.description,
-        division=project.division,
-        start_date=project.start_date,
-        end_date=project.end_date,
-        codes=project.codes,
+    project = Project(
+        id=input_project.id,
+        title=input_project.title,
+        description=input_project.description,
+        division=input_project.division,
+        start_date=input_project.start_date,
+        end_date=input_project.end_date,
+        codes=input_project.codes,
     )
     # Break up role and person information.
-    stored_members: list[Member] = []
-    for member in project.members:
-        # logger.debug("Looking up role for member %s", member.full_name)
-        role_stmt = select(Role).where(Role.id == member.role.id)
-        result = session.exec(role_stmt)
-        role = list(result)[0]
-
+    members: list[Member] = []
+    for input_member in input_project.members:
         person = Person(
-            id=member.id,
-            email=member.email,
-            full_name=member.full_name,
-            username=member.identities.items[0].username,
+            id=input_member.id,
+            email=input_member.email,
+            full_name=input_member.full_name,
+            username=input_member.identities.items[0].username,
         )
-        stored_member = Member(project=stored_project, person=person, role=role)
-        stored_members.append(stored_member)
+        member = Member(project=project, person=person, role_id=input_member.role.id)
+        members.append(member)
     # Add the drive info into services.
     drives = [
         ResearchDriveService.model_validate(drive)
-        for drive in project.services.research_drive
+        for drive in input_project.services.research_drive
     ]
     stored_services = Services(research_drive=drives)
     # Add the validated services and members into the project
-    stored_project.services = stored_services
-    stored_project.members = stored_members
+    project.services = stored_services
+    project.members = members
     # Upsert the project.
-    session.merge(stored_project)
+    session.merge(project)
     session.commit()
-    return stored_project
+    return project
 
 
 @app.put(ENDPOINT_PREFIX + "/resdriveinfo")
@@ -139,6 +134,7 @@ async def append_drive_info(
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo")
 async def get_drive_info(
     drive_id: ResearchDriveID,
+    # session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
     """Retrieve information about the specified Research Drive."""
