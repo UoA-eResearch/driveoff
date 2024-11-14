@@ -1,3 +1,5 @@
+"""Data models representing people and their identities."""
+
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
@@ -6,6 +8,8 @@ from models.role import Role
 
 
 class InputIdentity(SQLModel):
+    """Data class for the identity list in POST request."""
+
     username: str
 
 

@@ -1,3 +1,5 @@
+"""Data model and code representing project roles."""
+
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
