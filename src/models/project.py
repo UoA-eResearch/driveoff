@@ -1,3 +1,5 @@
+"""Data models representing projects."""
+
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 

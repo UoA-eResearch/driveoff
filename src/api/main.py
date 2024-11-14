@@ -1,28 +1,27 @@
 """Definition of endpoints/routers for the webserver."""
 
-import logging
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, Security
 from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine
 
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.member import Member
 from models.person import Person
 from models.project import InputProject, Project
-from models.role import Role, prepopulate_roles
+from models.role import prepopulate_roles
 from models.services import ResearchDriveService, Services
 
 DB_FILE_NAME = Path.home() / ".driveoff" / "database.db"
-db_url = f"sqlite:///{DB_FILE_NAME}"
+DB_URL = f"sqlite:///{DB_FILE_NAME}"
 
 connect_args = {"check_same_thread": False}
-engine = create_engine(db_url, connect_args=connect_args, echo=True)
+engine = create_engine(DB_URL, connect_args=connect_args, echo=True)
 
 
 def create_db_and_tables():
@@ -72,7 +71,7 @@ def validate_resdrive_identifier(drive_id: str) -> str:
 ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 
-@app.post(ENDPOINT_PREFIX + "/resdriveinfo", response_model=Project)
+@app.post(ENDPOINT_PREFIX + "/resdriveinfo")
 async def set_drive_info(
     input_project: InputProject,
     session: SessionDep,

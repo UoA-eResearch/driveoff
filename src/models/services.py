@@ -1,3 +1,5 @@
+"""Data models representing CeR services."""
+
 from datetime import datetime
 from typing import Optional
 

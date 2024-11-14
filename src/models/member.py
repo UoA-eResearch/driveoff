@@ -1,3 +1,5 @@
+"""Data models representing project members - person in a project and their role."""
+
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.person import Person
