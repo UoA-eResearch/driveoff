@@ -1,29 +1,46 @@
 """Definition of endpoints/routers for the webserver."""
 
+import logging
 import re
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Security
+from fastapi import Depends, FastAPI, HTTPException, Security
 from pydantic.functional_validators import AfterValidator
-from sqlmodel import Session, SQLModel, create_engine
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.security import ApiKey, validate_api_key, validate_permissions
+from models.member import Member
 from models.person import Person
 from models.project import InputProject, Project
+from models.role import Role, prepopulate_roles
+from models.services import ResearchDriveService, Services
 
-db_file_name = "database.db"
-db_url = f"sqlite:///{db_file_name}"
+logger = logging.getLogger(__name__)
+
+DB_FILE_NAME = Path.home() / ".driveoff" / "database.db"
+db_url = f"sqlite:///{DB_FILE_NAME}"
 
 connect_args = {"check_same_thread": False}
 engine = create_engine(db_url, connect_args=connect_args)
 
 
 def create_db_and_tables():
+    """Create database structure and pre-populate with fixtures."""
     SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        roles = prepopulate_roles()
+        session.add_all(roles)
+        try:
+            session.commit()
+        except IntegrityError:
+            pass  # Roles already inserted, skip.
 
 
 def get_session():
+    """Return a Session object."""
     with Session(engine) as session:
         yield session
 
@@ -32,7 +49,8 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_):
+    """Lifecycle method for the API"""
     create_db_and_tables()
     yield
 
@@ -56,35 +74,54 @@ def validate_resdrive_identifier(drive_id: str) -> str:
 ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
 
 
-@app.post(ENDPOINT_PREFIX + "/resdriveinfo")
+@app.post(ENDPOINT_PREFIX + "/resdriveinfo", response_model=Project)
 async def set_drive_info(
     project: InputProject,
-    # session: SessionDep,
+    session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
 ) -> Project:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
     validate_permissions("POST", api_key)
-    stored_people = []
-    for member in project.members:
-        # print("Username is ", member.identities.items[0]["username"])
-        stored_people.append(
-            Person(
-                email=member.email,
-                full_name=member.full_name,
-                username=member.identities.items[0].username,
-            )
-        )
-    stored_codes = [code_item.code for code_item in project.codes]
     stored_project = Project(
+        id=project.id,
         title=project.title,
         description=project.description,
         division=project.division,
         start_date=project.start_date,
         end_date=project.end_date,
-        members=stored_people,
-        codes=stored_codes,
-        services=project.services,
+        codes=project.codes,
     )
+    # Break up role and person information.
+    stored_members: list[Member] = []
+    for member in project.members:
+        logger.debug("Looking up role for member %s", member.full_name)
+        role_stmt = select(Role).where(Role.id == member.role.id)
+        result = session.exec(role_stmt)
+        role = list(result)[0]
+
+        person = Person(
+            id=member.id,
+            email=member.email,
+            full_name=member.full_name,
+            username=member.identities.items[0].username,
+        )
+        stored_member = Member(project=stored_project, person=person, role=role)
+        stored_members.append(stored_member)
+
+    drives = [
+        ResearchDriveService.model_validate(drive)
+        for drive in project.services.research_drive
+    ]
+    stored_services = Services(research_drive=drives)
+    stored_project.services = stored_services
+    session.add(stored_project)
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=422, detail="Duplicate project already exists"
+        ) from exc
+    session.refresh(stored_project)
     return stored_project
 
 
