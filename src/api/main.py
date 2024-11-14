@@ -3,7 +3,7 @@
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, AsyncGenerator, Iterable
 
 from fastapi import Depends, FastAPI, Security
 from pydantic.functional_validators import AfterValidator
@@ -24,7 +24,7 @@ connect_args = {"check_same_thread": False}
 engine = create_engine(DB_URL, connect_args=connect_args, echo=True)
 
 
-def create_db_and_tables():
+def create_db_and_tables() -> None:
     """Create database structure and pre-populate with fixtures."""
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
@@ -36,7 +36,7 @@ def create_db_and_tables():
             pass  # Roles already inserted, skip.
 
 
-def get_session():
+def get_session() -> Iterable[Session]:
     """Return a Session object."""
     with Session(engine) as session:
         yield session
@@ -46,7 +46,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @asynccontextmanager
-async def lifespan(_):
+async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle method for the API"""
     create_db_and_tables()
     yield
