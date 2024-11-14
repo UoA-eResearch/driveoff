@@ -52,4 +52,6 @@ class Project(BaseProject, table=True):
     services_id: int | None = Field(default=None, foreign_key="services.id")
     codes: list[Code] = Relationship(link_model=ProjectCodeLink)
     services: Services = Relationship()
-    members: list["Member"] = Relationship(back_populates="project")
+    members: list["Member"] = Relationship(
+        back_populates="project", cascade_delete=True
+    )
