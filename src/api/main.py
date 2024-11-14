@@ -18,13 +18,11 @@ from models.project import InputProject, Project
 from models.role import Role, prepopulate_roles
 from models.services import ResearchDriveService, Services
 
-logger = logging.getLogger(__name__)
-
 DB_FILE_NAME = Path.home() / ".driveoff" / "database.db"
 db_url = f"sqlite:///{DB_FILE_NAME}"
 
 connect_args = {"check_same_thread": False}
-engine = create_engine(db_url, connect_args=connect_args)
+engine = create_engine(db_url, connect_args=connect_args, echo=True)
 
 
 def create_db_and_tables():
@@ -94,7 +92,7 @@ async def set_drive_info(
     # Break up role and person information.
     stored_members: list[Member] = []
     for member in project.members:
-        logger.debug("Looking up role for member %s", member.full_name)
+        # logger.debug("Looking up role for member %s", member.full_name)
         role_stmt = select(Role).where(Role.id == member.role.id)
         result = session.exec(role_stmt)
         role = list(result)[0]
@@ -107,21 +105,18 @@ async def set_drive_info(
         )
         stored_member = Member(project=stored_project, person=person, role=role)
         stored_members.append(stored_member)
-
+    # Add the drive info into services.
     drives = [
         ResearchDriveService.model_validate(drive)
         for drive in project.services.research_drive
     ]
     stored_services = Services(research_drive=drives)
+    # Add the validated services and members into the project
     stored_project.services = stored_services
-    session.add(stored_project)
-    try:
-        session.commit()
-    except IntegrityError as exc:
-        raise HTTPException(
-            status_code=422, detail="Duplicate project already exists"
-        ) from exc
-    session.refresh(stored_project)
+    stored_project.members = stored_members
+    # Upsert the project.
+    session.merge(stored_project)
+    session.commit()
     return stored_project
 
 
