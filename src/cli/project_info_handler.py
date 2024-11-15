@@ -6,7 +6,6 @@ from ceradmin_cli.api_client import eresearch_project
 from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from ceradmin_cli.command.role import ListRoleAssignmentRoCrate
 from ceradmin_cli.utils import get_dict_properties_rocrate, resource_id_parenthesized
-from config.config import settings
 
 class ProjectInfoHandler:
     """Fetch project information from project database and save it to a JSON file."""
@@ -73,7 +72,6 @@ class ProjectInfoHandler:
         #self.save_data_to_file(transformed_data, args.pid)
         return transformed_data
 
-    """
     @staticmethod
     def post_data(data: dict, url: str, headers=None, params=None) -> dict:
         """Posts JSON data to the specified API endpoint."""
@@ -85,32 +83,29 @@ class ProjectInfoHandler:
         except requests.exceptions.RequestException as e:
             print(f"An error occurred during the POST request: {e}")
             return None
-    """
+    
 # Run the main functionality if executed directly
 if __name__ == "__main__":
     handler = ProjectInfoHandler()
     data = handler.run()  # Run and get transformed data
-
-    """
+    print(data)
+    
     # Define headers and parameters if POST is needed
-    headers = {
-        'Content-Type': 'application/json',
-        'x-api-key': settings.api_key
-    }
-    # Check if 'services' key exists in the data
-    if isinstance(data['services']['research_drive'], list) and len(data['services']['research_drive']) > 0:
-        # Loop through each dictionary in the 'research_drive' list
-        for drive in data['services']['research_drive']:
-            # Check if 'name' key exists in each dictionary
-            if 'name' in drive:
-                # Process each drive as needed, for example, by setting up params
-                params = {"drive_id": drive['name']}
-                print(f"Processing drive with ID: {params['drive_id']}")
-                print(settings.api_url,settings.api_key)
-                response = ProjectInfoHandler.post_data(data, settings.api_url, headers={'Content-Type': 'application/json', 'x-api-key': settings.api_key}, params=params)
-                response.raise_for_status()
-                if response:
-                    print(f"POST succeeded for drive ID {params['drive_id']}:", response)
-                else:
-                    print(f"POST failed for drive ID {params['drive_id']}")
-    """
+    # api_url = "http://localhost:8000"
+    # headers = {'Content-Type': 'application/json',
+    #         'x-api-key': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}
+
+    # # Check if 'services' key exists in the data
+    # if isinstance(data['services']['research_drive'], list) and len(data['services']['research_drive']) > 0:
+    #     # Loop through each dictionary in the 'research_drive' list
+    #     for drive in data['services']['research_drive']:
+    #         # Check if 'name' key exists in each dictionary
+    #         if 'name' in drive:
+    #             # Process each drive as needed, for example, by setting up params
+    #             params = {"drive_id": drive['name']}
+    #             print(f"Processing drive with ID: {params['drive_id']}")
+    #             response = ProjectInfoHandler.post_data(data, api_url, headers, params=params)
+    #             if response:
+    #                 print(f"POST succeeded for drive ID {params['drive_id']}:", response)
+    #             else:
+    #                 print(f"POST failed for drive ID {params['drive_id']}")
