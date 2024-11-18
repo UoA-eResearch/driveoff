@@ -17,6 +17,8 @@ from models.project import InputProject, Project
 from models.role import prepopulate_roles
 from models.services import ResearchDriveService, Services
 
+# Ensure driveoff directory is created
+(Path.home() / ".driveoff").mkdir(exist_ok=True)
 DB_FILE_NAME = Path.home() / ".driveoff" / "database.db"
 DB_URL = f"sqlite:///{DB_FILE_NAME}"
 
