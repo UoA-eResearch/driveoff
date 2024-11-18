@@ -29,3 +29,116 @@ GET {{server_url}}/api/v1/resdriveinfo
 x-api-key: {{api_key}}
 
 ###
+
+POST http://localhost:8000/api/v1/resdriveinfo
+    ?drive_id={{drive_id}}
+x-api-key: {{api_key}}
+
+{
+    "id": 383,
+    "title": "Monteith Research Art Archive",
+    "description": "<span>The works often explore the political dimensions of culture engaged in turmoil over land ownership, history and occupation. Her work traverses political movements, contemporary sports, culture and social activities. Alex\u2019s projects often take place in large-scale or extreme geographies. Her surfing-related projects connect museum spaces directly to local geography through participatory performance projects.<br><br></span>An archive of UofA funded visual art video, performance and photo work I have produced since in appointment in 2008. Bring together 2008 to 2014 archive already held on tape backup at UofA, with current research projects, to make the older work accessible to me for re-publishing, and to back-up currently exposed research created from 2014 to 2018.",
+    "division": "CAI",
+    "codes": [
+        {
+            "code": "cer00383",
+            "href": "/project/383/code/766",
+            "id": 766
+        },
+        {
+            "code": "rescai201800001",
+            "href": "/project/383/code/767",
+            "id": 767
+        }
+    ],
+    "status": {
+        "href": "/projectstatus/1",
+        "id": 1,
+        "name": "Open"
+    },
+    "start_date": "2018-04-09",
+    "end_date": "2023-04-09",
+    "next_review_date": "2023-04-09",
+    "last_modified": "2022-11-16T00:18:14Z",
+    "requirements": "",
+    "services": {
+        "dropbox": [],
+        "href": "/project/383/service",
+        "mytardis": [],
+        "nectar": [],
+        "research_drive": [
+            {
+                "allocated_gb": 25600.0,
+                "archived": 0,
+                "date": "2024-10-13",
+                "deleted": 0,
+                "first_day": "2018-04-09",
+                "free_gb": 24894.5,
+                "id": 138,
+                "last_day": null,
+                "name": "rescai201800001-MonteithResearchArt",
+                "num_files": 50102,
+                "percentage_used": 2.75578,
+                "project_code": "rescai201800001",
+                "used_gb": 705.479
+            }
+        ],
+        "uoaivm": [],
+        "vis": [],
+        "vm": []
+    },
+    "members": [
+        {
+            "id": 1421,
+            "person.email": "al.monteith@auckland.ac.nz",
+            "person.full_name": "Alex Monteith",
+            "person.identities": {
+                "href": "/person/120/identity",
+                "items": [
+                    {
+                        "href": "/person/120/identity/235",
+                        "id": 235,
+                        "username": "amon011"
+                    }
+                ]
+            },
+            "person.status": {
+                "href": "/personstatus/1",
+                "id": 1,
+                "name": "Active"
+            },
+            "role": {
+                "href": "/personrole/1",
+                "id": 1,
+                "name": "Project Owner"
+            },
+            "notes": ""
+        },
+        {
+            "id": 1420,
+            "person.email": "y.wharton@auckland.ac.nz",
+            "person.full_name": "Yvette Wharton",
+            "person.identities": {
+                "href": "/person/12/identity",
+                "items": [
+                    {
+                        "href": "/person/12/identity/20",
+                        "id": 20,
+                        "username": "ywha001"
+                    }
+                ]
+            },
+            "person.status": {
+                "href": "/personstatus/1",
+                "id": 1,
+                "name": "Active"
+            },
+            "role": {
+                "href": "/personrole/7",
+                "id": 7,
+                "name": "Primary Adviser"
+            },
+            "notes": ""
+        }
+    ]
+}
