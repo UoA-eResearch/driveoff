@@ -1,7 +1,9 @@
 <template>
     <h1 class="app-title">Archive your research drive</h1>
-    <h2 class="page-title">Check your answers before sending your request</h2>
-    <h3>Project details</h3>
+    <div class="title-section">
+        <h2 class="page-title">Check your answers before sending your request</h2>
+    </div>
+        <h3 class="h2">Project details</h3>
     <table>
         <colgroup>
         <col class="part-name-col" />
@@ -37,7 +39,7 @@
         </tbody>
     </table>
 
-    <h3>Archive details</h3>
+    <h3 class="h2">Archive details</h3>
     <table>
         <colgroup>
         <col class="part-name-col" />
@@ -57,7 +59,7 @@
             </tr>
         </tbody>
     </table>
-    <h3>Send this request</h3>
+    <h3 class="h2">Send this request</h3>
     By sending this request you are confirming that the details are correct and you wish to archive this drive.
     <section class="forward-btn">
             <RouterLink to="/finish" class="btn btn-primary">Submit</RouterLink>
@@ -88,13 +90,6 @@ table {
     width: 100%;
     margin-bottom: 2rem;
     table-layout: fixed;;
-}
-
-h3 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-    font-family: NationalBold, sans-serif;
-
 }
 
 .part-name-col {

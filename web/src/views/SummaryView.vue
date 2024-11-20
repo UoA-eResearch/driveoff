@@ -1,25 +1,58 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router';
+import { useRouter } from 'vue-router';
+import { ref } from 'vue';
+
+const DOCUMENT_TITLE = "Confirm research drive - Archive your research drive"; 
+document.title = DOCUMENT_TITLE;
+
+const isCorrectDrive = ref();
+const error = ref("");
+
+const router = useRouter();
+
+function tryContinue() {
+    if (isCorrectDrive.value === undefined){
+        document.title = "Error: " + DOCUMENT_TITLE;
+        error.value = "Select Yes if this is research drive you wanted to archive."
+    } else {
+        if (isCorrectDrive.value) {
+            router.push("/check-details");
+        } else {
+            router.push("/")
+        }
+    }
+}
 
 </script>
 
 <template>
     <main>
         <h1 class="app-title">Archive your research drive</h1>
-        <h2 class="page-title">Is this the drive you want to archive?</h2>
-        <section class="drive-details-card">
+        <section :class="{ error : error }">
+            <div class="title-section">
+                <h2 class="page-title">Is this the drive you want to archive?</h2>
+                <p v-if="error" class="error-msg">{{ error }}</p>
+            </div>
+        <section class="drive-details-card box">
             <h3 class="drive-name">reslig-202200001-Tītoki-metabolomics</h3>
             <p class="storage-size">5120GB</p>
             <a href="#" class="btn-link">See files in drive...</a>
         </section>
-        <form>
-            <input name="confirm-drive" type="radio" id="yes-drive">
-            <label for="yes-drive"><strong>Yes, it is.</strong></label>
-            <input name="confirm-drive" type="radio" id="no-drive">
-            <label for="no-drive"><strong>No, it's not.</strong></label>
-        </form>
+        <form novalidate>
+        <fieldset>
+            <div class="form-list">
+                <input name="confirm-drive" type="radio" id="yes-drive" :value="true" v-model="isCorrectDrive">
+                <label for="yes-drive"><strong>Yes, it is.</strong></label>
+                <input name="confirm-drive" type="radio" id="no-drive" :value="false" v-model="isCorrectDrive">
+                <label for="no-drive"><strong>No, it's not.</strong></label>
+            </div>
+        </fieldset>
+    </form>
+    </section>
         <section class="forward-btn">
-            <RouterLink to="/update-details" class="btn btn-primary">Continue</RouterLink>
+            
+            <a @click.prevent="tryContinue()" class="btn btn-primary">Continue</a>
+
         </section>
     </main>
 </template>
@@ -41,31 +74,16 @@ table {
     width: 100%;
 }
 
-form {
-    margin-top: 1rem;
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 1rem;
-    align-items:center;
-}
-
-input {
-    height: 1.5rem;
-    width: 1.5rem;
-}
 
 .drive-details-card {
-    border: 1px solid lightgray;
-    border-left: 6px solid #0080a7;
     padding-left: 1rem;
     padding: 1rem;
     margin: 2rem 0;
+    width: fit-content;
 }
 
 .drive-name {
     font-size: 1.3rem;
     font-weight: bold;
 }
-
-
 </style>

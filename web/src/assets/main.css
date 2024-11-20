@@ -2,10 +2,12 @@
 @tailwind components;
 @tailwind utilities; */
 
-/*UoA official fonts.*/
 @import url(btn.css);
 @import url(text.css);
+@import url(error.css);
+@import url(form.css);
 
+/*UoA official fonts.*/
 @font-face {
   font-family: 'NationalBold';
   font-weight: bold;
@@ -103,4 +105,8 @@ strong {
 
 .forward-btn {
   margin: 2rem 0;
+}
+
+.box {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }

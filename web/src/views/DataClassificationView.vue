@@ -1,8 +1,10 @@
 <template>
     <main>
-        <h1 class="app-title">Archive your research drive</h1>
-        <h2 class="page-title">How sensitive are the files in your drive?</h2>
-        <p>Choose a data classification that best fits the files in your drive. If some files are more sensitive than others, choose the more restrictive classification. Consult the <a href="https://research-hub.auckland.ac.nz/article/research-data-classification" class="btn-link" target="_blank">Research data classification standard</a> for further guidance.</p>
+        <div class="title-section">
+            <h1 class="app-title">Archive your research drive</h1>
+            <h2 class="page-title">How sensitive are the files in your drive?</h2>
+            <p>Choose a data classification that best fits the files in your drive. If some files are more sensitive than others, choose the more restrictive classification. Consult the <a href="https://research-hub.auckland.ac.nz/article/research-data-classification" class="btn-link" target="_blank">Research data classification standard</a> for further guidance.</p>
+        </div>
         <form>
             <input name="dc" type="radio" id="public-dc">
             <label for="public-dc"><strong>Public</strong> <p>These files are public and do not have a restricted audience. For example, published research data.</p></label>

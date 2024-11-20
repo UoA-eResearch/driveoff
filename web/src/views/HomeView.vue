@@ -1,4 +1,5 @@
 <script setup lang="ts">
+document.title = "Home - Archive your research drive"
 </script>
 
 <template>
