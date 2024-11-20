@@ -1,8 +1,10 @@
 <template>
     <main>
-        <h1 class="app-title">Archive your research drive</h1>
-        <h2 class="page-title">How long does your data need to be retained?</h2>
-        <p>See <a class="btn-link" target="_blank" href="https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention">Research data retention</a> for full guidance.</p>
+        <div class="title-section">
+            <h1 class="app-title">Archive your research drive</h1>
+            <h2 class="page-title">How long does your data need to be retained?</h2>
+            <p>See <a class="btn-link" target="_blank" href="https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention">Research data retention</a> for full guidance.</p>
+        </div>
         <form>
             <input name="confirm-drive" type="radio" id="rp-6y">
             <label for="rp-6y"><strong>6 years</strong><p>Suitable for all research data unless otherwise described.</p></label>

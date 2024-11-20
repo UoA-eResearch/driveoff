@@ -1,0 +1,12 @@
+.form-list {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 1rem;
+    align-items: center;
+}
+
+.form-list input {
+    height: 1.5rem;
+    width: 1.5rem;
+}

@@ -1,58 +1,81 @@
+<script lang="ts" setup>
+import { ref } from "vue";
+import { store } from "../store"
+import { useRouter } from "vue-router";
+
+const DOCUMENT_TITLE = "Update project title and description - Archive your research drive"; 
+document.title = DOCUMENT_TITLE;
+
+const title = ref(store.project?.title || "");
+const titleError = ref("");
+const description = ref(store.project?.description || "");
+const descriptionError = ref("");
+const router = useRouter();
+
+function tryContinue() {
+    title.value = title.value.trim();
+    description.value = description.value.trim();
+    if (title.value === ""){
+        titleError.value = "Enter a title for the project."
+    } else {
+        titleError.value = "";
+    }
+    if (description.value === "") {
+        descriptionError.value = "Enter a description for the project."
+    } else {
+        descriptionError.value = "";
+    }
+    if (titleError.value !== "" || descriptionError.value !== "") {
+        // If there's an error, do not advance to the next page.
+        document.title = "Error: " + DOCUMENT_TITLE;
+        return;
+    }
+    // Go to the next page
+    router.push("/");
+}
+</script>
 <template>
-    <h1 class="app-title">Archive your research drive</h1>
-    <h2 class="page-title">Check and update drive details</h2>
-    <p>These project and drive details are records we hold from when the drive was initially created.</p>
-    <table>
-        <tbody>
-            <tr>
-                <td>Project name</td>
-                <td>Tītoki metabolomics</td>
-                <td><a href="#" class="btn-link">Change</a></td>
-            </tr>
-            <tr>
-                <td>Project description</td>
-                <td> Stress in plants could be defined as any change in growth condition(s) that disrupts metabolic homeostasis and requires an adjustment of metabolic pathways in a process that is usually referred to as acclimation. Metabolomics could contribute significantly to the study of stress biology in plants and other organisms by identifying different compounds, such as by-products of stress metabolism, stress signal transduction molecules or molecules that are part of the acclimation response of plants. </td>
-                <td><a href="#" class="btn-link">Change</a></td>
-            </tr>
-            <tr>
-                <td>Project owner</td>
-                <td>Samina Nicholas</td>
-                <td><a href="#" class="btn-link">Change</a></td>
-            </tr>
-            <tr>
-                <td>Project members</td>
-                <td>Zach Luther, Jarrod Hossam, Melisa Edric</td>
-                <td><a href="#" class="btn-link">Change</a></td>
-            </tr>
-            <tr>
-                <td>Department</td>
-                <td>Liggins Institute</td>
-                <td><a href="#" class="btn-link">Change</a></td>
-            </tr>
-        </tbody>
-    </table>
-    <section class="forward-btn">
-            <RouterLink to="/data-classification" class="btn btn-primary">Save and continue</RouterLink>
+    <main>
+        <h1 class="app-title">Archive your research drive</h1>
+        <div class="title-section">
+            <h2 class="page-title">Update project title and description</h2>
+        </div>
+        <form novalidate>
+            <div class="form-group" :class="{ error : titleError }">
+                <label for="project-title" class="h2">Title</label>
+                <p v-if="titleError" class="error-msg">{{ titleError }}</p>
+                <input type="text" id="project-title" v-model="title">
+            </div>
+            <div class="form-group" :class="{ error : descriptionError }">
+                <label for="project-description" class="h2">Description</label>
+                <p v-if="descriptionError" class="error-msg">{{ descriptionError }}</p>
+                <textarea id="project-description" v-model="description"></textarea>
+            </div>
+            <!-- <div class="form-group">
+                <label for=""
+            </div> -->
+        </form>
+        <section class="forward-btn">
+            <a @click.prevent="tryContinue()" class="btn btn-primary">Continue</a>
         </section>
+    </main>
+
 </template>
 
 <style scoped>
-td {
-    padding: 0.5rem;
-    border-bottom: 1px solid gray;
-    /* background-color: lightgray; */
-    
-}
-td:first-child {
-    font-family: NationalBold;
-}
+    input[type=text], textarea {
+        border: 2px solid gray;
+        padding:0.35rem;
+        margin-top: 0.5rem;
+    }
 
-.forward-btn {
-    display: flex;
-    gap: 1rem;
-}
+    textarea {
+        min-height: 10rem;
+    }
 
-table {
-    width: 100%;
-}
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        margin-top: 1.5rem;
+    }
 </style>
