@@ -25,7 +25,8 @@ function tryContinue() {
 </script>
 
 <template>
-            <h1 class="app-title">Archive your research drive</h1>
+    <main>
+    <h1 class="app-title">Archive your research drive</h1>
         <div class="title-section">
             <h2 class="page-title">Check project information</h2>
             <p>Project information describes the files in the research drive and the people who have access and rights to the files. </p> 
@@ -62,6 +63,7 @@ function tryContinue() {
     <section class="forward-btn">
         <a @click.prevent="tryContinue()" class="btn btn-primary">Continue</a>
     </section>
+</main>
 </template>
 
 <style scoped>
