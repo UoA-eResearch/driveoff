@@ -54,7 +54,7 @@ class Project(BaseProject, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     services_id: int | None = Field(default=None, foreign_key="services.id")
     codes: list[Code] = Relationship(link_model=ProjectCodeLink)
-    services: Services = Relationship()
+    services: Services = Relationship(back_populates="projects")
     members: list["Member"] = Relationship(
         # cascade_delete enabled so session.merge() works for project save.
         back_populates="project",
