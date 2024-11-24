@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
+from models.manifest import Manifest, ManifestDriveLink
+
 if TYPE_CHECKING:
     from models.project import Project
 
