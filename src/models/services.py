@@ -24,7 +24,7 @@ class ResearchDriveProjectLink(SQLModel, table=True):
 
 class ResearchDriveService(SQLModel, table=True):
     """Object describing a research drive service."""
-    
+
     allocated_gb: float
     date: datetime
     first_day: datetime
