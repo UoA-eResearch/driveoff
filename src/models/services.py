@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
+from models.manifest import Manifest, ManifestDriveLink
+
 if TYPE_CHECKING:
     from models.project import Project
 
@@ -34,6 +36,9 @@ class ResearchDriveService(SQLModel, table=True):
     used_gb: float
     projects: list["Project"] = Relationship(
         link_model=ResearchDriveProjectLink, back_populates="research_drives"
+    )
+    manifest: Manifest = Relationship(
+        link_model=ManifestDriveLink, back_populates="research_drive"
     )
 
 
