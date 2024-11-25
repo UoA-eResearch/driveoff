@@ -13,6 +13,8 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.manifests import generate_manifest
 from api.security import ApiKey, validate_api_key, validate_permissions
+from crate.ro_builder import ROBuilder
+from crate.ro_loader import ROLoader
 from models.member import Member
 from models.person import Person
 from models.project import InputProject, Project, ProjectWithDriveMember
@@ -229,6 +231,4 @@ async def get_drive_manifest(
             detail=f"Manifest not available for {drive_id}",
         )
 
-    return {
-        "manifest": manifest,
-    }
+    return manifest

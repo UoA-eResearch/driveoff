@@ -29,11 +29,11 @@ class Code(SQLModel, table=True):
 class BaseProject(SQLModel):
     """Base model for describing a project."""
 
-    title: str
+    title: str = Field(schema_extra={"serialization_alias": "name"})
     description: str
     division: str
-    start_date: datetime
-    end_date: datetime
+    start_date: datetime = Field(schema_extra={"serialization_alias": "startDate"})
+    end_date: datetime = Field(schema_extra={"serialization_alias": "endDate"})
 
 
 class InputProject(BaseProject):

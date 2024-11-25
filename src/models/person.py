@@ -34,5 +34,5 @@ class Person(SQLModel, table=True):
     "Data class for a Person model in database."
     id: Optional[int] = Field(default=None, primary_key=True)
     email: Optional[str]
-    full_name: str
+    full_name: str = Field(schema_extra={"serialization_alias": "fullName"})
     username: str
