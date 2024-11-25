@@ -143,16 +143,17 @@ async def get_drive_info(
     """Retrieve information about the specified Research Drive."""
 
     validate_permissions("GET", api_key)
-
     code_query = select(ResearchDriveService).where(
         ResearchDriveService.name == drive_id
     )
     drive_found = session.exec(code_query).first()
+
     if drive_found is None:
         raise HTTPException(
             status_code=404,
             detail=f"Research Drive ID {drive_id} not found in local database.",
         )
+
     projects = drive_found.projects
     if len(projects) == 0:
         raise HTTPException(
@@ -160,7 +161,32 @@ async def get_drive_info(
             detail=f"No Projects associated with {drive_id} in local database",
         )
 
+    return {
+        "drive_id": drive_id,
+        "ro_crate": "TODO: Make RO-Crate from: " + str(projects),
+    }
+
+
+@app.get(ENDPOINT_PREFIX + "/resdrivemanifest")
+async def get_drive_manifest(
+    drive_id: ResearchDriveID,
+    session: SessionDep,
+    api_key: ApiKey = Security(validate_api_key),
+) -> dict[str, str]:
+    """Retrieve a manifest from a research drive that has been loaded into the backend"""
+    validate_permissions("GET", api_key)
+    code_query = select(ResearchDriveService).where(
+        ResearchDriveService.name == drive_id
+    )
+    drive_found = session.exec(code_query).first()
+
+    if drive_found is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Research Drive ID {drive_id} not found in local database.",
+        )
     manifest = drive_found.manifest.manifest
+
     if manifest is None:
         raise HTTPException(
             status_code=404,
@@ -168,7 +194,5 @@ async def get_drive_info(
         )
 
     return {
-        "drive_id": drive_id,
-        "ro_crate": "TODO: Make RO-Crate from: " + str(projects),
         "manifest": manifest,
     }
