@@ -2,7 +2,7 @@
 import { useRouter } from 'vue-router';
 import { ref } from 'vue';
 import { formState } from '@/store';
-import { getDrive } from '@/project';
+import { getDrive } from '@/fixtures';
 
 
 const DOCUMENT_TITLE = "Confirm research drive - Archive your research drive"; 

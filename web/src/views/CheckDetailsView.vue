@@ -22,12 +22,8 @@ function tryContinue() {
         error.value = "Select Yes if the project information is still correct.";
     } else {
         if (areProjectDetailsCorrect.value) {
-            if (!formState.project) {
-                formState.project = getProject();
-            }
-            // Reset project title and description.
-            formState.project.title = project.title;
-            formState.project.description = project.description;
+            // Copy project details over as they are correct.
+            formState.project = Object.assign({}, getProject());
             router.push("/data-classification");
         } else {
             router.push("/update-details");

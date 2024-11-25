@@ -40,10 +40,11 @@ export interface ResDriveInfoStore {
     drive: ResearchDriveService | null;
 }
 
-export interface FormStateStore {
-    isCorrectDrive: boolean | null;
-    areProjectDetailsCorrect: boolean | null;
-    project: Project | null;
-    dataClassification: DataClassification | null;
-    retentionPeriod: number | null;
+export function makeProject(): Project {
+    return {
+        title: "",
+        description: "",
+        division: "",
+        members: []
+    }
 }
