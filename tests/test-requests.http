@@ -56,15 +56,15 @@ x-api-key: {{api_key}}
                 "archived": 0,
                 "date": "2024-10-13",
                 "deleted": 0,
-                "first_day": "2018-04-09",
-                "free_gb": 24894.5,
-                "id": 138,
+                "first_day": "2022-01-09",
+                "free_gb": 24004.5,
+                "id": 22001,
                 "last_day": null,
                 "name": "reslig202200001-Tītoki-metabolomics",
                 "num_files": 50102,
                 "percentage_used": 2.75578,
                 "project_code": "reslig202200001",
-                "used_gb": 705.479
+                "used_gb": 1596.0
             }
         ],
         "uoaivm": [],
