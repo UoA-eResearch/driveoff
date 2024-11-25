@@ -16,7 +16,6 @@ class InputIdentity(SQLModel):
 class InputIdentityResultItems(SQLModel):
     """The set of result items from Project DB API."""
 
-    href: str
     items: list[InputIdentity]
 
 
