@@ -9,11 +9,11 @@ if TYPE_CHECKING:
     from models.project import Project
 
 
-class ResearchDriveServicesLink(SQLModel, table=True):
+class ResearchDriveProjectLink(SQLModel, table=True):
     """Linking table between research drive service and a project's service."""
 
-    service_id: int | None = Field(
-        default=None, foreign_key="services.id", primary_key=True
+    project_id: int | None = Field(
+        default=None, foreign_key="project.id", primary_key=True
     )
     research_drive_id: int | None = Field(
         default=None, foreign_key="researchdriveservice.id", primary_key=True
@@ -32,20 +32,12 @@ class ResearchDriveService(SQLModel, table=True):
     name: str
     percentage_used: float
     used_gb: float
-    service: list["Services"] = Relationship(link_model=ResearchDriveServicesLink)
+    projects: list["Project"] = Relationship(
+        link_model=ResearchDriveProjectLink, back_populates="research_drives"
+    )
 
 
 class InputServices(SQLModel):
     """Input object describing relevant storage services."""
 
     research_drive: list[ResearchDriveService]
-
-
-class Services(SQLModel, table=True):
-    """Object describing relevant storage services."""
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    projects: list["Project"] = Relationship(back_populates="services")
-    research_drive: list[ResearchDriveService] = Relationship(
-        link_model=ResearchDriveServicesLink, back_populates="service"
-    )

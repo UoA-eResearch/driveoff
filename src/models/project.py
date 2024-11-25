@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Optional
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.person import InputPerson
-from models.services import InputServices, Services
+from models.services import (InputServices, ResearchDriveProjectLink,
+                             ResearchDriveService)
 
 # Only import Member during typechecking to prevent circular dependency error.
 if TYPE_CHECKING:
@@ -52,9 +53,11 @@ class Project(BaseProject, table=True):
     """Project model for data stored in database"""
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    services_id: int | None = Field(default=None, foreign_key="services.id")
+    # services_id: int | None = Field(default=None, foreign_key="services.id")
     codes: list[Code] = Relationship(link_model=ProjectCodeLink)
-    services: Services = Relationship(back_populates="projects")
+    research_drives: list[ResearchDriveService] = Relationship(
+        link_model=ResearchDriveProjectLink, back_populates="projects"
+    )
     members: list["Member"] = Relationship(
         # cascade_delete enabled so session.merge() works for project save.
         back_populates="project",
