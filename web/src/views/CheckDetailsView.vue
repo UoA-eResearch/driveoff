@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getDrive, getProject, getProjectMembers, getProjectOwners } from '@/fixtures';
+import { formState } from '@/store';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -9,6 +11,10 @@ document.title = DOCUMENT_TITLE;
 const areProjectDetailsCorrect = ref();
 const error =ref("");
 const router = useRouter();
+const driveInfo = getDrive();
+const project = getProject();
+const owners = getProjectOwners(project.members).map(member => member.person.full_name).join(", ");
+const members = getProjectMembers(project.members).map(member => member.person.full_name).join(", ");
 
 function tryContinue() {
     if (areProjectDetailsCorrect.value === undefined){
@@ -16,6 +22,12 @@ function tryContinue() {
         error.value = "Select Yes if the project information is still correct.";
     } else {
         if (areProjectDetailsCorrect.value) {
+            if (!formState.project) {
+                formState.project = getProject();
+            }
+            // Reset project title and description.
+            formState.project.title = project.title;
+            formState.project.description = project.description;
             router.push("/data-classification");
         } else {
             router.push("/update-details");
@@ -34,18 +46,18 @@ function tryContinue() {
             <p>Correct project information is important for archiving. If required, the information is used to find the right archived files and determine whether to grant or deny access requests.</p> 
         </div> 
     <section class="project-details-card box">
-        <h3 class="h2">Project information for reslig-202200001-Tītoki-metabolomics</h3>
+        <h3 class="h2">Project information for {{ driveInfo.name }}</h3>
         <dl class="other-details">
             <dt>Title</dt>
-            <dl>Tītoki metabolomics</dl>
+            <dl>{{ project.title}}</dl>
             <dt>Description</dt>
-            <dl>Stress in plants could be defined as any change in growth condition(s) that disrupts metabolic homeostasis and requires an adjustment of metabolic pathways in a process that is usually referred to as acclimation. Metabolomics could contribute significantly to the study of stress biology in plants and other organisms by identifying different compounds, such as by-products of stress metabolism, stress signal transduction molecules or molecules that are part of the acclimation response of plants.</dl>
+            <dl>{{ project.description}}</dl>
             <dt>Project owner</dt>
-            <dl>Samina Nicholas</dl>
+            <dl>{{ owners }}</dl>
             <dt>Project members</dt>
-            <dl>Zach Luther, Jarrod Hossam, Melisa Edric</dl>
+            <dl>{{ members }}</dl>
             <dt>Department</dt>
-            <dl>Liggins Institute   </dl>
+            <dl>{{ project.division }}</dl>
         </dl>
     </section>
     <form novalidate :class="{ error : error }">
