@@ -170,5 +170,6 @@ async def get_drive_info(
     return {
         "drive_id": drive_id,
         "ro_crate": "TODO: Make RO-Crate from: " + str(projects),
-        "manifest": "TODO: Make Manifest",
+        
+        "manifest": manifest,
     }

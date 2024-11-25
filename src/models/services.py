@@ -24,7 +24,7 @@ class ResearchDriveProjectLink(SQLModel, table=True):
 
 class ResearchDriveService(SQLModel, table=True):
     """Object describing a research drive service."""
-
+    
     allocated_gb: float
     date: datetime
     first_day: datetime
@@ -36,6 +36,9 @@ class ResearchDriveService(SQLModel, table=True):
     used_gb: float
     projects: list["Project"] = Relationship(
         link_model=ResearchDriveProjectLink, back_populates="research_drives"
+    )
+    manifest: Manifest = Relationship(
+        link_model=ManifestDriveLink, back_populates="research_drive"
     )
 
 
