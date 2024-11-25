@@ -1,26 +1,29 @@
 <script lang="ts" setup>
+import { getProject } from "@/fixtures";
+import { formState } from "@/store";
 import { ref } from "vue";
-import { store } from "../store"
 import { useRouter } from "vue-router";
 
 const DOCUMENT_TITLE = "Update project title and description - Archive your research drive"; 
 document.title = DOCUMENT_TITLE;
 
-const title = ref(store.project?.title || "");
+if (!formState.project) {
+    formState.project = getProject();
+}
+const title = ref(formState.project.title);
 const titleError = ref("");
-const description = ref(store.project?.description || "");
+const description = ref(formState.project.description);
 const descriptionError = ref("");
 const router = useRouter();
 
+
 function tryContinue() {
-    title.value = title.value.trim();
-    description.value = description.value.trim();
-    if (title.value === ""){
+    if (title.value.trim() === ""){
         titleError.value = "Enter a title for the project."
     } else {
         titleError.value = "";
     }
-    if (description.value === "") {
+    if (description.value.trim() === "") {
         descriptionError.value = "Enter a description for the project."
     } else {
         descriptionError.value = "";
@@ -30,6 +33,12 @@ function tryContinue() {
         document.title = "Error: " + DOCUMENT_TITLE;
         return;
     }
+    if (!formState.project) {
+        formState.project = getProject();
+    }
+    // Update with new valid title and description.
+    formState.project.title = title.value;
+    formState.project.description = description.value;
     // Go to the next page
     router.push("/");
 }

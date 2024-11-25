@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { ref } from 'vue';
+import { formState } from '@/store';
+import { getDrive } from '@/project';
+
 
 const DOCUMENT_TITLE = "Confirm research drive - Archive your research drive"; 
 document.title = DOCUMENT_TITLE;
 
-const isCorrectDrive = ref();
+// const isCorrectDrive = ref();
 const error = ref("");
-
 const router = useRouter();
+const driveInfo = getDrive();
 
 function tryContinue() {
-    if (isCorrectDrive.value === undefined){
+    if (formState.isCorrectDrive === undefined){
         document.title = "Error: " + DOCUMENT_TITLE;
         error.value = "Select Yes if this is research drive you wanted to archive."
     } else {
-        if (isCorrectDrive.value) {
+        if (formState.isCorrectDrive) {
             router.push("/check-details");
         } else {
             router.push("/")
@@ -34,16 +37,16 @@ function tryContinue() {
                 <p v-if="error" class="error-msg">{{ error }}</p>
             </div>
         <section class="drive-details-card box">
-            <h3 class="drive-name">reslig-202200001-Tītoki-metabolomics</h3>
-            <p class="storage-size">5120GB</p>
+            <h3 class="drive-name">{{ driveInfo.name }}</h3>
+            <p class="storage-size">{{ driveInfo.allocated_gb }} GB</p>
             <a href="#" class="btn-link">See files in drive...</a>
         </section>
         <form novalidate>
         <fieldset>
             <div class="form-list">
-                <input name="confirm-drive" type="radio" id="yes-drive" :value="true" v-model="isCorrectDrive">
+                <input name="confirm-drive" type="radio" id="yes-drive" :value="true" v-model="formState.isCorrectDrive">
                 <label for="yes-drive"><strong>Yes, it is.</strong></label>
-                <input name="confirm-drive" type="radio" id="no-drive" :value="false" v-model="isCorrectDrive">
+                <input name="confirm-drive" type="radio" id="no-drive" :value="false" v-model="formState.isCorrectDrive">
                 <label for="no-drive"><strong>No, it's not.</strong></label>
             </div>
         </fieldset>
