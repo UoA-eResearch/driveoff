@@ -1,0 +1,142 @@
+
+# Test requests for the driveoff webserver
+#
+# Intended to be used with the VS Code "REST Client" extension, which defines the syntax used here.
+#
+# NOTE: need to set an environment variable with your API key.
+# Add something like this to VS Code's settings.json:
+#
+# "rest-client.environmentVariables": {
+#     "$shared": {
+#          "api_key": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+#     },
+# }
+#
+
+@server_url = http://localhost:8000
+@drive_id = reslig202200001-Tītoki-metabolomics
+###
+
+# GET {{server_url}}/api/v1/resdriveinfo
+#     ?drive_id={{drive_id}}
+#     &api-key={{api_key}}
+
+###
+
+GET {{server_url}}/api/v1/resdriveinfo
+    ?drive_id={{drive_id}}
+x-api-key: {{api_key}}
+
+###
+
+POST {{server_url}}/api/v1/resdriveinfo
+x-api-key: {{api_key}}
+
+{
+    "id": 100,
+    "title": "Tītoki metabolomics",
+    "description": "Stress in plants could be defined as any change in growth condition(s) that disrupts metabolic homeostasis and requires an adjustment of metabolic pathways in a process that is usually referred to as acclimation. Metabolomics could contribute significantly to the study of stress biology in plants and other organisms by identifying different compounds, such as by-products of stress metabolism, stress signal transduction molecules or molecules that are part of the acclimation response of plants.",
+    "start_date": "2022-01-01",
+    "end_date": "2024-11-04",
+    "division": "Liggins Institute",
+    "codes": [
+        {
+            "code": "uoa00001",
+            "id": 550
+        },
+        {
+            "code": "reslig202200001",
+            "id": 630
+        }
+    ],
+    "services": {
+        "research_drive": [
+            {
+                "allocated_gb": 25600.0,
+                "archived": 0,
+                "date": "2024-10-13",
+                "deleted": 0,
+                "first_day": "2018-04-09",
+                "free_gb": 24894.5,
+                "id": 138,
+                "last_day": null,
+                "name": "reslig202200001-Tītoki-metabolomics",
+                "num_files": 50102,
+                "percentage_used": 2.75578,
+                "project_code": "reslig202200001",
+                "used_gb": 705.479
+            }
+        ],
+        "uoaivm": [],
+        "vis": [],
+        "vm": []
+    },
+    "members": [
+        {
+            "id": 1421,
+            "person.email": "s.nicholas@test.auckland.ac.nz",
+            "person.full_name": "Samina Nicholas",
+            "person.identities": {
+                "items": [
+                    {
+                        "username": "snic021"
+                    }
+                ]
+            },
+            "role": {
+                "id": 1,
+                "name": "Project Owner"
+            },
+            "notes": ""
+        },
+        {
+            "id": 330,
+            "person.email": "z.luther@test.auckland.ac.nz",
+            "person.full_name": "Zach Luther",
+            "person.identities": {
+                "items": [
+                    {
+                        "username": "zlut014"
+                    }
+                ]
+            },
+            "role": {
+                "id": 3,
+                "name": "Project Team Member"
+            },
+            "notes": ""
+        },
+        {
+            "id": 188,
+            "person.email": "j.hossam@test.auckland.ac.nz",
+            "person.full_name": "Jarrod Hossam",
+            "person.identities": {
+                "items": [
+                    {
+                        "username": "jhos225"
+                    }
+                ]
+            },
+            "role": {
+                "id": 3,
+                "name": "Project Team Member"
+            }
+        },
+        {
+            "id": 44,
+            "person.email": "m.edric@test.auckland.ac.nz",
+            "person.full_name": "Melisa Edric",
+            "person.identities": {
+                "items": [
+                    {
+                        "username": "medr894"
+                    }
+                ]
+            },
+            "role": {
+                "id": 3,
+                "name": "Project Team Member"
+            }
+        }
+    ]
+}
