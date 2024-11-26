@@ -25,6 +25,11 @@ const router = createRouter({
       component: () => import("../views/UpdateDetailsView.vue")
     },
     {
+      path: "/update-members",
+      name: 'update-members',
+      component: () => import("../views/UpdateMembersView.vue")
+    },
+    {
       path: "/data-classification",
       name: "data-classification",
       component: () => import("../views/DataClassificationView.vue")
@@ -35,6 +40,11 @@ const router = createRouter({
       component: () => import("../views/RetentionPeriodView.vue")
     },
     {
+      path: "/custom-retention-period",
+      name: "custom-retention-period",
+      component: () => import("../views/CustomRetentionPeriodView.vue")
+    },
+    {
       path: "/confirm",
       name: "confirm",
       component: () => import("../views/ConfirmArchiveView.vue")
@@ -43,6 +53,11 @@ const router = createRouter({
       path: "/finish",
       name: "finish",
       component: () => import("../views/FinishView.vue")
+    },
+    {
+      path: "/unable-to-archive",
+      name: "unable-to-archive",
+      component: () => import("../views/UnableToArchiveView.vue")
     }
   ]
 })

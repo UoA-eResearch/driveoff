@@ -1,3 +1,15 @@
+<script lang="ts" setup>
+import { getProjectMembers, getProjectOwners, membersToString } from '@/project';
+import { formState } from '@/store';
+
+const projectOwners = membersToString(getProjectOwners(formState.project.members));
+const projectMembers = membersToString(getProjectMembers(formState.project.members));
+
+// If the user has stated the details aren't correct, the Change links should go to the Update page. 
+const projectInfoChangeLink = formState.areProjectDetailsCorrect ? "/check-details" : "/update-details"; 
+
+</script>
+
 <template>
     <h1 class="app-title">Archive your research drive</h1>
     <div class="title-section">
@@ -13,28 +25,28 @@
         <tbody>
             <tr>
                 <td>Project name</td>
-                <td>Tītoki metabolomics</td>
-                <td><a href="#" class="btn-link">Change</a></td>
+                <td>{{  formState.project.title  }}</td>
+                <td><RouterLink :to="projectInfoChangeLink">Change</RouterLink></td>
             </tr>
             <tr>
                 <td>Project description</td>
-                <td> Stress in plants could be defined as any change in growth condition(s) that disrupts metabolic homeostasis and requires an adjustment of metabolic pathways in a process that is usually referred to as acclimation. Metabolomics could contribute significantly to the study of stress biology in plants and other organisms by identifying different compounds, such as by-products of stress metabolism, stress signal transduction molecules or molecules that are part of the acclimation response of plants. </td>
-                <td><a href="#" class="btn-link">Change</a></td>
+                <td> {{ formState.project.description }}</td>
+                <td><RouterLink :to="projectInfoChangeLink">Change</RouterLink></td>
             </tr>
             <tr>
                 <td>Project owner</td>
-                <td>Samina Nicholas</td>
-                <td><a href="#" class="btn-link">Change</a></td>
+                <td>{{ projectOwners }}</td>
+                <td><!--<a href="#" class="btn-link">Change</a>--></td>
             </tr>
             <tr>
                 <td>Project members</td>
-                <td>Zach Luther, Jarrod Hossam, Melisa Edric</td>
-                <td><a href="#" class="btn-link">Change</a></td>
+                <td>{{ projectMembers }}</td>
+                <td><!--<a href="#" class="btn-link">Change</a>--></td>
             </tr>
             <tr>
                 <td>Department</td>
-                <td>Liggins Institute</td>
-                <td><a href="#" class="btn-link">Change</a></td>
+                <td>{{  formState.project.division }}</td>
+                <td><!--<a href="#" class="btn-link">Change</a>--></td>
             </tr>
         </tbody>
     </table>
@@ -49,13 +61,13 @@
         <tbody>
             <tr>
                 <td>Data classification</td>
-                <td>Sensitive</td>
-                <td><a href="#" class="btn-link">Change</a></td>
+                <td>{{ formState.dataClassification }}</td>
+                <td><RouterLink to="/data-classification">Change</RouterLink></td>
             </tr>
             <tr>
                 <td>Retention period</td>
-                <td>6 years</td>
-                <td><a href="#" class="btn-link">Change</a></td>
+                <td>{{ formState.retentionPeriod }} years after today</td>
+                <td><RouterLink to="/retention-period">Change</RouterLink></td>
             </tr>
         </tbody>
     </table>

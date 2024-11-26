@@ -21,7 +21,7 @@ function tryContinue() {
         if (formState.isCorrectDrive) {
             router.push("/check-details");
         } else {
-            router.push("/")
+            router.push("/unable-to-archive")
         }
     }
 }
@@ -43,11 +43,11 @@ function tryContinue() {
         </section>
         <form novalidate>
         <fieldset>
-            <div class="form-list">
+            <div class="option-list">
                 <input name="confirm-drive" type="radio" id="yes-drive" :value="true" v-model="formState.isCorrectDrive">
-                <label for="yes-drive"><strong>Yes, it is.</strong></label>
+                <label for="yes-drive">Yes, it is.</label>
                 <input name="confirm-drive" type="radio" id="no-drive" :value="false" v-model="formState.isCorrectDrive">
-                <label for="no-drive"><strong>No, it's not.</strong></label>
+                <label for="no-drive">No, it's not.</label>
             </div>
         </fieldset>
     </form>

@@ -1,4 +1,4 @@
-.form-list {
+.option-list {
     margin-top: 1rem;
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -6,7 +6,26 @@
     align-items: center;
 }
 
-.form-list input {
+.option-list input[type=radio] {
     height: 1.5rem;
     width: 1.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    margin-top: 1.5rem;
+}
+
+input[type=text],
+input[type=number],
+textarea {
+    border: 2px solid gray;
+    padding: 0.35rem;
+    margin-top: 0.5rem;
+}
+
+/*Remove default spinner in number field.*/
+input[type=number] {
+    appearance: textfield;
 }

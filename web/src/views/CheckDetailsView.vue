@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { getDrive, getProject, getProjectMembers, getProjectOwners } from '@/fixtures';
+import { getDrive, getProject } from '@/fixtures';
+import { membersToString, getProjectMembers, getProjectOwners } from '@/project';
 import { formState } from '@/store';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -13,8 +14,8 @@ const error =ref("");
 const router = useRouter();
 const driveInfo = getDrive();
 const project = getProject();
-const owners = getProjectOwners(project.members).map(member => member.person.full_name).join(", ");
-const members = getProjectMembers(project.members).map(member => member.person.full_name).join(", ");
+const owners = membersToString(getProjectOwners(project.members));
+const members = membersToString(getProjectMembers(project.members));
 
 function tryContinue() {
     if (areProjectDetailsCorrect.value === undefined){
@@ -60,7 +61,7 @@ function tryContinue() {
         <fieldset>
             <legend class="h2">Is the project information still correct?</legend>
             <p v-if="error" class="error-msg">{{ error }}</p>
-            <div class="form-list">
+            <div class="option-list">
                 <input name="confirm-project" type="radio" id="yes-project" :value="true" v-model="areProjectDetailsCorrect">
                 <label for="yes-project">Yes, it is.</label>
                 <input name="confirm-project" type="radio" id="no-project" :value="false" v-model="areProjectDetailsCorrect">

@@ -1,39 +1,58 @@
+<script setup lang="ts">
+import { formState } from '@/store';
+import { ref, type Ref } from 'vue';
+import { useRouter } from 'vue-router';
+
+const DOCUMENT_TITLE = "Retention period - Archive your research drive";
+document.title = DOCUMENT_TITLE;
+const initialValue: "custom" | number | null = formState.isRetentionPeriodCustom ? "custom" : formState.retentionPeriod;
+const period = ref(initialValue);
+const error = ref("");
+const router = useRouter();
+
+function tryContinue() {
+    if (period.value === null) {
+        error.value = "Choose the right retention period for the files on your drive.";
+    } else if (period.value === "custom") {
+        formState.isRetentionPeriodCustom = true;
+        formState.retentionPeriod = null;
+        error.value = "";
+        router.push("/custom-retention-period");
+    } else {
+        // Period is one of the predefined retention periods.
+        formState.isRetentionPeriodCustom = false;
+        formState.retentionPeriod = period.value;
+        error.value = "";
+        router.push("/confirm");
+    }
+}
+
+</script>
+
 <template>
     <main>
-        <div class="title-section">
-            <h1 class="app-title">Archive your research drive</h1>
-            <h2 class="page-title">How long does your data need to be retained?</h2>
-            <p>See <a class="btn-link" target="_blank" href="https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention">Research data retention</a> for full guidance.</p>
-        </div>
-        <form>
-            <input name="confirm-drive" type="radio" id="rp-6y">
-            <label for="rp-6y"><strong>6 years</strong><p>Suitable for all research data unless otherwise described.</p></label>
-            <input name="confirm-drive" type="radio" id="rp-10y">
-            <label for="rp-10y"><strong>10 years</strong><p>Suitable if the files include health data of adults, including clinical trial data, and routinely collected health data used for research.</p></label>
-            <input name="confirm-drive" type="radio" id="rp-20y">
-            <label for="rp-20y"><strong>20 years</strong><p>Suitable if research data are associated with registered patent.</p></label>
-
-            <input name="confirm-drive" type="radio" id="rp-custom">
-            <label for="rp-custom"><strong>Something else</strong><p>Suitable if particular ethics committee requirements, access agreements or legislative requirements apply.</p></label>
-        </form>
+        <h1 class="app-title">Archive your research drive</h1>
+        <section :class="{ error : error }">
+            <div class="title-section">
+                <h2 class="page-title">How long do your files need to be retained?</h2>
+                <p v-if="error" class="error-msg">{{ error }}</p>
+                <p>See <a class="btn-link" target="_blank" href="https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention">Research data retention</a> for full guidance.</p>
+            </div>
+            <form novalidate class="option-list">
+                <input name="confirm-drive" type="radio" id="rp-6y" value="6" v-model="period">
+                <label for="rp-6y">6 years from today</label>
+                <input name="confirm-drive" type="radio" id="rp-10y" value="10" v-model="period">
+                <label for="rp-10y">10 years from today</label>
+                <input name="confirm-drive" type="radio" id="rp-20y" value="20" v-model="period">
+                <label for="rp-20y">20 years from today</label>
+                <input name="confirm-drive" type="radio" id="rp-26y" value="26" v-model="period">
+                <label for="rp-26y">26 years from today</label>
+                <input name="confirm-drive" type="radio" id="rp-custom" value="custom" v-model="period">
+                <label for="rp-custom">Something else</label>
+            </form>
+        </section>
         <section class="forward-btn">
-            <RouterLink to="/confirm" class="btn btn-primary">Continue</RouterLink>
+            <a @click="tryContinue()"class="btn btn-primary">Continue</a>
         </section>
     </main>
 </template>
-
-<style scoped>
-form {
-    margin-top: 1rem;
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 1rem;
-    align-items:center;
-}
-
-input {
-    height: 1.5rem;
-    width: 1.5rem;
-}
-
-</style>

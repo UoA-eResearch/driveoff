@@ -37,14 +37,14 @@ function tryContinue() {
         return;
     }
     // Otherwise, go to the next page
-    router.push("/");
+    router.push("data-classification");
 }
 </script>
 <template>
     <main>
         <h1 class="app-title">Update project information</h1>
         <div class="title-section">
-            <h2 class="page-title">Title and description</h2>
+            <h2 class="page-title">About your work</h2>
         </div>
         <form novalidate>
             <div class="form-group" :class="{ error : titleError }">
@@ -57,9 +57,6 @@ function tryContinue() {
                 <p v-if="descriptionError" class="error-msg">{{ descriptionError }}</p>
                 <textarea id="project-description" v-model="formState.project.description"></textarea>
             </div>
-            <!-- <div class="form-group">
-                <label for=""
-            </div> -->
         </form>
         <section class="forward-btn">
             <a @click.prevent="tryContinue()" class="btn btn-primary">Continue</a>
@@ -69,19 +66,7 @@ function tryContinue() {
 </template>
 
 <style scoped>
-    input[type=text], textarea {
-        border: 2px solid gray;
-        padding:0.35rem;
-        margin-top: 0.5rem;
-    }
-
     textarea {
         min-height: 10rem;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        margin-top: 1.5rem;
     }
 </style>

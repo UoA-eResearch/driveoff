@@ -7,6 +7,7 @@ interface FormStateStore {
     project: Project;
     dataClassification: DataClassification | null;
     retentionPeriod: number | null;
+    isRetentionPeriodCustom: boolean | null;
 }
 
 export const formState: FormStateStore = reactive({
@@ -14,5 +15,6 @@ export const formState: FormStateStore = reactive({
     areProjectDetailsCorrect: null,
     project: makeProject(),
     dataClassification: null,
+    isRetentionPeriodCustom: null,
     retentionPeriod: null
 });
