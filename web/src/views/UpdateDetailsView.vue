@@ -46,7 +46,7 @@ function tryContinue() {
         <div class="title-section">
             <h2 class="page-title">About your work</h2>
         </div>
-        <form novalidate>
+        <form novalidate @submit.prevent="tryContinue()">
             <div class="form-group" :class="{ error : titleError }">
                 <label for="project-title" class="h2">Title</label>
                 <p v-if="titleError" class="error-msg">{{ titleError }}</p>

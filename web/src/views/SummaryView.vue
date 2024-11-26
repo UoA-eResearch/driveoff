@@ -47,7 +47,7 @@ function tryContinue() {
                 <dl>{{ driveInfo.used_gb }}GB</dl>
             </dl>
         </section>
-        <form novalidate>
+        <form novalidate @submit.prevent="tryContinue()">
         <fieldset>
             <div class="option-list">
                 <input name="confirm-drive" type="radio" id="yes-drive" :value="true" v-model="formState.isCorrectDrive">

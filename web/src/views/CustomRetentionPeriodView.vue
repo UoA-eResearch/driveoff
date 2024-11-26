@@ -32,7 +32,7 @@ function tryContinue(){
                 <h2 class="page-title">How many years do the files need to be retained for?</h2>
                 <p v-if="error" class="error-msg">{{ error }}</p>
             </div>
-            <form novalidate>
+            <form novalidate @submit.prevent="tryContinue()">
                 <div class="form-group">
                     <label for="custom-period">Years after today</label>
                     <input type="number" id="custom-period" v-model="customPeriod">

@@ -31,7 +31,7 @@ function tryContinue() {
                 <p v-if="error" class="error-msg">{{ error }}</p>
                 <p>See <a href="https://research-hub.auckland.ac.nz/article/research-data-classification" target="_blank">Research data classification standard</a> for full guidance.</p>
             </div>
-            <form class="option-list">
+            <form @submit.prevent="tryContinue()" class="option-list">
                 <input name="dc" type="radio" value="Public" id="public-dc" v-model="dataClassification">
                 <label for="public-dc">Public</label>
                 <input name="dc" type="radio" value="Internal" id="internal-dc" v-model="dataClassification">

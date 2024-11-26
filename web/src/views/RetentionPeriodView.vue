@@ -38,7 +38,7 @@ function tryContinue() {
                 <p v-if="error" class="error-msg">{{ error }}</p>
                 <p>See <a class="btn-link" target="_blank" href="https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention">Research data retention</a> for full guidance.</p>
             </div>
-            <form novalidate class="option-list">
+            <form @submit.prevent="tryContinue()" novalidate class="option-list">
                 <input name="confirm-drive" type="radio" id="rp-6y" value="6" v-model="period">
                 <label for="rp-6y">6 years after today</label>
                 <input name="confirm-drive" type="radio" id="rp-10y" value="10" v-model="period">

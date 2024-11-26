@@ -54,7 +54,7 @@ function tryContinue() {
             <dl>{{ project.division }}</dl>
         </dl>
     </section>
-    <form novalidate :class="{ error : error }">
+    <form novalidate @submit.prevent="tryContinue()" :class="{ error : error }">
         <fieldset>
             <legend class="h2">Is the project information still correct?</legend>
             <p v-if="error" class="error-msg">{{ error }}</p>
