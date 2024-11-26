@@ -3,7 +3,7 @@ import { formState } from '@/store';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-const DOCUMENT_TITLE = "How - Archive your research drive"; 
+const DOCUMENT_TITLE = "How long do your files need to be retained for - Archive your research drive"; 
 document.title = DOCUMENT_TITLE;
 const error = ref("");
 const customPeriod = ref(formState.retentionPeriod);
@@ -20,6 +20,9 @@ function tryContinue(){
         error.value = "";
         formState.retentionPeriod = customPeriod.value;
         router.push("/confirm")
+    }
+    if (error.value !== "") {
+        document.title = "Error:" + DOCUMENT_TITLE;
     }
 }
 </script>

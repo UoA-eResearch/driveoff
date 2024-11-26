@@ -2,6 +2,9 @@
 import { getProjectMembers, getProjectOwners, membersToString } from '@/project';
 import { formState } from '@/store';
 
+const DOCUMENT_TITLE = "Check your answers - Archive your research drive";
+document.title = DOCUMENT_TITLE;
+
 const projectOwners = membersToString(getProjectOwners(formState.project.members));
 const projectMembers = membersToString(getProjectMembers(formState.project.members));
 
