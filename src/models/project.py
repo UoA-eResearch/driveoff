@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from pydantic import field_serializer
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.member import MemberPublic
@@ -34,6 +35,11 @@ class BaseProject(SQLModel):
     division: str
     start_date: datetime = Field(schema_extra={"serialization_alias": "startDate"})
     end_date: datetime = Field(schema_extra={"serialization_alias": "endDate"})
+
+    @field_serializer("start_date", "end_date")
+    def serialize_date(self, dt: datetime) -> str:
+        """serialize dates as isoformat"""
+        return dt.isoformat()
 
 
 class InputProject(BaseProject):

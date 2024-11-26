@@ -8,7 +8,6 @@ from typing import Any, Dict
 
 from rocrate.rocrate import ROCrate
 
-
 JsonType = Dict[str, Any]
 
 

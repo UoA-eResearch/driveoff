@@ -1,8 +1,9 @@
 """Data models representing CeR services."""
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
+from pydantic import field_serializer
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.manifest import Manifest, ManifestDriveLink
@@ -47,6 +48,13 @@ class ResearchDriveService(BaseDriveService, table=True):
         link_model=ManifestDriveLink, back_populates="research_drive"
     )
     submission: DriveOffboardSubmission | None = Relationship(back_populates="drive")
+
+    @field_serializer("first_day", "date", "last_day")
+    def serialize_date(self, dt: Any) -> Any:
+        """serialize dates as isoformat"""
+        if isinstance(dt, datetime):
+            return dt.isoformat()
+        return dt
 
 
 class InputServices(SQLModel):

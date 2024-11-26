@@ -4,9 +4,9 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, AsyncGenerator, Iterable
+from typing import Annotated, AsyncGenerator, Iterable, List
 
-from fastapi import Depends, FastAPI, HTTPException, Response, Security, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response, Security, status
 from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -178,6 +178,7 @@ async def append_drive_info(
 async def get_drive_info(
     drive_id: ResearchDriveID,
     session: SessionDep,
+    background_tasks: BackgroundTasks,
     api_key: ApiKey = Security(validate_api_key),
 ) -> Project:
     """Retrieve information about the specified Research Drive."""
@@ -195,12 +196,18 @@ async def get_drive_info(
             detail=f"Research Drive ID {drive_id} not found in local database.",
         )
 
-    projects = drive_found.projects
-    if len(projects) == 0:
+    project_ids = [
+        project.id for project in drive_found.projects if project.id is not None
+    ]
+    if len(project_ids) == 0:
         raise HTTPException(
             status_code=404,
             detail=f"No Projects associated with {drive_id} in local database",
         )
+    # build RO-crate
+    background_tasks.add_task(
+        generate_ro_crate, project_ids=project_ids, session=session
+    )
 
     return projects[0]
 
