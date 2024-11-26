@@ -1,4 +1,15 @@
 <script setup lang="ts">
+import { formState } from '@/store';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+document.title = "Home - Archive your research drive";
+
+function nextStep() {
+  formState.hasStartedForm = true;
+  router.push("/summary")
+}
+
 </script>
 
 <template>
@@ -14,16 +25,8 @@
       <li>Declare data classification and retention period for the stored files.</li>
       <li>Add additional metadata to annotate your files.</li>
     </ul>
-    <!-- <p>Archiving a research storage drive means you and your collaborators will no longer be able to mount the drive. The content will be backed up, and the space will be freed up for other research projects.</p> -->
-    <!-- <section>
-      <p>Tītoki metabolomics</p>
-      <p>Ends 31 January 2025.</p>
-      <p>5120GB.</p>
-      <p>reslig202200001-Tītoki-metabolomics</p>
-    </section> -->
     <section class="forward-btn">
-      <RouterLink class="btn btn-primary" to="/summary">Start</RouterLink>
-      <!-- <a >Start</a> -->
+      <a @click="nextStep()" class="btn btn-primary">Start</a>
     </section>
     <section class="more-info">
       <h2 class="h2">What does archiving do?</h2>

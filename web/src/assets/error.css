@@ -1,0 +1,9 @@
+.error {
+    border-left: 6px solid rgb(212, 53, 28);
+    padding-left: 1rem;
+}
+
+.error-msg {
+    color: rgb(212, 53, 28);
+    font-family: 'NationalBold';
+}

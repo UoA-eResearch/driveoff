@@ -1,7 +1,15 @@
+<script setup lang="ts">
+import { formState } from '@/store';
+
+const DOCUMENT_TITLE = "Request sent - Archive your research drive";
+document.title = DOCUMENT_TITLE;
+formState.hasFinishedForm = true;
+</script>
+
 <template>
     <h1 class="app-title">Archive your research drive</h1>
     <h2 class="page-title">Request sent</h2>
-    <p>Thanks for your request. Your reference is <a href="#">SCREQ0209218</a>.</p>
+    <p>Thanks for your request.</p>
     <h3>What happens next?</h3>
     <p>Your request has been sent to the Centre for eResearch.</p>
     <p>They will act on the request in the next few days, and contact you if necessary.</p>
