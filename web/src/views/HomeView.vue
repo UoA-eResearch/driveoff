@@ -1,5 +1,15 @@
 <script setup lang="ts">
-document.title = "Home - Archive your research drive"
+import { formState } from '@/store';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+document.title = "Home - Archive your research drive";
+
+function nextStep() {
+  formState.hasStartedForm = true;
+  router.push("/summary")
+}
+
 </script>
 
 <template>
@@ -16,7 +26,7 @@ document.title = "Home - Archive your research drive"
       <li>Add additional metadata to annotate your files.</li>
     </ul>
     <section class="forward-btn">
-      <RouterLink class="btn btn-primary" to="/summary">Start</RouterLink>
+      <a @click="nextStep()" class="btn btn-primary">Start</a>
     </section>
     <section class="more-info">
       <h2 class="h2">What does archiving do?</h2>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { formState } from '@/store';
+
 const DOCUMENT_TITLE = "Request sent - Archive your research drive";
 document.title = DOCUMENT_TITLE;
+formState.hasFinishedForm = true;
 </script>
 
 <template>
