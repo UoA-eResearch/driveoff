@@ -1,3 +1,6 @@
+/**
+ * Fixtures containing a sample project and drive. TODO replace with an API client.
+ */
 import type { ResearchDriveService, Project, Member, Role } from "./project";
 
 export function getDrive(): ResearchDriveService {
@@ -55,29 +58,4 @@ export function getProject(): Project {
             }
         ]
     };
-}
-/**
- * Given a list of members, filter for project owners.
- * @param members List of members to search through
- * @returns Members who are project owners.
- */
-export function getProjectOwners(members: Member[]): Member[] {
-    return members.filter(member =>
-        member.roles.some(
-            (role: Role) => role.name === "Project Owner"
-        )
-    );
-}
-
-/**
- * Given a list of project members, filter for ordinary members.
- * @param members List of members to search through
- * @returns Members who are not project owners.
- */
-export function getProjectMembers(members: Member[]): Member[] {
-    return members.filter(member =>
-        !member.roles.some(
-            (role: Role) => role.name === "Project Owner"
-        )
-    );
 }
