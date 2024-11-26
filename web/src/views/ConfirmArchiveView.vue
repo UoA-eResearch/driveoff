@@ -74,8 +74,8 @@ const projectInfoChangeLink = formState.areProjectDetailsCorrect ? "/check-detai
     <h3 class="h2">Send this request</h3>
     By sending this request you are confirming that the details are correct and you wish to archive this drive.
     <section class="forward-btn">
-            <RouterLink to="/finish" class="btn btn-primary">Submit</RouterLink>
-        </section>
+        <RouterLink to="/finish" class="btn btn-primary">Submit</RouterLink>
+    </section>
 </template>
 
 <style scoped>

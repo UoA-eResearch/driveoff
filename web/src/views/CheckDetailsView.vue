@@ -9,7 +9,6 @@ import { useRouter } from 'vue-router';
 const DOCUMENT_TITLE = "Confirm project information - Archive your research drive";
 document.title = DOCUMENT_TITLE;
 
-const areProjectDetailsCorrect = ref();
 const error =ref("");
 const router = useRouter();
 const driveInfo = getDrive();
@@ -18,17 +17,15 @@ const owners = membersToString(getProjectOwners(project.members));
 const members = membersToString(getProjectMembers(project.members));
 
 function tryContinue() {
-    if (areProjectDetailsCorrect.value === undefined){
+    if (formState.areProjectDetailsCorrect === undefined){
         document.title = "Error: " + DOCUMENT_TITLE;
         error.value = "Select Yes if the project information is still correct.";
-    } else {
-        if (areProjectDetailsCorrect.value) {
+    } else if (formState.areProjectDetailsCorrect) {
             // Copy project details over as they are correct.
             formState.project = Object.assign({}, getProject());
             router.push("/data-classification");
-        } else {
-            router.push("/update-details");
-        }
+    } else {
+        router.push("/update-details");
     }
 }
 </script>
@@ -62,9 +59,9 @@ function tryContinue() {
             <legend class="h2">Is the project information still correct?</legend>
             <p v-if="error" class="error-msg">{{ error }}</p>
             <div class="option-list">
-                <input name="confirm-project" type="radio" id="yes-project" :value="true" v-model="areProjectDetailsCorrect">
+                <input name="confirm-project" type="radio" id="yes-project" :value="true" v-model="formState.areProjectDetailsCorrect">
                 <label for="yes-project">Yes, it is.</label>
-                <input name="confirm-project" type="radio" id="no-project" :value="false" v-model="areProjectDetailsCorrect">
+                <input name="confirm-project" type="radio" id="no-project" :value="false" v-model="formState.areProjectDetailsCorrect">
                 <label for="no-project">No, it needs to be updated.</label>
             </div>
         </fieldset>

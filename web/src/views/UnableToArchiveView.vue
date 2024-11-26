@@ -1,3 +1,7 @@
+<script setup lang="ts">
+const DOCUMENT_TITLE = "Unable to archive drive - Archive your research drive";
+document.title = DOCUMENT_TITLE;
+</script>
 <template>
     <main>
         <div class="title-section">

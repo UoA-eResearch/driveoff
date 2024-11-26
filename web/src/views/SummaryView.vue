@@ -14,7 +14,7 @@ const router = useRouter();
 const driveInfo = getDrive();
 
 function tryContinue() {
-    if (formState.isCorrectDrive === undefined){
+    if (formState.isCorrectDrive === null){
         document.title = "Error: " + DOCUMENT_TITLE;
         error.value = "Select Yes if this is research drive you wanted to archive."
     } else {
@@ -37,9 +37,15 @@ function tryContinue() {
                 <p v-if="error" class="error-msg">{{ error }}</p>
             </div>
         <section class="drive-details-card box">
-            <h3 class="drive-name">{{ driveInfo.name }}</h3>
-            <p class="storage-size">{{ driveInfo.allocated_gb }} GB</p>
-            <a href="#" class="btn-link">See files in drive...</a>
+            <h3 class="h2">Drive information</h3>
+            <dl class="details">
+                <dt>Name</dt>
+                <dl>{{ driveInfo.name }}</dl>
+                <dt>Allocated space</dt>
+                <dl>{{ driveInfo.allocated_gb }}GB</dl>
+                <dt>Used space</dt>
+                <dl>{{ driveInfo.used_gb }}GB</dl>
+            </dl>
         </section>
         <form novalidate>
         <fieldset>
@@ -77,6 +83,17 @@ table {
     width: 100%;
 }
 
+dt {
+    font-family: NationalBold;
+}
+
+dt:not(:first-child) {
+    margin-top: 1rem;
+}
+
+.details {
+    margin-top: 1rem;
+}
 
 .drive-details-card {
     padding-left: 1rem;

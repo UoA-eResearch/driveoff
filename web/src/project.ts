@@ -26,6 +26,7 @@ export interface Project {
 export interface ResearchDriveService {
     allocated_gb: number
     name: string
+    used_gb: number
 }
 
 export enum DataClassification {
