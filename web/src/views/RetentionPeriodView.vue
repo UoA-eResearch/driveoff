@@ -40,13 +40,13 @@ function tryContinue() {
             </div>
             <form novalidate class="option-list">
                 <input name="confirm-drive" type="radio" id="rp-6y" value="6" v-model="period">
-                <label for="rp-6y">6 years from today</label>
+                <label for="rp-6y">6 years after today</label>
                 <input name="confirm-drive" type="radio" id="rp-10y" value="10" v-model="period">
-                <label for="rp-10y">10 years from today</label>
+                <label for="rp-10y">10 years after today</label>
                 <input name="confirm-drive" type="radio" id="rp-20y" value="20" v-model="period">
-                <label for="rp-20y">20 years from today</label>
+                <label for="rp-20y">20 years after today</label>
                 <input name="confirm-drive" type="radio" id="rp-26y" value="26" v-model="period">
-                <label for="rp-26y">26 years from today</label>
+                <label for="rp-26y">26 years after today</label>
                 <input name="confirm-drive" type="radio" id="rp-custom" value="custom" v-model="period">
                 <label for="rp-custom">Something else</label>
             </form>
