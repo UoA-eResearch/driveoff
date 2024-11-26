@@ -41,7 +41,7 @@ function tryContinue() {
             <dl class="details">
                 <dt>Name</dt>
                 <dl>{{ driveInfo.name }}</dl>
-                <dt>Allocated space</dt>
+                <dt>Total space</dt>
                 <dl>{{ driveInfo.allocated_gb }}GB</dl>
                 <dt>Used space</dt>
                 <dl>{{ driveInfo.used_gb }}GB</dl>

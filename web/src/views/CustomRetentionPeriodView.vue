@@ -37,7 +37,7 @@ function tryContinue(){
             </div>
             <form novalidate @submit.prevent="tryContinue()">
                 <div class="form-group">
-                    <label for="custom-period">Years after today</label>
+                    <label for="custom-period">Years from today</label>
                     <input type="number" id="custom-period" v-model="customPeriod">
                 </div>
             </form>

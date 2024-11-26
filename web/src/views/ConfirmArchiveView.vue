@@ -69,7 +69,7 @@ const projectInfoChangeLink = formState.areProjectDetailsCorrect ? "/check-detai
             </tr>
             <tr>
                 <td>Retention period</td>
-                <td>{{ formState.retentionPeriod }} years after today</td>
+                <td>{{ formState.retentionPeriod }} years from today</td>
                 <td><RouterLink to="/retention-period">Change</RouterLink></td>
             </tr>
         </tbody>

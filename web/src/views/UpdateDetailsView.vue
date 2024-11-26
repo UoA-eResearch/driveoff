@@ -36,7 +36,10 @@ function tryContinue() {
         document.title = "Error: " + DOCUMENT_TITLE;
         return;
     }
-    // Otherwise, go to the next page
+    // Otherwise, copy over members, division and go to the next page
+    formState.project.members = getProject().members;
+    formState.project.division = getProject().division;
+
     router.push("data-classification");
 }
 </script>
