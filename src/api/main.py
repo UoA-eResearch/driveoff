@@ -174,6 +174,23 @@ async def append_drive_info(
     }
 
 
+async def generate_ro_crate(project_ids: List[int], session: SessionDep) -> ROLoader:
+    """Generate an RO-Crate from a list of projects"""
+    ro_crate_loader = ROLoader()
+    ro_crate_loader.init_crate()
+    ro_crate_builder = ROBuilder(ro_crate_loader.crate)
+    projects = []
+    # re-query for projects as RO-Crate construction is a background task (or celery automated)
+    for project_id in project_ids:
+        project_query = select(Project).where(Project.id == project_id)
+        project_found = session.exec(project_query).first()
+        if project_found is not None:
+            projects.append(project_found)
+    _ = [ro_crate_builder.add_project(project) for project in projects]
+    ro_crate_loader.write_crate(Path("test_output_crate"))
+    return ro_crate_loader
+
+
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)
 async def get_drive_info(
     drive_id: ResearchDriveID,

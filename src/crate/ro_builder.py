@@ -44,6 +44,7 @@ class ROBuilder:
         )
         project_entity.append_to("identifier", [code.code for code in project.codes])
         project_entity.properties()["@type"] = "Project"
+        # update project from form content models
         project_people = [self.add_member(person) for person in project.members]
         project_entity.append_to("members", project_people)
         project_services = [

@@ -18,11 +18,6 @@ class ARCHIVETYPE(str, Enum):
     TAR_GZ = "tar.gz"
 
 
-# class RO_JSON(SQLModel):
-#     id: Optional[int] = Field(default=None, primary_key=True)
-#     crate_json = JsonType
-
-
 class ROLoader:
     """class for reading and writing crates"""
 
