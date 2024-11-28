@@ -16,5 +16,7 @@ class DriveOffboardSubmission(SQLModel, table=True):
     retention_period_justification: str | None
     data_classification: str
     is_completed: bool
-    drive_id: int = Field(default=None, foreign_key="researchdriveservice.id")
+    drive_id: int = Field(
+        default=None, unique=True, foreign_key="researchdriveservice.id"
+    )
     drive: "ResearchDriveService" = Relationship(back_populates="submission")
