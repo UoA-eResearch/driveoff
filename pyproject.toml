@@ -16,9 +16,10 @@ pylint = "^3.3.1"
 pytest = "^8.3.3"
 mypy = "^1.11.2"
 coverage = "^7.6.1"
-ceradmin_cli = { git = "https://github.com/LibbyLi667/ceradmin_cli.git", branch = "project_query_rocrate" }
-ceradmin_common = {git = "https://github.com/UoA-eResearch/ceradmin_common.git", branch = "master"}
 humanfriendly = "^10.0"
+ceradmin_common = {git = "https://github.com/UoA-eResearch/ceradmin_common.git", branch = "master"}
+## This is a temporary dependency, will be removed once the project_query_rocrate branch is merged into master or any other solution for this.
+ceradmin_cli = { git = "https://github.com/LibbyLi667/ceradmin_cli.git", branch = "project_query_rocrate" }
 
 [build-system]
 requires = ["poetry-core"]
