@@ -5,6 +5,7 @@ import tarfile
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict
+import json
 
 from rocrate.rocrate import ROCrate
 
@@ -62,7 +63,13 @@ class ROLoader:
         """
         if not crate_destination.exists():
             crate_destination.mkdir(parents=True, exist_ok=True)
-        self.crate.metadata.write(crate_destination)
+
+        #lift and shift ro-crate lib write function to allow for ensure_ascii=False (to preserve macrons)
+        crate_metadata_entity = self.crate.metadata
+        write_path = crate_destination / crate_metadata_entity.id
+        as_jsonld = crate_metadata_entity.generate()
+        with open(write_path, 'w', encoding="utf-8") as outfile:
+            json.dump(as_jsonld, outfile, indent=4, sort_keys=True, ensure_ascii=False)
 
     def deserialize_crate(self, input_json: JsonType) -> None:
         """Read an RO-Crate from a json dictionary input
@@ -77,6 +84,7 @@ class ROLoader:
     def serialize_crate(self) -> JsonType:
         """Write the ro crate metadata to a json string and return it"""
         as_jsonld: JsonType = self.crate.metadata.generate()
+        print("serialized crate is", as_jsonld)
         return as_jsonld
 
     def archive_crate(
