@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
+from models.submission import DriveOffboardSubmission
+
 if TYPE_CHECKING:
     from models.project import Project
 
@@ -35,6 +37,7 @@ class ResearchDriveService(SQLModel, table=True):
     projects: list["Project"] = Relationship(
         link_model=ResearchDriveProjectLink, back_populates="research_drives"
     )
+    submission: DriveOffboardSubmission | None = Relationship(back_populates="drive")
 
 
 class InputServices(SQLModel):
