@@ -11,7 +11,7 @@ from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from api.manifests import generate_manifest
+from api.manifests import bag_directory, create_manifests_directory, generate_manifest
 from api.security import ApiKey, validate_api_key, validate_permissions
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader
@@ -174,7 +174,12 @@ async def append_drive_info(
     }
 
 
-async def generate_ro_crate(project_ids: List[int], session: SessionDep) -> ROLoader:
+async def generate_ro_crate(
+    project_ids: List[int],
+    session: SessionDep,
+    drive_location: Path,
+    output_location: Path,
+) -> ROLoader:
     """Generate an RO-Crate from a list of projects"""
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
@@ -187,7 +192,12 @@ async def generate_ro_crate(project_ids: List[int], session: SessionDep) -> ROLo
         if project_found is not None:
             projects.append(project_found)
     _ = [ro_crate_builder.add_project(project) for project in projects]
-    ro_crate_loader.write_crate(Path("test_output_crate"))
+    ro_crate_loader.write_crate(drive_location)
+    bag_directory(drive_location, bag_info={"projects": "test"})
+    create_manifests_directory(
+        drive_path=drive_location, output_location=output_location
+    )
+    # create and move TAR directory
     return ro_crate_loader
 
 
@@ -223,7 +233,11 @@ async def get_drive_info(
         )
     # build RO-crate
     background_tasks.add_task(
-        generate_ro_crate, project_ids=project_ids, session=session
+        generate_ro_crate,
+        project_ids=project_ids,
+        session=session,
+        drive_location=Path("test_output_crate"),
+        output_location=Path("."),
     )
 
     return projects[0]
@@ -255,4 +269,4 @@ async def get_drive_manifest(
             detail=f"Manifest not available for {drive_id}",
         )
 
-    return manifest
+    return {"manifest": manifest}
