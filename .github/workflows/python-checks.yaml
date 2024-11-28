@@ -31,13 +31,13 @@ jobs:
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY_TO_CERADMIN_COMMON }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_KEY_TO_CERADMIN_COMMON }}" | tr -d '\r' >  ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan github.com >> ~/.ssh/known_hosts
   
       - name: Test SSH connection
         run: ssh -vT git@github.com
-        
+
       - name: Clone private repository
         run: git clone git@github.com:UoA-eResearch/ceradmin_common.git
 
