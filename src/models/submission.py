@@ -22,7 +22,6 @@ class DriveOffboardSubmission(SQLModel):
     # https://github.com/fastapi/sqlmodel/discussions/855
     model_config = ConfigDict(str_strip_whitespace=True)  # type: ignore
 
-    id: int | None = Field(default=None, primary_key=True)
     retention_period_years: int
     retention_period_justification: str | None = None
     data_classification: DataClassification
@@ -62,3 +61,5 @@ class DbDriveOffboardSubmission(DriveOffboardSubmission, table=True):
     offboarding process retrieved from the database.Do not instantiate directly.
     Create a DriveOffboardSubmission to make sure input is validated,
     then use `DriveOffboardSubmission.to_db_model()`."""
+
+    id: int | None = Field(default=None, primary_key=True)
