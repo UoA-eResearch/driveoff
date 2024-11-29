@@ -35,8 +35,11 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan github.com >> ~/.ssh/known_hosts
   
-      - name: Test SSH connection
-        run: ssh -vT git@github.com
+      - name: Debug SSH key
+        run: |
+          ls -l ~/.ssh
+          cat ~/.ssh/known_hosts
+          ssh -vT git@github.com
 
       - name: Clone private repository
         run: git clone git@github.com:UoA-eResearch/ceradmin_common.git
