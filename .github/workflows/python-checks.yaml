@@ -31,10 +31,18 @@ jobs:
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY_TO_CERADMIN_COMMON }}" | tr -d '\r' >  ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_KEY_TO_CERADMIN_COMMON }}" | tr -d '\r' >  ~/.ssh/github_actions_key
+          chmod 600 ~/.ssh/github_actions_key
           ssh-keyscan github.com >> ~/.ssh/known_hosts
-  
+          
+      - name: Configure SSH
+        run: |
+          echo "Host github.com
+            HostName github.com
+            IdentityFile ~/.ssh/github_actions_key
+            User git" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          
       - name: Debug SSH key
         run: |
           ls -l ~/.ssh
