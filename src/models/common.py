@@ -2,6 +2,9 @@
 
 from enum import Enum
 
+# The set of default retention periods we are offering.
+DEFAULT_RETENTION_PERIODS = set([6, 10, 20, 26])
+
 
 class DataClassification(str, Enum):
     """Data classification labels defined in Research
