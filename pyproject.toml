@@ -13,6 +13,7 @@ bagit = "^1.8.1"
 factory-boy = "^3.3.1"
 pytest-cov = "^6.0.0"
 rocrate = "^0.11.0"
+orjson = "^3.10"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -41,3 +42,5 @@ strict = true
 [tool.pytest.ini_options]
 pythonpath = "src tests"
 testpaths= ["tests"]
+[tool.pylint]
+extension-pkg-whitelist = ["orjson"]

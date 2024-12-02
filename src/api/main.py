@@ -4,7 +4,7 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, AsyncGenerator, Iterable, List
+from typing import Annotated, AsyncGenerator, Iterable
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response, Security, status
 from pydantic.functional_validators import AfterValidator
@@ -175,23 +175,36 @@ async def append_drive_info(
 
 
 async def generate_ro_crate(
-    project_ids: List[int],
+    drive_id: ResearchDriveID,
     session: SessionDep,
     drive_location: Path,
     output_location: Path,
 ) -> ROLoader:
     """Generate an RO-Crate from a list of projects"""
+
+    code_query = select(ResearchDriveService).where(
+        ResearchDriveService.name == str(drive_id)
+    )
+    drive_found = session.exec(code_query).one()
+
+    if drive_found is None:
+        raise ValueError(
+            f"Research Drive ID {drive_id} no longer found in local database."
+        )
+
+    projects = drive_found.projects
+
+    if len(projects) == 0:
+        raise ValueError(f"No projects linked with drive {drive_id}")
+
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
     ro_crate_builder = ROBuilder(ro_crate_loader.crate)
-    projects = []
     # re-query for projects as RO-Crate construction is a background task (or celery automated)
-    for project_id in project_ids:
-        project_query = select(Project).where(Project.id == project_id)
-        project_found = session.exec(project_query).first()
-        if project_found is not None:
-            projects.append(project_found)
-    _ = [ro_crate_builder.add_project(project) for project in projects]
+    project_entities = [ro_crate_builder.add_project(project) for project in projects]
+    drive_entity = ro_crate_builder.add_research_drive_service(drive_found)
+    ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
+    drive_entity.append_to("project", project_entities)
     ro_crate_loader.write_crate(drive_location)
     bag_directory(drive_location, bag_info={"projects": "test"})
     create_manifests_directory(
@@ -234,7 +247,7 @@ async def get_drive_info(
     # build RO-crate
     background_tasks.add_task(
         generate_ro_crate,
-        project_ids=project_ids,
+        drive_id=drive_id,
         session=session,
         drive_location=Path("test_output_crate"),
         output_location=Path("."),

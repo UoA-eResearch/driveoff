@@ -5,8 +5,8 @@ import tarfile
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict
-import json
 
+import orjson
 from rocrate.rocrate import ROCrate
 
 JsonType = Dict[str, Any]
@@ -41,7 +41,7 @@ class ROLoader:
         self.crate = ROCrate(source=read_path, init=False)
         self.crate.source = None
         if self.PROFILE not in self.crate.metadata.get_norm_value("conformsTo"):
-            self.crate.metadata.append_to("conformsTo", self.PROFILE)
+            self.crate.metadata.append_to("conformsTo", {"@id": self.PROFILE})
         return self.crate
 
     def init_crate(self) -> ROCrate:
@@ -52,7 +52,7 @@ class ROLoader:
             ROCrate: The RO-Crate to be constructed
         """
         self.crate = ROCrate(source=None, init=False)
-        self.crate.metadata.append_to("conformsTo", self.PROFILE)
+        self.crate.metadata.append_to("conformsTo", {"@id": self.PROFILE})
         return self.crate
 
     def write_crate(self, crate_destination: Path) -> None:
@@ -64,12 +64,17 @@ class ROLoader:
         if not crate_destination.exists():
             crate_destination.mkdir(parents=True, exist_ok=True)
 
-        #lift and shift ro-crate lib write function to allow for ensure_ascii=False (to preserve macrons)
         crate_metadata_entity = self.crate.metadata
         write_path = crate_destination / crate_metadata_entity.id
         as_jsonld = crate_metadata_entity.generate()
-        with open(write_path, 'w', encoding="utf-8") as outfile:
-            json.dump(as_jsonld, outfile, indent=4, sort_keys=True, ensure_ascii=False)
+        with open(write_path, "w", encoding="utf-8") as outfile:
+            # use orjson as it serializes datetimes and is much faster?
+            outfile.write(
+                orjson.dumps(
+                    as_jsonld, option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_2
+                ).decode("utf-8")
+            )
+            # json.dump(as_jsonld, outfile, indent=4, sort_keys=True, ensure_ascii=False)
 
     def deserialize_crate(self, input_json: JsonType) -> None:
         """Read an RO-Crate from a json dictionary input
