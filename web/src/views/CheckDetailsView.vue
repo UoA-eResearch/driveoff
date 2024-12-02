@@ -17,7 +17,7 @@ const owners = membersToString(getProjectOwners(project.members));
 const members = membersToString(getProjectMembers(project.members));
 
 function tryContinue() {
-    if (formState.areProjectDetailsCorrect === undefined){
+    if (formState.areProjectDetailsCorrect === null){
         document.title = "Error: " + DOCUMENT_TITLE;
         error.value = "Select Yes if the project information is still correct.";
     } else if (formState.areProjectDetailsCorrect) {

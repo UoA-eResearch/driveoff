@@ -25,11 +25,6 @@ const router = createRouter({
       component: () => import("../views/UpdateDetailsView.vue")
     },
     {
-      path: "/update-members",
-      name: 'update-members',
-      component: () => import("../views/UpdateMembersView.vue")
-    },
-    {
       path: "/data-classification",
       name: "data-classification",
       component: () => import("../views/DataClassificationView.vue")
