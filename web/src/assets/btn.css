@@ -6,6 +6,7 @@
     display: inline-block;
     font-family: NationalBold, sans-serif;
     text-decoration: none;
+    user-select: none;
 }
 
 .btn-primary {
