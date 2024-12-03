@@ -119,6 +119,7 @@ async def set_drive_info(
     # Upsert the project.
     session.merge(project)
     session.commit()
+    print(project.codes)
     return project
 
 

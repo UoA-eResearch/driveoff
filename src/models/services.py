@@ -8,7 +8,8 @@ from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.manifest import Manifest, ManifestDriveLink
-from models.submission import DriveOffboardSubmission
+
+# from models.submission import DriveOffboardSubmission
 
 if TYPE_CHECKING:
     from models.project import Project
@@ -67,6 +68,7 @@ class ResearchDriveService(BaseResearchDriveService, table=True):
 
 class ROCrateResDriveService(BaseResearchDriveService):
     """Model for serializing research drive services as part of an RO-Crate"""
+
     # Bug with SQLModel library causing typing error:
     # https://github.com/fastapi/sqlmodel/discussions/855
     model_config = ConfigDict(  # type: ignore

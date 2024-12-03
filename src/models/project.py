@@ -82,6 +82,7 @@ class ProjectWithDriveMember(BaseProject):
     
 class ROCrateProject(BaseProject):
     """Project model to be serialized as part of an RO-Crate"""
+
     # Bug with SQLModel library causing typing error:
     # https://github.com/fastapi/sqlmodel/discussions/855
     model_config = ConfigDict(  # type: ignore
