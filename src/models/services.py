@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.manifest import Manifest, ManifestDriveLink
+from models.submission import DriveOffboardSubmission
 
 if TYPE_CHECKING:
     from models.project import Project
@@ -40,6 +41,7 @@ class ResearchDriveService(SQLModel, table=True):
     manifest: Manifest = Relationship(
         link_model=ManifestDriveLink, back_populates="research_drive"
     )
+    submission: DriveOffboardSubmission | None = Relationship(back_populates="drive")
 
 
 class InputServices(SQLModel):

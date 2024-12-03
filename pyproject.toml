@@ -33,3 +33,7 @@ exclude = [
        "^tests/.*$"
        ]
 strict = true
+
+[tool.pytest.ini_options]
+pythonpath = "src tests"
+testpaths= ["tests"]
