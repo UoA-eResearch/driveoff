@@ -1,7 +1,9 @@
 """Definition of endpoints/routers for the webserver."""
 
+import datetime
 import re
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, AsyncGenerator, Iterable, Optional
 
@@ -17,7 +19,8 @@ from models.member import Member
 from models.person import Person
 from models.project import InputProject, Project, ProjectWithDriveMember
 from models.role import prepopulate_roles
-from models.services import ResearchDriveService, ResearchDriveServicePublic
+from models.services import ResearchDriveService
+from models.submission import DriveOffboardSubmission, InputDriveOffboardSubmission
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -119,19 +122,46 @@ async def set_drive_info(
     return project
 
 
-@app.put(ENDPOINT_PREFIX + "/resdriveinfo")
+@app.post(ENDPOINT_PREFIX + "/submission")
 async def append_drive_info(
-    drive_id: ResearchDriveID,
-    ro_crate_metadata: dict[str, str],
+    input_submission: InputDriveOffboardSubmission,
+    session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
-    """Submit additional RO-Crate metadata. NOTE: this may need to accept manifest deltas too."""
-
     validate_permissions("PUT", api_key)
 
-    _ = ro_crate_metadata
+    # Find the related drive and project
+    find_drive_stmt = select(ResearchDriveService).where(
+        ResearchDriveService.name == input_submission.drive_name
+    )
+    result = session.exec(find_drive_stmt)
+    drive = result.first()
+    if drive is None:
+        raise ValueError("Could not find drive with drive_name.")
+    if drive.submission is not None and drive.submission.is_completed:
+        raise ValueError("Drive already has a completed submission.")
+    related_project = drive.projects[0]
+    is_project_updated = False
+    if input_submission.project_changes is not None:
+        # Apply changes from input to project, if any.
+        is_project_updated = input_submission.project_changes.apply_changes(
+            related_project
+        )
+    submission = DriveOffboardSubmission(
+        id=drive.submission.id if drive.submission is not None else None,
+        data_classification=input_submission.data_classification,
+        retention_period_years=input_submission.retention_period_years,
+        retention_period_justification=input_submission.retention_period_justification,
+        is_completed=input_submission.is_completed,
+        drive_id=drive.id,
+        is_project_updated=is_project_updated,
+        updated_time=datetime.now(),
+    )
+    session.add(related_project)
+    session.merge(submission)
+    session.commit()
     return {
-        "message": f"Received additional RO-Crate metadata for {drive_id}.",
+        "message": f"Received additional RO-Crate metadata for {drive.name}.",
     }
 
 
