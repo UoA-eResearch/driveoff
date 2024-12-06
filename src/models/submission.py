@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from models.services import ResearchDriveService
 
 
-class DriveOffboardSubmission(SQLModel):
+class DriveOffboardSubmission(SQLModel, table=True):
     """Model that represents a user's submission in the drive
     offboarding process retrieved."""
 
