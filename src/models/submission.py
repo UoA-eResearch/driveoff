@@ -31,10 +31,8 @@ class BaseDriveOffboardSubmission(SQLModel):
 class InputDriveOffboardSubmission(BaseDriveOffboardSubmission):
     """Submission data model for the POST request."""
 
-    drive_name: str = Field(schema_extra={"validation_alias": "driveName"})
-    project_changes: ProjectChanges | None = Field(
-        default=None, schema_extra={"validation_alias": "projectChanges"}
-    )
+    drive_name: str
+    project_changes: ProjectChanges | None = Field(default=None)
 
 
 class DriveOffboardSubmission(BaseDriveOffboardSubmission, table=True):

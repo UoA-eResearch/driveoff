@@ -138,12 +138,17 @@ async def append_drive_info(
     result = session.exec(find_drive_stmt)
     drive = result.first()
     if drive is None:
+        # If there isn't a drive associated, return error.
         response.status_code = status.HTTP_404_NOT_FOUND
         return {"message": "Could not find drive with drive_name."}
     if drive.submission is not None:
         # Reject request to POST if there is already a post submission.
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {"message": "Drive already has a submission."}
+    if len(drive.projects) == 0:
+        # Unlikely to happen, but handle if the drive does not have a project associated.
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {"message": "Drive does not have a project associated."}
     related_project = drive.projects[0]
     is_project_updated = False
     if input_submission.project_changes is not None:
