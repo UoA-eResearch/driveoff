@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import ConfigDict
+from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.common import DataClassification
@@ -16,16 +16,16 @@ if TYPE_CHECKING:
 class BaseDriveOffboardSubmission(SQLModel):
     """Model of drive offboarding submission with common fields."""
 
-    retention_period_years: int = Field(
-        schema_extra={"validation_alias": "retentionPeriodYears"}
-    )
-    retention_period_justification: str | None = Field(
-        default=None, schema_extra={"validation_alias": "retentionPeriodJustification"}
-    )
-    data_classification: DataClassification = Field(
-        schema_extra={"validation_alias": "dataClassification"}
-    )
-    is_completed: bool = Field(schema_extra={"validation_alias": "isCompleted"})
+    # https://github.com/fastapi/sqlmodel/discussions/855
+    model_config = {
+        "alias_generator": to_camel,
+        "str_strip_whitespace": True,
+    }  # type: ignore
+
+    retention_period_years: int
+    retention_period_justification: str | None = Field(default=None)
+    data_classification: DataClassification
+    is_completed: bool
 
 
 class InputDriveOffboardSubmission(BaseDriveOffboardSubmission):
@@ -40,10 +40,6 @@ class InputDriveOffboardSubmission(BaseDriveOffboardSubmission):
 class DriveOffboardSubmission(BaseDriveOffboardSubmission, table=True):
     """Model that represents a user's submission in the drive
     offboarding process retrieved."""
-
-    # Bug with SQLModel library causing typing error:
-    # https://github.com/fastapi/sqlmodel/discussions/855
-    model_config = ConfigDict(str_strip_whitespace=True)  # type: ignore
 
     id: int | None = Field(default=None, primary_key=True)
     updated_time: datetime
