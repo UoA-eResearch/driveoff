@@ -8,6 +8,7 @@ from typing import Any, Generator
 import factory
 import pytest
 from factory.alchemy import SQLAlchemyModelFactory
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
@@ -43,11 +44,6 @@ def session_fixture() -> Generator[Session, Any, Any]:
         session.close()
 
 
-@pytest.fixture
-def submission() -> dict[str, Any]:
-    """Fixture with a working submission.
-
-
 @pytest.fixture(name="client")
 def client_fixture(session: Session):
     def get_session_override():
@@ -66,6 +62,7 @@ def client_fixture(session: Session):
     client = TestClient(app, headers={"x-api-key": test_api_key})
     yield client
     app.dependency_overrides.clear()
+
 
 @pytest.fixture
 def person_factory(session: Session) -> SQLAlchemyModelFactory:
@@ -213,6 +210,7 @@ def project_factory(
         )
 
     return ProjectFactory
+
 
 @pytest.fixture
 def project():
