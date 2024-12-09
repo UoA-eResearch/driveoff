@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, AsyncGenerator, Iterable
 
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, HTTPException, Response, Security, status
 from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -121,12 +121,14 @@ async def set_drive_info(
     return project
 
 
-@app.post(ENDPOINT_PREFIX + "/submission")
+@app.post(ENDPOINT_PREFIX + "/submission", status_code=status.HTTP_201_CREATED)
 async def append_drive_info(
     input_submission: InputDriveOffboardSubmission,
     session: SessionDep,
+    response: Response,
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
+    """Handle requests to create new form submission."""
     validate_permissions("PUT", api_key)
 
     # Find the related drive and project
@@ -136,9 +138,12 @@ async def append_drive_info(
     result = session.exec(find_drive_stmt)
     drive = result.first()
     if drive is None:
-        raise ValueError("Could not find drive with drive_name.")
-    if drive.submission is not None and drive.submission.is_completed:
-        raise ValueError("Drive already has a completed submission.")
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {"message": "Could not find drive with drive_name."}
+    if drive.submission is not None:
+        # TODO Implement PUT handler to allow modification of an incomplete form submission.
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": "Drive already has a submission."}
     related_project = drive.projects[0]
     is_project_updated = False
     if input_submission.project_changes is not None:
@@ -157,7 +162,7 @@ async def append_drive_info(
         updated_time=datetime.now(),
     )
     session.add(related_project)
-    session.merge(submission)
+    session.add(submission)
     session.commit()
     return {
         "message": f"Received additional RO-Crate metadata for {drive.name}.",
