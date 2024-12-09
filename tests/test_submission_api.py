@@ -108,3 +108,45 @@ def test_post_submission_reject_already_submitted(
         },
     )
     assert second_response.status_code == 400
+
+
+def test_post_submission_reject_drive_with_no_project(
+    session: Session, client: TestClient, project: Project
+):
+    # Unlink drive from project
+    drive = project.research_drives[0]
+    project.research_drives = []
+    session.add(project)
+    session.add(drive)
+    session.commit()
+    response = client.post(
+        "/api/v1/submission",
+        json={
+            "retentionPeriodYears": 6,
+            "dataClassification": "Sensitive",
+            "isCompleted": True,
+            "driveName": "restst000000001-testing",
+            "projectChanges": {
+                "title": "My new title",
+                "description": "My new description",
+            },
+        },
+    )
+    assert response.status_code == 404
+
+
+def test_post_submission_handle_wrong_drive_name(client: TestClient):
+    response = client.post(
+        "/api/v1/submission",
+        json={
+            "retentionPeriodYears": 6,
+            "dataClassification": "Sensitive",
+            "isCompleted": True,
+            "driveName": "restst000000001-testing",
+            "projectChanges": {
+                "title": "My new title",
+                "description": "My new description",
+            },
+        },
+    )
+    assert response.status_code == 404
