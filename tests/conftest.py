@@ -19,6 +19,13 @@ from models.role import Role, prepopulate_roles
 from models.services import ResearchDriveService
 from models.submission import DriveOffboardSubmission
 
+ROLES = prepopulate_roles()
+
+
+def random_role() -> Role:
+    "Choose a random role from the prepoulated roles"
+    return random.choice(ROLES)
+
 
 @pytest.fixture(name="session")
 def session_fixture() -> Session:
@@ -50,14 +57,6 @@ def submission() -> dict[str, Any]:
     }
 
 
-ROLES = prepopulate_roles()
-
-
-def random_role() -> Role:
-    "Choose a random role from the prepoulated roles"
-    return random.choice(ROLES)
-
-
 @pytest.fixture
 def person_factory(session: Session) -> SQLAlchemyModelFactory:
     "fixture for person factories"
@@ -67,7 +66,7 @@ def person_factory(session: Session) -> SQLAlchemyModelFactory:
 
         class Meta:
             model = Person
-            sqlalchemy_session_factory = session
+            sqlalchemy_session = session
 
         id: int = factory.sequence(lambda n: n)
         email = random.choice([factory.Faker("email"), None])
@@ -88,7 +87,7 @@ def drive_offboard_submission_factory(session: Session) -> SQLAlchemyModelFactor
 
         class Meta:
             model = DriveOffboardSubmission
-            sqlalchemy_session_factory = session
+            sqlalchemy_session = session
 
         retention_period_years = random.choice(
             [6, 10, 20, 26, random.randrange(7, 100)]
@@ -115,7 +114,7 @@ def research_drive_service_factory(
 
         class Meta:
             model = ResearchDriveService
-            sqlalchemy_session_factory = session
+            sqlalchemy_session = session
 
         id: int = factory.sequence(lambda n: n)
 
@@ -147,7 +146,7 @@ def member_factory(
 
         class Meta:
             model = Member
-            sqlalchemy_session_factory = session
+            sqlalchemy_session = session
 
         role = random_role()
         project = None
@@ -165,7 +164,7 @@ def code_factory(session: Session) -> SQLAlchemyModelFactory:
 
         class Meta:
             model = Code
-            sqlalchemy_session_factory = session
+            sqlalchemy_session = session
 
         code = factory.Faker("bothify", text="????????#####")
 
@@ -186,7 +185,7 @@ def project_factory(
 
         class Meta:
             model = Project
-            sqlalchemy_session_factory = session
+            sqlalchemy_session = session
 
         title = factory.Faker("sentence")
         description = factory.Faker("paragraph")
