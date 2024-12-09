@@ -1,6 +1,5 @@
 """Definition of endpoints/routers for the webserver."""
 
-import datetime
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime
