@@ -1,8 +1,9 @@
 # pylint: disable=missing-class-docstring,too-few-public-methods,missing-module-docstring,missing-module-docstring
 # factory meta classes don't need docstrings
 import random
+import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Generator
 
 import factory
 import pytest
@@ -12,6 +13,7 @@ from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
 from api.main import app, get_session
+from api.security import ApiKey, read_api_keys
 from models.common import DataClassification
 from models.member import Member
 from models.person import Person
@@ -29,7 +31,7 @@ def random_role() -> Role:
 
 
 @pytest.fixture(name="session")
-def session_fixture() -> Session:
+def session_fixture() -> Generator[Session, Any, Any]:
     "scoped session for each unit test"
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -47,13 +49,21 @@ def submission() -> dict[str, Any]:
 
 
 @pytest.fixture(name="client")
-def client_fixture():
+def client_fixture(session: Session):
     def get_session_override():
         return session
 
-    app.dependency_overrides[get_session] = get_session_override
+    # Generate a random API key and use it for the tests.
+    test_api_key: str = str(uuid.uuid4())
 
-    client = TestClient(app)
+    def read_api_keys_override():
+        return {
+            test_api_key: ApiKey(value=test_api_key, actions=["GET", "PUT", "POST"])
+        }
+
+    app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[read_api_keys] = read_api_keys_override
+    client = TestClient(app, headers={"x-api-key": test_api_key})
     yield client
     app.dependency_overrides.clear()
 
@@ -203,56 +213,63 @@ def project_factory(
         )
 
     return ProjectFactory
-# @pytest.fixture
-# def project_and_drive():
-#     drive = ResearchDriveService(
-#         allocated_gb=25600,
-#         free_gb=24004.5,
-#         used_gb=1596,
-#         date=datetime(2024, 10, 13),
-#         first_day=datetime(2022, 1, 9),
-#         last_day=None,
-#         name="reslig202200001-Tītoki-metabolomics",
-#         percentage_used=2.75578,
-#         id=None,
-#     )
-#     people = [
-#         Person(
-#             email="s.nicolas@test.auckland.ac.nz",
-#             full_name="Samina Nicholas",
-#             username="snic021",
-#             id=1421,
-#         ),
-#         Person(
-#             username="jhos225",
-#             full_name="Jarrod Hossam",
-#             email="j.hossam@test.auckland.ac.nz",
-#             id=188,
-#         ),
-#         Person(
-#             username="medr894",
-#             email="m.edric@test.auckland.ac.nz",
-#             full_name="Melisa Edric",
-#             id=44,
-#         ),
-#     ]
-#     project = Project(
-#         codes=[Code(code="uoa00001", id=550), Code(code="reslig202200001", id=630)],
-#         title="Tītoki metabolomics",
-#         description="""
-#         Stress in plants could be defined as any change in
-#         growth condition(s) that disrupts metabolic homeostasis
-#         and requires an adjustment of metabolic pathways in a
-#         process that is usually referred to as acclimation.
-#         Metabolomics could contribute significantly to the study of stress
-#         biology in plants and other organisms by identifying different
-#          compounds, such as by-products of stress metabolism,
-#          stress signal transduction molecules or molecules that
-#          are part of the acclimation response of plants.
-#          """,
-#         division="Liggins Institute",
-#         start_date=datetime(2022, 1, 1),
-#         end_date=datetime(2024, 11, 4),
-#     )
-#     members = [Member(person_id=1421, role_id=3)]
-#     return Project()
+
+@pytest.fixture
+def project():
+    drive = ResearchDriveService(
+        allocated_gb=25600,
+        free_gb=24004.5,
+        used_gb=1596,
+        date=datetime(2024, 10, 13),
+        first_day=datetime(2022, 1, 9),
+        last_day=None,
+        name="restst000000001-testing",
+        percentage_used=2.75578,
+        id=None,
+    )
+    people = [
+        Person(
+            email="s.nicolas@test.auckland.ac.nz",
+            full_name="Samina Nicholas",
+            username="snic021",
+            id=1421,
+        ),
+        Person(
+            username="jhos225",
+            full_name="Jarrod Hossam",
+            email="j.hossam@test.auckland.ac.nz",
+            id=188,
+        ),
+        Person(
+            username="medr894",
+            email="m.edric@test.auckland.ac.nz",
+            full_name="Melisa Edric",
+            id=44,
+        ),
+    ]
+    project = Project(
+        codes=[Code(code="uoa00001", id=550), Code(code="reslig202200001", id=630)],
+        title="Tītoki metabolomics",
+        description="""
+        Stress in plants could be defined as any change in
+        growth condition(s) that disrupts metabolic homeostasis
+        and requires an adjustment of metabolic pathways in a
+        process that is usually referred to as acclimation.
+        Metabolomics could contribute significantly to the study of stress
+        biology in plants and other organisms by identifying different
+         compounds, such as by-products of stress metabolism,
+         stress signal transduction molecules or molecules that
+         are part of the acclimation response of plants.
+         """,
+        division="Liggins Institute",
+        start_date=datetime(2022, 1, 1),
+        end_date=datetime(2024, 11, 4),
+    )
+    members = [
+        Member(person=people[0], role_id=3),
+        Member(person=people[1], role_id=3),
+        Member(person=people[2], role_id=1),
+    ]
+    project.members = members
+    project.research_drives = [drive]
+    return project
