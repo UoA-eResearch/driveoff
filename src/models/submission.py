@@ -17,10 +17,10 @@ class BaseDriveOffboardSubmission(SQLModel):
     """Model of drive offboarding submission with common fields."""
 
     # https://github.com/fastapi/sqlmodel/discussions/855
-    model_config = {
+    model_config = {  # pyright: ignore
         "alias_generator": to_camel,
         "str_strip_whitespace": True,
-    }  # type: ignore
+    }
 
     retention_period_years: int
     retention_period_justification: str | None = Field(default=None)
