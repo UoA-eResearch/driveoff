@@ -151,7 +151,6 @@ async def append_drive_info(
             related_project
         )
     submission = DriveOffboardSubmission(
-        id=drive.submission.id if drive.submission is not None else None,
         data_classification=input_submission.data_classification,
         retention_period_years=input_submission.retention_period_years,
         retention_period_justification=input_submission.retention_period_justification,
