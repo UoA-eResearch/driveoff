@@ -12,6 +12,7 @@ from models.submission import DriveOffboardSubmission
 if TYPE_CHECKING:
     from models.project import Project
 
+
 class BaseDriveService(SQLModel):
     """Base model for describing a drive service."""
 
@@ -52,6 +53,7 @@ class InputServices(SQLModel):
     """Input object describing relevant storage services."""
 
     research_drive: list[ResearchDriveService]
+
 
 class ResearchDriveServicePublic(BaseDriveService):
     """Public model for Research Drive Service."""
