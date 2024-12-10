@@ -24,6 +24,7 @@ class BaseDriveService(SQLModel):
     first_day: datetime
     last_day: Optional[datetime]
 
+
 class ResearchDriveProjectLink(SQLModel, table=True):
     """Linking table between research drive service and a project's service."""
 
