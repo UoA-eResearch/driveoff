@@ -13,9 +13,13 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 client.setConfig({
-  baseUrl: "http://localhost:8000"
+  baseUrl: import.meta.env.VITE_API_BASE_URL
 });
 
+client.interceptors.request.use((request, _) => {
+  request.headers.set('x-api-key', import.meta.env.VITE_API_KEY);
+  return request;
+});
 </script>
 
 <template>
