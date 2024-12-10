@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
+from models.member import MemberPublic
 from models.person import InputPerson
 from models.services import (
     InputServices,
@@ -12,7 +13,6 @@ from models.services import (
     ResearchDriveService,
     ResearchDriveServicePublic,
 )
-from models.member import MemberPublic
 
 # Only import Member during typechecking to prevent circular dependency error.
 if TYPE_CHECKING:
