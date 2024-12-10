@@ -92,12 +92,18 @@ class ROBuilder:
         return self.crate.add(project_entity)
 
     def add_member(self, member: Member) -> ContextEntity:
-        member_id = f"{MEMBER_PREFIX}{member.project_id}/{"".join(member.role.name.split())}/{member.person.username}"
+        def construct_member_id(member: Member) -> str:
+            if member.role:
+                return f"{MEMBER_PREFIX}{member.project_id}/{"".join(member.role.name.split())}/{member.person.username}"
+            else:
+                return f"{MEMBER_PREFIX}{member.project_id}/{member.person.username}"
+
+        member_id = construct_member_id(member)
         if member_entity := self.crate.dereference(as_ro_id(member_id)):
             return member_entity
         person_entity = self.add_person(member.person)
         member_entity = ContextEntity(self.crate, identifier=member_id, properties=None)
-        member_entity["name"] = member.role.name
+        member_entity["name"] = member.role.name if member.role else "No Role"
         member_entity.append_to("member", person_entity)
         member_entity.properties()["@type"] = "OrganizationRole"
         return self.crate.add(member_entity)

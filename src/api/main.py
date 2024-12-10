@@ -183,8 +183,8 @@ async def append_drive_info(
     }
 
 
-def generate_ro_crate(
-    drive_id: ResearchDriveID,
+def build_crate_contents(
+    drive_name: ResearchDriveID,
     session: SessionDep,
     drive_location: Path,
     output_location: Path,
@@ -192,24 +192,23 @@ def generate_ro_crate(
     """Generate an RO-Crate from a list of projects"""
 
     code_query = select(ResearchDriveService).where(
-        ResearchDriveService.name == str(drive_id)
+        ResearchDriveService.name == str(drive_name)
     )
     drive_found = session.exec(code_query).one()
 
     if drive_found is None:
         raise ValueError(
-            f"Research Drive ID {drive_id} no longer found in local database."
+            f"Research Drive ID {drive_name} no longer found in local database."
         )
 
     projects = drive_found.projects
 
     if len(projects) == 0:
-        raise ValueError(f"No projects linked with drive {drive_id}")
+        raise ValueError(f"No projects linked with drive {drive_name}")
 
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
     ro_crate_builder = ROBuilder(ro_crate_loader.crate)
-    # re-query for projects as RO-Crate construction is a background task (or celery automated)
     project_entities = [ro_crate_builder.add_project(project) for project in projects]
     drive_entity = ro_crate_builder.add_research_drive_service(drive_found)
     ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
@@ -220,10 +219,29 @@ def generate_ro_crate(
         bag_info={"projects": ",".join([project.title for project in projects])},
     )
     create_manifests_directory(
-        drive_path=drive_location, output_location=output_location
+        drive_path=drive_location,
+        output_location=output_location,
+        drive_name=str(drive_name),
     )
-    # create and move TAR directory
+
     return ro_crate_loader
+
+
+
+async def generate_ro_crate(
+    drive_name: ResearchDriveID,
+    session: SessionDep,
+    drive_location: Path,
+    output_location: Path,
+) -> ROLoader:
+    """Async task for generating the RO-crate in a research drive
+    then moving all files into archive"""
+    return build_crate_contents(
+        drive_name,
+        session,
+        drive_location,
+        output_location,
+    )
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)
@@ -256,13 +274,19 @@ async def get_drive_info(
             status_code=404,
             detail=f"No Projects associated with {drive_id} in local database",
         )
-    # build RO-crate
+    # generate the RO-Crate now that db has been updated
+    # for now assume "Real" research drive has been mounted somewhere on VM home directory
+    drive_path = Path.home() / "mnt" / drive_found.name
+    if not drive_path.is_dir():
+        raise FileNotFoundError(
+            "Research Drive must be mounted in order to generate RO-Crate"
+        )
     background_tasks.add_task(
         generate_ro_crate,
-        drive_id=drive_id,
+        drive_name=drive_found.name,
         session=session,
-        drive_location=Path("test_output_crate"),
-        output_location=Path("."),
+        drive_location=drive_path / "Vault",
+        output_location=drive_path / "Archive",
     )
 
     return projects[0]

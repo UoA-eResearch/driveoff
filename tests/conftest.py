@@ -381,9 +381,9 @@ class ROCRATEHelpers:
         for entity in ro_crate_entities:
             assert json_entities[entity.id] is not None
             assert json_entities[entity.id] == json.loads(
-                orjson.dumps(entity.as_jsonld()).decode(# pylint: disable=no-member
+                orjson.dumps(entity.as_jsonld()).decode(  # pylint: disable=no-member
                     "utf-8"
-                )  
+                )
             )
 
 

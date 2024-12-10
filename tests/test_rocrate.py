@@ -6,7 +6,7 @@ from conftest import ROCRATEHelpers
 from factory.alchemy import SQLAlchemyModelFactory
 from sqlmodel import Session
 
-from api.main import generate_ro_crate
+from api.main import build_crate_contents
 from crate.ro_builder import ROBuilder
 
 METADATA_FILE_NAME = "ro-crate-metadata.json"
@@ -29,8 +29,8 @@ def test_generate_crate(  # pylint: disable=too-many-arguments,too-many-position
     project = project_factory.create(research_drives=[target_drive])
     drive_offboard_submission_factory.create(drive=target_drive)
 
-    generate_ro_crate(
-        drive_id=drive_name,
+    build_crate_contents(
+        drive_name=drive_name,
         session=session,
         drive_location=data_dir,
         output_location=archive_dir,

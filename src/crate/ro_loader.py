@@ -73,7 +73,7 @@ class ROLoader:
             outfile.write(  # pylint does not recognize orjson members....
                 orjson.dumps(  # pylint: disable=no-member
                     as_jsonld,
-                    option=orjson.OPT_SORT_KEYS # pylint: disable=no-member
+                    option=orjson.OPT_SORT_KEYS  # pylint: disable=no-member
                     | orjson.OPT_INDENT_2,  # pylint: disable=no-member
                 ).decode("utf-8")
             )
