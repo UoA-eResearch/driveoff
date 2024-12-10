@@ -25,14 +25,6 @@ class Code(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)
     code: str
 
-
-class CodePublic(Code):
-    """Public model for project codes."""
-
-    id: int
-    code: str
-
-
 class BaseProject(SQLModel):
     """Base model for describing a project."""
 
