@@ -97,4 +97,4 @@ class ROCrateProject(BaseProject):
     )
 
     def __init__(self, project: Project):
-        super().__init__(**project.dict())
+        super().__init__(**project.model_dump())

@@ -19,11 +19,13 @@ class ARCHIVETYPE(str, Enum):
     TAR_GZ = "tar.gz"
 
 
+PROFILE = "https://uoa-eresearch.github.io/Project-Archive-RoCrate-Profile/"
+
+
 class ROLoader:
     """class for reading and writing crates"""
 
     crate: ROCrate
-    PROFILE = "https://uoa-eresearch.github.io/Project-Archive-RoCrate-Profile/"
 
     def __init__(self, crate_path: Path | JsonType | None = None) -> None:
         if crate_path is not None:
@@ -40,8 +42,8 @@ class ROLoader:
         """
         self.crate = ROCrate(source=read_path, init=False)
         self.crate.source = None
-        if self.PROFILE not in self.crate.metadata.get_norm_value("conformsTo"):
-            self.crate.metadata.append_to("conformsTo", {"@id": self.PROFILE})
+        if PROFILE not in self.crate.metadata.get_norm_value("conformsTo"):
+            self.crate.metadata.append_to("conformsTo", {"@id": PROFILE})
         return self.crate
 
     def init_crate(self) -> ROCrate:
@@ -52,7 +54,7 @@ class ROLoader:
             ROCrate: The RO-Crate to be constructed
         """
         self.crate = ROCrate(source=None, init=False)
-        self.crate.metadata.append_to("conformsTo", {"@id": self.PROFILE})
+        self.crate.metadata.append_to("conformsTo", {"@id": PROFILE})
         return self.crate
 
     def write_crate(self, crate_destination: Path) -> None:
@@ -68,13 +70,11 @@ class ROLoader:
         write_path = crate_destination / crate_metadata_entity.id
         as_jsonld = crate_metadata_entity.generate()
         with open(write_path, "w", encoding="utf-8") as outfile:
-            # use orjson as it serializes datetimes and is much faster?
-            outfile.write(
-                orjson.dumps(
-                    as_jsonld, option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_2
+            outfile.write(#pylint does not recognize orjson members....
+                orjson.dumps(#pylint: disable=no-member
+                    as_jsonld, option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_2#pylint: disable=no-member
                 ).decode("utf-8")
             )
-            # json.dump(as_jsonld, outfile, indent=4, sort_keys=True, ensure_ascii=False)
 
     def deserialize_crate(self, input_json: JsonType) -> None:
         """Read an RO-Crate from a json dictionary input

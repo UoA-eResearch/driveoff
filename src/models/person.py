@@ -53,4 +53,4 @@ class ROCratePerson(SQLModel):
     full_name: str
 
     def __init__(self, person: Person):
-        super().__init__(**person.dict())
+        super().__init__(**person.model_dump())

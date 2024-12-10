@@ -2,6 +2,7 @@
 from pathlib import Path
 from typing import Tuple
 
+from dateutil.relativedelta import relativedelta
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.person import Person as RoPerson
 from rocrate.rocrate import ROCrate
@@ -13,11 +14,18 @@ from models.person import Person, ROCratePerson
 from models.project import Project, ROCrateProject
 from models.role import Role
 from models.services import ResearchDriveService, ROCrateResDriveService
+from models.submission import (
+    DriveOffboardSubmission,
+    ROCrateDeleteAction,
+    ROCrateDriveOffboardSubmission,
+)
 
 PROJECT_PREFIX = "project/"
 ROLE_PREFIX = "role/"
 MEMBER_PREFIX = "member/"
 RD_PREFIX = "research_drive_service/"
+DELETE_BUFFER = 1  # Add extra years to delete actions
+DELETE_PREFIX = "retention_period_for/"
 
 
 def as_ro_id(obj_id: str) -> str:
@@ -36,37 +44,51 @@ class ROBuilder:
 
     def add_project(self, project: Project) -> ContextEntity:
 
-        # project_submissions = [
-        #     drive.submission for drive in project.research_drives if drive.submission and drive.submission.is_completed
-        # ]
-        # if len(project_submissions) == 0:
-        #     raise ValueError("Project form has not been completed RO-Crate cannot be constructed")
-        # if len(project_submissions) > 1:
-        #     raise Warning("Multiple form submissions found for this project, using most recent")
-        #     project_submissions.sort(key=lambda submission: submission.updated_time, reverse=True)
-        # project_submission = project_submissions[0]
-        # sumbission_properties = project_submission.model_dump(exclude={"id,is_completed,drive_id,drive"}, by_alias=True)
+        project_submissions = [
+            drive.submission
+            for drive in project.research_drives
+            if drive.submission and drive.submission.is_completed
+        ]
+        if len(project_submissions) == 0:
+            raise ValueError(
+                "Project form has not been completed RO-Crate cannot be constructed"
+            )
+        if len(project_submissions) > 1:
+            raise Warning(
+                "Multiple form submissions found for this project, using most recent"
+            )
+            project_submissions.sort(
+                key=lambda submission: submission.updated_time, reverse=True
+            )
+        project_submission = project_submissions[0]
+        sumbission_properties = ROCrateDriveOffboardSubmission(
+            project_submission
+        ).model_dump(exclude={"id"}, by_alias=True, exclude_none=True)
 
         crate_project = ROCrateProject(project)
         project_properties = crate_project.model_dump(
-            exclude={"id,codes"}, by_alias=True
+            exclude={"id", "codes"}, by_alias=True, exclude_none=True
         )
         # project_properties = project_properties | sumbission_properties
         project_id = f"{PROJECT_PREFIX}{crate_project.id}"
         project_entity = ContextEntity(
             crate=self.crate,
             identifier=project_id,
-            properties=project_properties,
+            properties=project_properties | sumbission_properties,
         )
         # generate delete action from project_submission
         project_entity.append_to("identifier", [code.code for code in project.codes])
         # update project from form content models
         project_people = [self.add_member(person) for person in project.members]
-        project_entity.append_to("members", project_people)
+        project_entity.append_to("member", project_people)
         project_services = [
             self.add_research_drive_service(drive) for drive in project.research_drives
         ]
         project_entity.append_to("services", project_services)
+        delete_action = self.add_delete_action(
+            submission=project_submission, project=project
+        )
+        project_entity.append_to("actions", delete_action)
         return self.crate.add(project_entity)
 
     def add_member(self, member: Member) -> ContextEntity:
@@ -88,7 +110,9 @@ class ROBuilder:
         person_entity = RoPerson(
             self.crate,
             identifier=person_id,
-            properties=ROCratePerson(person).model_dump(by_alias=True),
+            properties=ROCratePerson(person).model_dump(
+                by_alias=True, exclude_none=True
+            ),
         )
         return self.crate.add(person_entity)
 
@@ -102,6 +126,26 @@ class ROBuilder:
         rd_entity = ContextEntity(
             self.crate,
             identifier=rd_id,
-            properties=crate_rd_service.model_dump(by_alias=True),
+            properties=crate_rd_service.model_dump(
+                by_alias=True, exclude={"id"}, exclude_none=True
+            ),
         )
         return self.crate.add(rd_entity)
+
+    def add_delete_action(
+        self, submission: DriveOffboardSubmission, project: Project
+    ) -> ContextEntity:
+        if submission.drive is None:
+            raise(ValueError(f"Submission{submission.id} does not refer to a research drive"))
+        drive = (self.add_research_drive_service(submission.drive))
+        end_date = project.end_date + relativedelta(
+            years=+submission.retention_period_years
+        )
+        delete_action = ROCrateDeleteAction.model_validate({"end_time": end_date})
+        delete_entity = ContextEntity(
+            self.crate,
+            identifier=f"{DELETE_PREFIX}{drive.id}",
+            properties=delete_action.model_dump(by_alias=True, exclude_none=True),
+        )
+        delete_entity.append_to("targetCollection", drive)
+        return self.crate.add(delete_entity)

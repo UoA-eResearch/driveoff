@@ -175,7 +175,7 @@ async def append_drive_info(
     }
 
 
-async def generate_ro_crate(
+def generate_ro_crate(
     drive_id: ResearchDriveID,
     session: SessionDep,
     drive_location: Path,
@@ -207,7 +207,10 @@ async def generate_ro_crate(
     ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
     drive_entity.append_to("project", project_entities)
     ro_crate_loader.write_crate(drive_location)
-    bag_directory(drive_location, bag_info={"projects": "test"})
+    bag_directory(
+        drive_location,
+        bag_info={"projects": ",".join([project.title for project in projects])},
+    )
     create_manifests_directory(
         drive_path=drive_location, output_location=output_location
     )

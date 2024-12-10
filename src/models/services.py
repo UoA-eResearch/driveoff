@@ -8,8 +8,7 @@ from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.manifest import Manifest, ManifestDriveLink
-
-# from models.submission import DriveOffboardSubmission
+from models.submission import DriveOffboardSubmission
 
 if TYPE_CHECKING:
     from models.project import Project
@@ -81,7 +80,7 @@ class ROCrateResDriveService(BaseResearchDriveService):
     )
 
     def __init__(self, research_drive_service: ResearchDriveService):
-        super().__init__(**research_drive_service.dict())
+        super().__init__(**research_drive_service.model_dump())
 
 
 class InputServices(SQLModel):

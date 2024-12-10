@@ -1,11 +1,15 @@
-# pylint: disable=missing-class-docstring,too-few-public-methods,missing-module-docstring,missing-module-docstring
+# pylint: disable=missing-class-docstring,redefined-outer-name,too-few-public-methods,missing-module-docstring,missing-module-docstring
 # factory meta classes don't need docstrings
+import json
 import random
 import uuid
 from datetime import datetime
-from typing import Any, Generator
+from typing import Any, Generator, Dict,  List
+import shutil
+from pathlib import Path
 
 import factory
+import orjson
 import pytest
 from factory.alchemy import SQLAlchemyModelFactory
 from fastapi.testclient import TestClient
@@ -15,6 +19,9 @@ from sqlmodel.pool import StaticPool
 
 from api.main import app, get_session
 from api.security import ApiKey, read_api_keys
+from crate.ro_builder import ROBuilder
+from crate.ro_loader import PROFILE as ARCHIVE_PROFILE
+from crate.ro_loader import ROLoader
 from models.common import DataClassification
 from models.member import Member
 from models.person import Person
@@ -24,11 +31,10 @@ from models.services import ResearchDriveService
 from models.submission import DriveOffboardSubmission
 
 ROLES = prepopulate_roles()
-
-
-def random_role() -> Role:
-    "Choose a random role from the prepoulated roles"
-    return random.choice(ROLES)
+THIS_DIR = Path(__file__).absolute().parent
+TEST_DATA_NAME = "restst000000001-testing"
+TEST_INPUT_NAME = "Vault"
+TEST_OUTPUT_NAME = "Archive"
 
 
 @pytest.fixture(name="session")
@@ -48,6 +54,35 @@ def session_fixture() -> Generator[Session, Any, Any]:
 def client_fixture(session: Session):
     def get_session_override():
         return session
+@pytest.fixture
+def tmpdir(tmpdir: str) -> Path:
+    """converty temporary directory to path"""
+    return Path(tmpdir)
+
+
+@pytest.fixture
+def data_dir(tmpdir: Path) -> Path:
+    "temporary directory for input files"
+    d = tmpdir / TEST_DATA_NAME / TEST_INPUT_NAME
+    shutil.copytree(THIS_DIR / TEST_DATA_NAME, d)
+    return d
+
+
+@pytest.fixture
+def archive_dir(tmpdir: Path) -> Path:
+    "temporary directory for archived files"
+    d = tmpdir / TEST_DATA_NAME / TEST_OUTPUT_NAME
+    return d
+
+
+def random_role() -> Role:
+    "Choose a random role from the prepoulated roles"
+    return random.choice(ROLES)
+
+
+@pytest.fixture
+def submission() -> dict[str, Any]:
+    """Fixture with a working submission."""
 
     # Generate a random API key and use it for the tests.
     test_api_key: str = str(uuid.uuid4())
@@ -86,7 +121,9 @@ def person_factory(session: Session) -> SQLAlchemyModelFactory:
 
 
 @pytest.fixture
-def drive_offboard_submission_factory(session: Session) -> SQLAlchemyModelFactory:
+def drive_offboard_submission_factory(
+    session: Session, research_drive_service_factory: SQLAlchemyModelFactory
+) -> SQLAlchemyModelFactory:
     "fixture for DriveOffboardSubmission factories"
 
     class DriveOffboardSubmissionFactory(SQLAlchemyModelFactory):
@@ -96,6 +133,7 @@ def drive_offboard_submission_factory(session: Session) -> SQLAlchemyModelFactor
             model = DriveOffboardSubmission
             sqlalchemy_session = session
 
+        id: int = factory.sequence(lambda n: n)
         retention_period_years = random.choice(
             [6, 10, 20, 26, random.randrange(7, 100)]
         )
@@ -106,14 +144,13 @@ def drive_offboard_submission_factory(session: Session) -> SQLAlchemyModelFactor
         is_completed = True
         updated_time = factory.Faker("date_time")
         is_project_updated = False
+        drive = factory.SubFactory(research_drive_service_factory)
 
     return DriveOffboardSubmissionFactory
 
 
 @pytest.fixture
-def research_drive_service_factory(
-    session: Session, drive_offboard_submission_factory: SQLAlchemyModelFactory
-) -> SQLAlchemyModelFactory:
+def research_drive_service_factory(session: Session) -> SQLAlchemyModelFactory:
     "fixture for research drive service factories"
 
     class ResearchDriveServiceFactory(SQLAlchemyModelFactory):
@@ -137,7 +174,7 @@ def research_drive_service_factory(
             text="res???#########-????????",
             letters="abcdefghijklmnopqrstuvwxyz",
         )
-        submission = factory.SubFactory(drive_offboard_submission_factory)
+        # submission = factory.SubFactory(drive_offboard_submission_factory)
 
     return ResearchDriveServiceFactory
 
@@ -194,6 +231,7 @@ def project_factory(
             model = Project
             sqlalchemy_session = session
 
+        id: int = factory.sequence(lambda n: n)
         title = factory.Faker("sentence")
         description = factory.Faker("paragraph")
         division = factory.Faker("company")
@@ -212,6 +250,7 @@ def project_factory(
     return ProjectFactory
 
 
+<<<<<<< HEAD
 @pytest.fixture
 def project():
     drive = ResearchDriveService(
@@ -271,3 +310,85 @@ def project():
     project.members = members
     project.research_drives = [drive]
     return project
+=======
+@pytest.fixture()
+def test_ro_loader() -> ROLoader:
+    "RO-loader fixture"
+    return ROLoader()
+
+
+@pytest.fixture()
+def test_ro_crate(test_ro_loader: ROLoader) -> ROCrate:
+    "RO-Crate for testing"
+    test_ro_loader.init_crate()
+    return test_ro_loader.crate
+
+
+@pytest.fixture()
+def test_ro_builder(test_ro_crate: ROCrate) -> ROBuilder:
+    "RO-Builder using test RO-Crate"
+    return ROBuilder(test_ro_crate)
+
+
+class ROCRATEHelpers:
+    """Functions for validating RO-Crate contents
+    taken and modified from ro-crate.py's conftest helpers
+    """
+
+    BASE_URL = "https://w3id.org/ro/crate"
+    VERSION = "1.1"
+    LEGACY_VERSION = "1.0"
+
+    PROFILE = f"{BASE_URL}/{VERSION}"
+    METADATA_FILE_NAME = "ro-crate-metadata.json"
+
+    @classmethod
+    def read_json_entities(cls, crate_base_path: Path) -> Dict[str, Any]:
+        """Read entities from RO-Crate json into a dictionary"""
+        metadata_path = crate_base_path / cls.METADATA_FILE_NAME
+        with open(metadata_path, "rt", encoding="utf8") as f:
+            json_data = json.load(f)
+        return {_["@id"]: _ for _ in json_data["@graph"]}
+
+    @classmethod
+    def check_crate(
+        cls,
+        json_entities: Dict[str, Any],
+        root_id: str = "./",
+        data_entity_ids: set[str] | List[str] | None = None,
+    ) -> None:
+        """Validate key crate information conforms to standards"""
+        assert root_id in json_entities
+        root = json_entities[root_id]
+        assert root["@type"] == "Dataset"
+        assert cls.METADATA_FILE_NAME in json_entities
+        metadata = json_entities[cls.METADATA_FILE_NAME]
+        assert metadata["@type"] == "CreativeWork"
+        assert cls.PROFILE in get_norm_value(metadata, "conformsTo")
+        assert ARCHIVE_PROFILE in get_norm_value(metadata, "conformsTo")
+        assert metadata["about"] == {"@id": root_id}
+        if data_entity_ids:
+            data_entity_ids = set(data_entity_ids)
+            assert data_entity_ids.issubset(json_entities)
+            assert "hasPart" in root
+            assert data_entity_ids.issubset([_["@id"] for _ in root["hasPart"]])
+
+    @classmethod
+    def check_crate_contains(
+        cls, json_entities: Dict[str, Any], ro_crate_entities: List[RO_Entity]
+    ) -> None:
+        """Check specific entities have been created within the RO-Crate json"""
+        for entity in ro_crate_entities:
+            assert json_entities[entity.id] is not None
+            assert json_entities[entity.id] == json.loads(
+                orjson.dumps(entity.as_jsonld()).decode(
+                    "utf-8"
+                )  # pylint: disable=no-member
+            )
+
+
+@pytest.fixture()
+def ro_crate_helpers() -> type:
+    "Fixture wrapper for RO-crate helper functions"
+    return ROCRATEHelpers
+>>>>>>> 4f03e11 (add tests for RO-Crate)
