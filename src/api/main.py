@@ -3,20 +3,21 @@
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, AsyncGenerator, Iterable
+from typing import Annotated, AsyncGenerator, Iterable, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Security
 from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.manifests import generate_manifest
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.member import Member
 from models.person import Person
-from models.project import InputProject, Project
+from models.project import InputProject, Project, ProjectWithDriveMember
 from models.role import prepopulate_roles
-from models.services import ResearchDriveService
+from models.services import ResearchDriveService, ResearchDriveServicePublic
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -134,15 +135,16 @@ async def append_drive_info(
     }
 
 
-@app.get(ENDPOINT_PREFIX + "/resdriveinfo")
+@app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)
 async def get_drive_info(
     drive_id: ResearchDriveID,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> dict[str, str]:
+) -> Project:
     """Retrieve information about the specified Research Drive."""
 
     validate_permissions("GET", api_key)
+
     code_query = select(ResearchDriveService).where(
         ResearchDriveService.name == drive_id
     )
@@ -161,10 +163,7 @@ async def get_drive_info(
             detail=f"No Projects associated with {drive_id} in local database",
         )
 
-    return {
-        "drive_id": drive_id,
-        "ro_crate": "TODO: Make RO-Crate from: " + str(projects),
-    }
+    return projects[0]
 
 
 @app.get(ENDPOINT_PREFIX + "/resdrivemanifest")

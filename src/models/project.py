@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.person import InputPerson
@@ -10,7 +11,9 @@ from models.services import (
     InputServices,
     ResearchDriveProjectLink,
     ResearchDriveService,
+    ResearchDriveServicePublic,
 )
+from models.member import MemberPublic
 
 # Only import Member during typechecking to prevent circular dependency error.
 if TYPE_CHECKING:
@@ -21,6 +24,12 @@ class Code(SQLModel, table=True):
     """Model for project codes."""
 
     id: Optional[int] = Field(primary_key=True)
+    code: str
+
+class CodePublic(Code):
+    """Public model for project codes."""
+
+    id: int
     code: str
 
 
@@ -41,7 +50,6 @@ class InputProject(BaseProject):
     members: list[InputPerson]
     codes: list[Code]
     services: InputServices
-
 
 class ProjectCodeLink(SQLModel, table=True):
     """Linking table between project and codes"""
@@ -66,3 +74,11 @@ class Project(BaseProject, table=True):
         back_populates="project",
         cascade_delete=True,
     )
+
+class ProjectWithDriveMember(BaseProject):
+    """Public model for project with drive and member information."""
+
+    id: int
+    codes: list[Code]
+    research_drives: list[ResearchDriveServicePublic]
+    members: list[MemberPublic]

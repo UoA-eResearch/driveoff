@@ -3,13 +3,14 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.manifest import Manifest, ManifestDriveLink
 from models.submission import DriveOffboardSubmission
 
 if TYPE_CHECKING:
-    from models.project import Project
+    from models.project import Project, ProjectPublic
 
 
 class ResearchDriveProjectLink(SQLModel, table=True):
@@ -48,3 +49,17 @@ class InputServices(SQLModel):
     """Input object describing relevant storage services."""
 
     research_drive: list[ResearchDriveService]
+
+class ResearchDriveServicePublic(BaseModel):
+    """Public model for Research Drive Service."""
+
+    name: str
+    allocated_gb: float
+    free_gb: float
+    used_gb: float
+    percentage_used: float
+    date: datetime
+    first_day: datetime
+    last_day: Optional[datetime]
+    manifest: Manifest
+    
