@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 import { formState } from './store';
+import { client } from './client';
 
 window.addEventListener('beforeunload', (event) => {
   // If the user has started the form but hasn't finished it, give a warning before
@@ -9,6 +10,10 @@ window.addEventListener('beforeunload', (event) => {
     event.preventDefault();
     event.returnValue = true;
   }
+});
+
+client.setConfig({
+  baseUrl: "http://localhost:8000"
 });
 
 </script>
