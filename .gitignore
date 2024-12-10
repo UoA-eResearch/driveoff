@@ -4,6 +4,5 @@ api_keys.json
 .vscode/*
 .coverage
 
-# Ignored configuration files to keep secrets safe.
-modes/.env.development.local
-modes/.env.production.local
+# Ignored local configuration files to keep secrets safe.
+*.local
