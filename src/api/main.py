@@ -11,6 +11,7 @@ from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from api.cors import add_cors_middleware
 from api.manifests import generate_manifest
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.member import Member
@@ -59,6 +60,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(lifespan=lifespan)
 
+# Send CORS headers to enable frontend to contact API.
+add_cors_middleware(app)
 
 RESEARCH_DRIVE_REGEX = re.compile(r"res[a-z]{3}[0-9]{9}-[a-zA-Z0-9-_]+")
 

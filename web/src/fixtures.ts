@@ -5,7 +5,7 @@ import type { ResearchDriveService, Project, Member, Role } from "./project";
 
 export function getDrive(): ResearchDriveService {
     return {
-        name: "reslig-202200001-Tītoki-metabolomics",
+        name: "reslig202200001-Tītoki-metabolomics",
         allocated_gb: 25600.0,
         used_gb: 1596.0
     };
