@@ -12,6 +12,17 @@ from models.submission import DriveOffboardSubmission
 if TYPE_CHECKING:
     from models.project import Project
 
+class BaseDriveService(SQLModel):
+    """Base model for describing a drive service."""
+
+    name: str
+    allocated_gb: float
+    free_gb: float
+    used_gb: float
+    percentage_used: float
+    date: datetime
+    first_day: datetime
+    last_day: Optional[datetime]
 
 class ResearchDriveProjectLink(SQLModel, table=True):
     """Linking table between research drive service and a project's service."""
@@ -24,18 +35,9 @@ class ResearchDriveProjectLink(SQLModel, table=True):
     )
 
 
-class ResearchDriveService(SQLModel, table=True):
+class ResearchDriveService(BaseDriveService, table=True):
     """Object describing a research drive service."""
 
-    allocated_gb: float
-    date: datetime
-    first_day: datetime
-    free_gb: float
-    id: Optional[int] = Field(primary_key=True)
-    last_day: Optional[datetime]
-    name: str
-    percentage_used: float
-    used_gb: float
     projects: list["Project"] = Relationship(
         link_model=ResearchDriveProjectLink, back_populates="research_drives"
     )
@@ -50,16 +52,7 @@ class InputServices(SQLModel):
 
     research_drive: list[ResearchDriveService]
 
-
-class ResearchDriveServicePublic(BaseModel):
+class ResearchDriveServicePublic(BaseDriveService):
     """Public model for Research Drive Service."""
 
-    name: str
-    allocated_gb: float
-    free_gb: float
-    used_gb: float
-    percentage_used: float
-    date: datetime
-    first_day: datetime
-    last_day: Optional[datetime]
     manifest: Manifest
