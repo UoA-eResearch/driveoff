@@ -136,8 +136,12 @@ class ROBuilder:
         self, submission: DriveOffboardSubmission, project: Project
     ) -> ContextEntity:
         if submission.drive is None:
-            raise(ValueError(f"Submission{submission.id} does not refer to a research drive"))
-        drive = (self.add_research_drive_service(submission.drive))
+            raise (
+                ValueError(
+                    f"Submission{submission.id} does not refer to a research drive"
+                )
+            )
+        drive = self.add_research_drive_service(submission.drive)
         end_date = project.end_date + relativedelta(
             years=+submission.retention_period_years
         )

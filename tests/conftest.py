@@ -2,17 +2,20 @@
 # factory meta classes don't need docstrings
 import json
 import random
+import shutil
 import uuid
 from datetime import datetime
-from typing import Any, Generator, Dict,  List
-import shutil
 from pathlib import Path
+from typing import Any, Dict, Generator, List
 
 import factory
 import orjson
 import pytest
 from factory.alchemy import SQLAlchemyModelFactory
 from fastapi.testclient import TestClient
+from rocrate.model import ContextEntity as RO_Entity
+from rocrate.rocrate import ROCrate
+from rocrate.utils import get_norm_value
 from sqlalchemy import create_engine
 from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
@@ -51,9 +54,25 @@ def session_fixture() -> Generator[Session, Any, Any]:
 
 
 @pytest.fixture(name="client")
-def client_fixture(session: Session):
-    def get_session_override():
+def client_fixture(session: Session) -> TestClient:
+    def get_session_override() -> Session:
         return session
+
+    # Generate a random API key and use it for the tests.
+    test_api_key: str = str(uuid.uuid4())
+
+    def read_api_keys_override() -> ApiKey:
+        return {
+            test_api_key: ApiKey(value=test_api_key, actions=["GET", "PUT", "POST"])
+        }
+
+    app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[read_api_keys] = read_api_keys_override
+    client = TestClient(app, headers={"x-api-key": test_api_key})
+    yield client
+    app.dependency_overrides.clear()
+
+
 @pytest.fixture
 def tmpdir(tmpdir: str) -> Path:
     """converty temporary directory to path"""
@@ -78,25 +97,6 @@ def archive_dir(tmpdir: Path) -> Path:
 def random_role() -> Role:
     "Choose a random role from the prepoulated roles"
     return random.choice(ROLES)
-
-
-@pytest.fixture
-def submission() -> dict[str, Any]:
-    """Fixture with a working submission."""
-
-    # Generate a random API key and use it for the tests.
-    test_api_key: str = str(uuid.uuid4())
-
-    def read_api_keys_override():
-        return {
-            test_api_key: ApiKey(value=test_api_key, actions=["GET", "PUT", "POST"])
-        }
-
-    app.dependency_overrides[get_session] = get_session_override
-    app.dependency_overrides[read_api_keys] = read_api_keys_override
-    client = TestClient(app, headers={"x-api-key": test_api_key})
-    yield client
-    app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -250,9 +250,8 @@ def project_factory(
     return ProjectFactory
 
 
-<<<<<<< HEAD
 @pytest.fixture
-def project():
+def project() -> Project:
     drive = ResearchDriveService(
         allocated_gb=25600,
         free_gb=24004.5,
@@ -310,7 +309,8 @@ def project():
     project.members = members
     project.research_drives = [drive]
     return project
-=======
+
+
 @pytest.fixture()
 def test_ro_loader() -> ROLoader:
     "RO-loader fixture"
@@ -381,9 +381,9 @@ class ROCRATEHelpers:
         for entity in ro_crate_entities:
             assert json_entities[entity.id] is not None
             assert json_entities[entity.id] == json.loads(
-                orjson.dumps(entity.as_jsonld()).decode(
+                orjson.dumps(entity.as_jsonld()).decode(# pylint: disable=no-member
                     "utf-8"
-                )  # pylint: disable=no-member
+                )  
             )
 
 
@@ -391,4 +391,3 @@ class ROCRATEHelpers:
 def ro_crate_helpers() -> type:
     "Fixture wrapper for RO-crate helper functions"
     return ROCRATEHelpers
->>>>>>> 4f03e11 (add tests for RO-Crate)

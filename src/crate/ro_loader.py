@@ -70,9 +70,11 @@ class ROLoader:
         write_path = crate_destination / crate_metadata_entity.id
         as_jsonld = crate_metadata_entity.generate()
         with open(write_path, "w", encoding="utf-8") as outfile:
-            outfile.write(#pylint does not recognize orjson members....
-                orjson.dumps(#pylint: disable=no-member
-                    as_jsonld, option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_2#pylint: disable=no-member
+            outfile.write(  # pylint does not recognize orjson members....
+                orjson.dumps(  # pylint: disable=no-member
+                    as_jsonld,
+                    option=orjson.OPT_SORT_KEYS # pylint: disable=no-member
+                    | orjson.OPT_INDENT_2,  # pylint: disable=no-member
                 ).decode("utf-8")
             )
 

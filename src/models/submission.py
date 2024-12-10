@@ -42,7 +42,7 @@ class DriveOffboardSubmission(BaseDriveOffboardSubmission, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     updated_time: datetime
-    id: Optional[int] = Field(default=None, primary_key=True)
+    is_project_updated: bool
     drive_id: int | None = Field(default=None, foreign_key="researchdriveservice.id")
     drive: Optional["ResearchDriveService"] = Relationship(back_populates="submission")
 
