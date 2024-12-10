@@ -39,6 +39,7 @@ class ResearchDriveProjectLink(SQLModel, table=True):
 class ResearchDriveService(BaseDriveService, table=True):
     """Object describing a research drive service."""
 
+    id: Optional[int] = Field(default=None, primary_key=True)
     projects: list["Project"] = Relationship(
         link_model=ResearchDriveProjectLink, back_populates="research_drives"
     )
