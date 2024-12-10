@@ -23,7 +23,7 @@
 
 ###
 
-GET {{server_url}}/api/v1/resdriveinfo
+GET {{server_url}}/api/v1/resdriveinfo/
     ?drive_id={{drive_id}}
 x-api-key: {{api_key}}
 

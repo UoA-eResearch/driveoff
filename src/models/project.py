@@ -5,11 +5,13 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
+from models.member import MemberPublic
 from models.person import InputPerson
 from models.services import (
     InputServices,
     ResearchDriveProjectLink,
     ResearchDriveService,
+    ResearchDriveServicePublic,
 )
 
 # Only import Member during typechecking to prevent circular dependency error.
@@ -66,3 +68,12 @@ class Project(BaseProject, table=True):
         back_populates="project",
         cascade_delete=True,
     )
+
+
+class ProjectWithDriveMember(BaseProject):
+    """Public model for project with drive and member information."""
+
+    id: int
+    codes: list[Code]
+    research_drives: list[ResearchDriveServicePublic]
+    members: list[MemberPublic]
