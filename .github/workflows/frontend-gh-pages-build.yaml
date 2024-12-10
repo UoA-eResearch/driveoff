@@ -4,7 +4,7 @@ name: Deploy frontend to Pages
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: ["main", "IDS-914-create-prototype-for-frontend"]
+    branches: ["main", "IDS-966-submit-changes-to-backend"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -42,6 +42,9 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: web
+        env:
+          VITE_API_KEY: ${{ vars.FRONTEND_API_KEY }}
+          VITE_API_BASE_URL: ${{ vars.FRONTEND_API_BASE_URL }}
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
