@@ -25,6 +25,7 @@ class Code(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)
     code: str
 
+
 class BaseProject(SQLModel):
     """Base model for describing a project."""
 
