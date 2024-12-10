@@ -10,7 +10,7 @@ from models.manifest import Manifest, ManifestDriveLink
 from models.submission import DriveOffboardSubmission
 
 if TYPE_CHECKING:
-    from models.project import Project, ProjectPublic
+    from models.project import Project
 
 
 class ResearchDriveProjectLink(SQLModel, table=True):
