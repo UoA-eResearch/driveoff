@@ -140,3 +140,16 @@ x-api-key: {{api_key}}
         }
     ]
 }
+
+###
+
+POST {{server_url}}/api/v1/submission
+x-api-key: {{api_key}}
+
+{
+    "retentionPeriodYears": 6,
+    "dataClassification": "Sensitive",
+    "isCompleted": false,
+    "driveName": "reslig202200001-Tītoki-metabolomics"
+   
+}

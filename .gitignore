@@ -2,3 +2,4 @@ __pycache__
 
 api_keys.json
 .vscode/*
+.coverage

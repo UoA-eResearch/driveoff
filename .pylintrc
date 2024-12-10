@@ -1,2 +1,3 @@
 [MASTER]
 ignore-paths="^tests/.*$"
+init-hook='import sys; sys.path.append("src")'
