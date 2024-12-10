@@ -3,7 +3,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.manifest import Manifest, ManifestDriveLink
