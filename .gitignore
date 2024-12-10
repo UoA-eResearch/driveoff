@@ -5,6 +5,5 @@ api_keys.json
 .coverage
 
 # Ignored configuration files to keep secrets safe.
-envs/.env.development.local
-envs/.env.production
-envs/.env.production.local
+modes/.env.development.local
+modes/.env.production.local
