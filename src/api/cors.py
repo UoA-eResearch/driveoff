@@ -1,12 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-ALLOWED_CORS_ORIGINS = [
-    # The current host for the web app.
-    "https://uoa-eresearch.github.io",
-    # When running locally.
-    "http://localhost:5173",
-]
+from config import get_settings
 
 
 def add_cors_middleware(app: FastAPI):
@@ -17,7 +12,7 @@ def add_cors_middleware(app: FastAPI):
     """
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=ALLOWED_CORS_ORIGINS,
+        allow_origins=get_settings().cors_allow_host,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
