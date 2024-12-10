@@ -25,6 +25,7 @@ class Code(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True)
     code: str
 
+
 class CodePublic(Code):
     """Public model for project codes."""
 
@@ -50,6 +51,7 @@ class InputProject(BaseProject):
     codes: list[Code]
     services: InputServices
 
+
 class ProjectCodeLink(SQLModel, table=True):
     """Linking table between project and codes"""
 
@@ -73,6 +75,7 @@ class Project(BaseProject, table=True):
         back_populates="project",
         cascade_delete=True,
     )
+
 
 class ProjectWithDriveMember(BaseProject):
     """Public model for project with drive and member information."""
