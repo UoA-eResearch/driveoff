@@ -1,4 +1,5 @@
 """Data models representing project members - person in a project and their role."""
+
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -9,6 +10,7 @@ from models.role import Role
 
 if TYPE_CHECKING:
     from models.project import Project
+
 
 class Member(SQLModel, table=True):
     """Linking table between projects, people and their roles."""
@@ -24,6 +26,7 @@ class Member(SQLModel, table=True):
     role: "Role" = Relationship()
     project: "Project" = Relationship(back_populates="members")
     person: "Person" = Relationship()
+
 
 class MemberPublic(BaseModel):
     "Public model for project members."

@@ -50,6 +50,7 @@ class InputServices(SQLModel):
 
     research_drive: list[ResearchDriveService]
 
+
 class ResearchDriveServicePublic(BaseModel):
     """Public model for Research Drive Service."""
 
