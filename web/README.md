@@ -10,6 +10,10 @@ This project uses heyapi to generate client code and TypeScript types based on O
 
 Do not manually edit code in `web/src/client`, they will be overwritten next time the types are regenerated.
 
+## GitHub Pages deployment
+This frontend is deployed to [GitHub Pages](https://uoa-eresearch.github.io/driveoff/). 
+
+During build, the API key and API base URL are set through environment variables. See `.github/frontend-gh-pages-build.yaml` and [Store information in variables GitHub Action documentation](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#using-the-vars-context-to-access-configuration-variable-values).
 
 ## Recommended IDE Setup
 
