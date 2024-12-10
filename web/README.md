@@ -1,6 +1,19 @@
 # driveoff-web
 
-This template should help get you started developing with Vue 3 in Vite.
+Frontend service for drive offboarding. Built with Vue.
+
+## Generate API client
+This project uses heyapi to generate client code and TypeScript types based on OpenAPI specification that's produced by Pydantic/FastAPI. When models and endpoints change, the client code needs to be regenerated. To do this:
+1. Run the fastapi server. `fastapi dev src/api/main.py`
+2. In the `web/` directory, run `npm run openapi-ts`. It will retrieve the OpenAPI specification from FastAPI server running on localhost, generate API client code and types, and place them in `web/src/client`.
+3. Add and commit the generated code. 
+
+Do not manually edit code in `web/src/client`, they will be overwritten next time the types are regenerated.
+
+## GitHub Pages deployment
+This frontend is deployed to [GitHub Pages](https://uoa-eresearch.github.io/driveoff/). 
+
+During build, the API key and API base URL are set through environment variables. See `.github/frontend-gh-pages-build.yaml` and [Store information in variables GitHub Action documentation](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#using-the-vars-context-to-access-configuration-variable-values).
 
 ## Recommended IDE Setup
 

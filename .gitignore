@@ -3,3 +3,6 @@ __pycache__
 api_keys.json
 .vscode/*
 .coverage
+
+# Ignored local configuration files to keep secrets safe.
+*.local

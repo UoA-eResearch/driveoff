@@ -1,5 +1,7 @@
 import { reactive } from 'vue';
-import { DataClassification, makeProject, type Project } from './project';
+import { makeProject, type Project } from './project';
+import { getDrive } from "./fixtures"
+import { type DataClassification, type InputDriveOffboardSubmission } from './client';
 
 interface FormStateStore {
     hasStartedForm: boolean;
@@ -10,6 +12,7 @@ interface FormStateStore {
     dataClassification: DataClassification | null;
     retentionPeriod: number | null;
     isRetentionPeriodCustom: boolean | null;
+    getSubmission: () => InputDriveOffboardSubmission | null;
 }
 
 export const formState: FormStateStore = reactive({
@@ -20,5 +23,21 @@ export const formState: FormStateStore = reactive({
     project: makeProject(),
     dataClassification: null,
     isRetentionPeriodCustom: null,
-    retentionPeriod: null
+    retentionPeriod: null,
+    getSubmission: function () {
+        if (!this.dataClassification || !this.retentionPeriod) {
+            return null;
+        } else {
+            return {
+                dataClassification: this.dataClassification,
+                retentionPeriodYears: this.retentionPeriod,
+                isCompleted: true,
+                driveName: getDrive().name,
+                projectChanges: {
+                    title: this.project.title,
+                    description: this.project.description
+                }
+            }
+        }
+    }
 });
