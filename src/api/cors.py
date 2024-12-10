@@ -1,3 +1,5 @@
+"""Module for CORS-related functionality."""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

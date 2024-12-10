@@ -8,8 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def get_env_file() -> list[Path]:
-    """Given the mode this app should run in, return the dotenv files that should be used. If no file
-    matching mode exists, raises a ValueError.
+    """Given the mode this app should run in, return the dotenv files
+    that should be used. If no file matching mode exists, raises a ValueError.
 
     Returns:
         list[Path]: The list of dotenv files.
