@@ -62,4 +62,3 @@ class ResearchDriveServicePublic(BaseModel):
     first_day: datetime
     last_day: Optional[datetime]
     manifest: Manifest
-    
