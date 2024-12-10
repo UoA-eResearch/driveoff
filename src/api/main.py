@@ -4,12 +4,11 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, AsyncGenerator, Iterable, Optional
+from typing import Annotated, AsyncGenerator, Iterable
 
 from fastapi import Depends, FastAPI, HTTPException, Response, Security, status
 from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.manifests import generate_manifest
