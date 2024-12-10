@@ -2,10 +2,11 @@
 
 import re
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, AsyncGenerator, Iterable
 
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, HTTPException, Response, Security, status
 from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -17,6 +18,7 @@ from models.person import Person
 from models.project import InputProject, Project
 from models.role import prepopulate_roles
 from models.services import ResearchDriveService
+from models.submission import DriveOffboardSubmission, InputDriveOffboardSubmission
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -118,19 +120,55 @@ async def set_drive_info(
     return project
 
 
-@app.put(ENDPOINT_PREFIX + "/resdriveinfo")
+@app.post(ENDPOINT_PREFIX + "/submission", status_code=status.HTTP_201_CREATED)
 async def append_drive_info(
-    drive_id: ResearchDriveID,
-    ro_crate_metadata: dict[str, str],
+    input_submission: InputDriveOffboardSubmission,
+    session: SessionDep,
+    response: Response,
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
-    """Submit additional RO-Crate metadata. NOTE: this may need to accept manifest deltas too."""
-
+    """Handle requests to create new form submission."""
     validate_permissions("PUT", api_key)
 
-    _ = ro_crate_metadata
+    # Find the related drive and project
+    find_drive_stmt = select(ResearchDriveService).where(
+        ResearchDriveService.name == input_submission.drive_name
+    )
+    result = session.exec(find_drive_stmt)
+    drive = result.first()
+    if drive is None:
+        # If there isn't a drive associated, return error.
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {"message": "Could not find drive with drive_name."}
+    if drive.submission is not None:
+        # Reject request to POST if there is already a post submission.
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"message": "Drive already has a submission."}
+    if len(drive.projects) == 0:
+        # Unlikely to happen, but handle if the drive does not have a project associated.
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {"message": "Drive does not have a project associated."}
+    related_project = drive.projects[0]
+    is_project_updated = False
+    if input_submission.project_changes is not None:
+        # Apply changes from input to project, if any.
+        is_project_updated = input_submission.project_changes.apply_changes(
+            related_project
+        )
+    submission = DriveOffboardSubmission(
+        data_classification=input_submission.data_classification,
+        retention_period_years=input_submission.retention_period_years,
+        retention_period_justification=input_submission.retention_period_justification,
+        is_completed=input_submission.is_completed,
+        drive_id=drive.id,
+        is_project_updated=is_project_updated,
+        updated_time=datetime.now(),
+    )
+    session.add(related_project)
+    session.add(submission)
+    session.commit()
     return {
-        "message": f"Received additional RO-Crate metadata for {drive_id}.",
+        "message": f"Received additional RO-Crate metadata for {drive.name}.",
     }
 
 
