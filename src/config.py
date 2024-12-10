@@ -19,7 +19,6 @@ def get_env_file() -> list[Path]:
         mode = os.environ["MODE"]
     mode_dir = Path("modes")
     all_env_files = [mode_dir / f".env.{mode}", mode_dir / f".env.{mode}.local"]
-    print(all_env_files[0].absolute())
     files_that_exist = [file for file in all_env_files if file.is_file()]
     if len(files_that_exist) == 0:
         raise ValueError("No matching dotenv file exists for specified mode.")
