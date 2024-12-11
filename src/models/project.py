@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from pydantic import AliasGenerator, ConfigDict
+from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.member import MemberPublic
@@ -77,3 +79,23 @@ class ProjectWithDriveMember(BaseProject):
     codes: list[Code]
     research_drives: list[ResearchDriveServicePublic]
     members: list[MemberPublic]
+
+
+class ROCrateProject(BaseProject):
+    """Project model to be serialized as part of an RO-Crate"""
+
+    # Bug with SQLModel library causing typing error:
+    # https://github.com/fastapi/sqlmodel/discussions/855
+    model_config = ConfigDict(  # type: ignore
+        alias_generator=AliasGenerator(
+            serialization_alias=to_camel,
+        )
+    )
+    id: int
+    title: str = Field(schema_extra={"serialization_alias": "name"})
+    schema_type: str = Field(
+        default="ResearchProject", schema_extra={"serialization_alias": "@type"}
+    )
+
+    def __init__(self, project: Project):
+        super().__init__(**project.model_dump())

@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
+from mock import MagicMock, patch
 from sqlmodel import Session, select
 
 from models.common import DataClassification
@@ -7,9 +10,15 @@ from models.services import ResearchDriveService
 from models.submission import DriveOffboardSubmission
 
 
+@patch("api.main.get_resdrive_path")
 def test_post_submission_can_create(
-    session: Session, client: TestClient, project: Project
-):
+    mock_get_resdrive_path: MagicMock,
+    session: Session,
+    client: TestClient,
+    project: Project,
+    tmpdir: Path,
+) -> None:
+    mock_get_resdrive_path.return_value = tmpdir
     session.add(project)
     session.commit()
     response = client.post(
@@ -41,9 +50,15 @@ def test_post_submission_can_create(
     assert not saved_submission.is_project_updated
 
 
+@patch("api.main.get_resdrive_path")
 def test_post_submission_can_update_project(
-    session: Session, client: TestClient, project: Project
+    mock_get_resdrive_path: MagicMock,
+    session: Session,
+    client: TestClient,
+    project: Project,
+    tmpdir: Path,
 ):
+    mock_get_resdrive_path.return_value = tmpdir
     session.add(project)
     session.commit()
     response = client.post(
@@ -75,9 +90,15 @@ def test_post_submission_can_update_project(
     assert submission.is_project_updated
 
 
+@patch("api.main.get_resdrive_path")
 def test_post_submission_reject_already_submitted(
-    session: Session, client: TestClient, project: Project
+    mock_get_resdrive_path: MagicMock,
+    session: Session,
+    client: TestClient,
+    project: Project,
+    tmpdir: Path,
 ):
+    mock_get_resdrive_path.return_value = tmpdir
     session.add(project)
     session.commit()
     response = client.post(
