@@ -79,7 +79,8 @@ class ProjectWithDriveMember(BaseProject):
     codes: list[Code]
     research_drives: list[ResearchDriveServicePublic]
     members: list[MemberPublic]
-    
+
+
 class ROCrateProject(BaseProject):
     """Project model to be serialized as part of an RO-Crate"""
 

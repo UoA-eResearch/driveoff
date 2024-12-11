@@ -136,6 +136,7 @@ async def append_drive_info(
     input_submission: InputDriveOffboardSubmission,
     session: SessionDep,
     response: Response,
+    background_tasks: BackgroundTasks,
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
     """Handle requests to create new form submission."""
@@ -178,9 +179,32 @@ async def append_drive_info(
     session.add(related_project)
     session.add(submission)
     session.commit()
+
+    # generate the RO-Crate now that db has been updated
+    # for now assume "Real" research drive has been mounted somewhere on VM home directory
+    drive_path = get_resdrive_path(drive.name)
+    background_tasks.add_task(
+        generate_ro_crate,
+        drive_name=drive.name,
+        session=session,
+        drive_location=drive_path / "Vault",
+        output_location=drive_path / "Archive",
+    )
+
     return {
         "message": f"Received additional RO-Crate metadata for {drive.name}.",
     }
+
+
+def get_resdrive_path(drive_name: str) -> Path:
+    """Get a path for a research drive.
+    Please update when service acc logic is finalized"""
+    drive_path = Path.home() / "mnt" / drive_name
+    if not drive_path.is_dir():
+        raise FileNotFoundError(
+            "Research Drive must be mounted in order to generate RO-Crate"
+        )
+    return drive_path
 
 
 def build_crate_contents(
@@ -227,7 +251,6 @@ def build_crate_contents(
     return ro_crate_loader
 
 
-
 async def generate_ro_crate(
     drive_name: ResearchDriveID,
     session: SessionDep,
@@ -248,7 +271,6 @@ async def generate_ro_crate(
 async def get_drive_info(
     drive_id: ResearchDriveID,
     session: SessionDep,
-    background_tasks: BackgroundTasks,
     api_key: ApiKey = Security(validate_api_key),
 ) -> Project:
     """Retrieve information about the specified Research Drive."""
@@ -266,28 +288,12 @@ async def get_drive_info(
             detail=f"Research Drive ID {drive_id} not found in local database.",
         )
 
-    project_ids = [
-        project.id for project in drive_found.projects if project.id is not None
-    ]
-    if len(project_ids) == 0:
+    projects = drive_found.projects
+    if len(projects) == 0:
         raise HTTPException(
             status_code=404,
             detail=f"No Projects associated with {drive_id} in local database",
         )
-    # generate the RO-Crate now that db has been updated
-    # for now assume "Real" research drive has been mounted somewhere on VM home directory
-    drive_path = Path.home() / "mnt" / drive_found.name
-    if not drive_path.is_dir():
-        raise FileNotFoundError(
-            "Research Drive must be mounted in order to generate RO-Crate"
-        )
-    background_tasks.add_task(
-        generate_ro_crate,
-        drive_name=drive_found.name,
-        session=session,
-        drive_location=drive_path / "Vault",
-        output_location=drive_path / "Archive",
-    )
 
     return projects[0]
 
