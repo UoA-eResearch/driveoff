@@ -94,7 +94,8 @@ class ROBuilder:
     def add_member(self, member: Member) -> ContextEntity:
         def construct_member_id(member: Member) -> str:
             if member.role:
-                return f"{MEMBER_PREFIX}{member.project_id}/{"".join(member.role.name.split())}/{member.person.username}"
+                role_string = "".join(member.role.name.split())
+                return f"{MEMBER_PREFIX}{member.project_id}/{role_string}/{member.person.username}"
             else:
                 return f"{MEMBER_PREFIX}{member.project_id}/{member.person.username}"
 
