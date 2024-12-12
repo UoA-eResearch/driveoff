@@ -1,4 +1,6 @@
 "Test creation and writing of RO-Crates"
+import os
+import shutil
 from pathlib import Path
 
 import bagit
@@ -8,6 +10,7 @@ from sqlmodel import Session
 
 from api.main import build_crate_contents
 from crate.ro_builder import ROBuilder
+from crate.ro_loader import zip_existing_crate
 
 METADATA_FILE_NAME = "ro-crate-metadata.json"
 BAG_DIR_NAME = "data"
@@ -57,3 +60,43 @@ def test_generate_crate(  # pylint: disable=too-many-arguments,too-many-position
     entities_created.extend(ro_project.get("member"))
     entities_created.extend(ro_project.get("services"))
     ro_crate_helpers.check_crate_contains(entities, entities_created)
+
+
+def test_zip_crate(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+    data_dir: Path,
+    archive_dir: Path,
+    session: Session,
+    research_drive_service_factory: SQLAlchemyModelFactory,
+    project_factory: SQLAlchemyModelFactory,
+    drive_offboard_submission_factory: SQLAlchemyModelFactory,
+) -> None:
+    "Test zip packaging an RO-Crate"
+    drive_name = "test_drive"
+    target_drive = research_drive_service_factory.create(name=drive_name)
+    project_factory.create(research_drives=[target_drive])
+    drive_offboard_submission_factory.create(drive=target_drive)
+
+    build_crate_contents(
+        drive_name=drive_name,
+        session=session,
+        drive_location=data_dir,
+        output_location=archive_dir,
+    )
+
+    zip_existing_crate(
+        crate_destination=archive_dir / "Archive.zip", crate_location=data_dir
+    )
+    shutil.unpack_archive(
+        archive_dir / "Archive.zip", archive_dir / "extract_dir", "zip"
+    )
+
+    # confirm all files ended up in the archive
+    expected_files = [filenames for _, _, filenames in os.walk(data_dir)]
+    archived_files = [
+        filenames for _, _, filenames in os.walk((archive_dir / "extract_dir"))
+    ]
+    assert expected_files == archived_files
+
+    # check bagit still valid (checksums all files)
+    bag = bagit.Bag((archive_dir / "extract_dir").as_posix())
+    assert bag.validate()
