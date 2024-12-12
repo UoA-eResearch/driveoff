@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { ref } from 'vue';
-import { formState } from '@/store';
-import { getDrive } from '@/fixtures';
+import { formState, requestInfo } from '@/store';
 
 
 const DOCUMENT_TITLE = "Confirm research drive - Archive your research drive"; 
 document.title = DOCUMENT_TITLE;
 
-// const isCorrectDrive = ref();
 const error = ref("");
 const router = useRouter();
-const driveInfo = getDrive();
 
 function tryContinue() {
     if (formState.isCorrectDrive === null){
@@ -40,11 +37,11 @@ function tryContinue() {
             <h3 class="h2">Drive information</h3>
             <dl class="details">
                 <dt>Name</dt>
-                <dl>{{ driveInfo.name }}</dl>
+                <dl>{{ requestInfo.drive.name }}</dl>
                 <dt>Total space</dt>
-                <dl>{{ driveInfo.allocated_gb }}GB</dl>
+                <dl>{{ requestInfo.drive.allocated_gb }}GB</dl>
                 <dt>Used space</dt>
-                <dl>{{ driveInfo.used_gb }}GB</dl>
+                <dl>{{ requestInfo.drive.used_gb }}GB</dl>
             </dl>
         </section>
         <form novalidate @submit.prevent="tryContinue()">

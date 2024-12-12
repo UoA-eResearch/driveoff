@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
-import { formState } from './store';
+import { formState, requestInfo } from './store';
 import { client } from './client';
+import { loadRequestInfo } from './client/requestInfo';
+import { onErrorCaptured } from 'vue';
 
 window.addEventListener('beforeunload', (event) => {
   // If the user has started the form but hasn't finished it, give a warning before
@@ -12,6 +14,7 @@ window.addEventListener('beforeunload', (event) => {
   }
 });
 
+// Set up API client.
 client.setConfig({
   baseUrl: import.meta.env.VITE_API_BASE_URL
 });
@@ -20,6 +23,9 @@ client.interceptors.request.use((request, _) => {
   request.headers.set('x-api-key', import.meta.env.VITE_API_KEY);
   return request;
 });
+
+// Load initial request information - project and drive.
+loadRequestInfo();
 </script>
 
 <template>

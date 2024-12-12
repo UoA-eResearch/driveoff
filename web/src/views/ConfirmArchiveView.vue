@@ -1,25 +1,38 @@
 <script lang="ts" setup>
 import { appendDriveInfoApiV1SubmissionPost } from '@/client';
-import { getProjectMembers, getProjectOwners, membersToString } from '@/project';
-import { formState } from '@/store';
+import { getProjectMembers, getProjectOwners, membersToString } from '@/models/helpers';
+import { formState, requestInfo } from '@/store';
 import { useRouter } from 'vue-router';
 
 const DOCUMENT_TITLE = "Check your answers - Archive your research drive";
 document.title = DOCUMENT_TITLE;
 
 const router = useRouter();
-const projectOwners = membersToString(getProjectOwners(formState.project.members));
-const projectMembers = membersToString(getProjectMembers(formState.project.members));
+const projectOwners = membersToString(getProjectOwners(requestInfo.project.members));
+const projectMembers = membersToString(getProjectMembers(requestInfo.project.members));
+
+// Display changed title and description if available, original if not.
+const projectTitle = formState.projectChanges.title || requestInfo.project.title;
+const projectDescription = formState.projectChanges.description || requestInfo.project.description;
 
 // If the user has stated the details aren't correct, the Change links should go to the Update page. 
 const projectInfoChangeLink = formState.areProjectDetailsCorrect ? "/check-details" : "/update-details"; 
 
 async function submit(){
-    const submission = formState.getSubmission();
-    if (!submission) {
+    const dataClassification = formState.dataClassification;
+    const retentionPeriod = formState.retentionPeriod;
+    if (dataClassification === null || retentionPeriod === null ){
         // Form is not yet complete!
         // This should not happen.
         return;
+    }
+    const submission = {
+        dataClassification,
+        retentionPeriodYears: retentionPeriod,
+        isCompleted: true,
+        driveName: requestInfo.drive.name,
+        projectChanges: formState.projectChanges
+
     }
     const req = await appendDriveInfoApiV1SubmissionPost({
         body: submission
@@ -47,12 +60,12 @@ async function submit(){
         <tbody>
             <tr>
                 <td>Project name</td>
-                <td>{{  formState.project.title  }}</td>
+                <td>{{  projectTitle  }}</td>
                 <td><RouterLink :to="projectInfoChangeLink">Change</RouterLink></td>
             </tr>
             <tr>
                 <td>Project description</td>
-                <td> {{ formState.project.description }}</td>
+                <td> {{ projectDescription }}</td>
                 <td><RouterLink :to="projectInfoChangeLink">Change</RouterLink></td>
             </tr>
             <tr>
@@ -67,7 +80,7 @@ async function submit(){
             </tr>
             <tr>
                 <td>Department</td>
-                <td>{{  formState.project.division }}</td>
+                <td>{{  requestInfo.project.division }}</td>
                 <td><!--<a href="#" class="btn-link">Change</a>--></td>
             </tr>
         </tbody>

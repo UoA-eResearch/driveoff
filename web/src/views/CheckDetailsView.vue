@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { getDrive, getProject } from '@/fixtures';
-import { membersToString, getProjectMembers, getProjectOwners } from '@/project';
-import { formState } from '@/store';
+import { membersToString, getProjectMembers, getProjectOwners } from '@/models/helpers';
+import { formState, requestInfo } from '@/store';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -11,18 +10,14 @@ document.title = DOCUMENT_TITLE;
 
 const error =ref("");
 const router = useRouter();
-const driveInfo = getDrive();
-const project = getProject();
-const owners = membersToString(getProjectOwners(project.members));
-const members = membersToString(getProjectMembers(project.members));
+const owners = membersToString(getProjectOwners(requestInfo.project.members));
+const members = membersToString(getProjectMembers(requestInfo.project.members));
 
 function tryContinue() {
     if (formState.areProjectDetailsCorrect === null){
         document.title = "Error: " + DOCUMENT_TITLE;
         error.value = "Select Yes if the project information is still correct.";
     } else if (formState.areProjectDetailsCorrect) {
-            // Copy project details over as they are correct.
-            formState.project = Object.assign({}, getProject());
             router.push("/data-classification");
     } else {
         router.push("/update-details");
@@ -40,18 +35,18 @@ function tryContinue() {
             <p>Correct project information is important for archiving. If required, the information is used to find the right archived files and determine whether to grant or deny access requests.</p> 
         </div> 
     <section class="project-details-card box">
-        <h3 class="h2">Project information for {{ driveInfo.name }}</h3>
+        <h3 class="h2">Project information for {{ requestInfo.drive.name }}</h3>
         <dl class="other-details">
             <dt>Title</dt>
-            <dl>{{ project.title}}</dl>
+            <dl>{{ requestInfo.project.title}}</dl>
             <dt>Description</dt>
-            <dl>{{ project.description}}</dl>
+            <dl>{{ requestInfo.project.description}}</dl>
             <dt>Project owner</dt>
             <dl>{{ owners }}</dl>
             <dt>Project members</dt>
             <dl>{{ members }}</dl>
             <dt>Department</dt>
-            <dl>{{ project.division }}</dl>
+            <dl>{{ requestInfo.project.division }}</dl>
         </dl>
     </section>
     <form novalidate @submit.prevent="tryContinue()" :class="{ error : error }">
