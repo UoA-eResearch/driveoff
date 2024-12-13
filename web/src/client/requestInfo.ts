@@ -28,17 +28,18 @@ async function getDrive(): Promise<ResearchDriveService> {
     return project.research_drives[0];
 }
 
-export async function loadRequestInfo() {
+export async function loadRequestInfo(): Promise<boolean> {
     // Pre-populate archive request info.
     try {
         requestInfo.isLoading = true;
         requestInfo.project = await getProject();
         requestInfo.drive = await getDrive();
+        return true;
     } catch (e) {
         requestInfo.isLoading = false;
         requestInfo.error = e;
-        // TODO redirect to error page. 
         console.error("Could not retrieve request information. Bad invite link?");
         console.error(e);
+        return false;
     }
 }

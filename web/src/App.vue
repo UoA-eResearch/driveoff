@@ -4,6 +4,7 @@ import { formState, requestInfo } from './store';
 import { client } from './client';
 import { loadRequestInfo } from './client/requestInfo';
 import { onErrorCaptured } from 'vue';
+import router from './router';
 
 window.addEventListener('beforeunload', (event) => {
   // If the user has started the form but hasn't finished it, give a warning before
@@ -25,7 +26,12 @@ client.interceptors.request.use((request, _) => {
 });
 
 // Load initial request information - project and drive.
-loadRequestInfo();
+loadRequestInfo().then((hasLoadedRequestInfo: boolean) => {
+  if (!hasLoadedRequestInfo) {
+    // If loading the request info wasn't successful, redirect to error page.
+    router.replace("/service-error");
+  }
+});
 </script>
 
 <template>
