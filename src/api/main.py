@@ -271,11 +271,12 @@ def build_crate_contents(
 async def generate_ro_crate(
     drive_name: ResearchDriveID,
     session: SessionDep,
-    drive_location: Path,
-    output_location: Path,
 ) -> None:
     """Async task for generating the RO-crate in a research drive
     then moving all files into archive"""
+    drive_path = get_resdrive_path(drive_name)
+    drive_location = drive_path / "Vault"
+    output_location = drive_path / "Archive"
     build_crate_contents(
         drive_name,
         session,
