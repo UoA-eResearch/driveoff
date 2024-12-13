@@ -23,7 +23,7 @@ from api.cors import add_cors_middleware
 from api.manifests import bag_directory, create_manifests_directory, generate_manifest
 from api.security import ApiKey, validate_api_key, validate_permissions
 from crate.ro_builder import ROBuilder
-from crate.ro_loader import ROLoader
+from crate.ro_loader import ROLoader, zip_existing_crate
 from models.member import Member
 from models.person import Person
 from models.project import InputProject, Project, ProjectWithDriveMember
@@ -196,10 +196,18 @@ async def append_drive_info(
     }
 
 
+def make_fake_resdrive(drive_path: Path) -> None:
+    "TESTING/DEMONSTRATION FUNCTION TO POPULATE RESEARCH DRIVE PATHS"
+    (drive_path / "Vault").mkdir(parents=True, exist_ok=True)
+    (drive_path / "Archive").mkdir(parents=True, exist_ok=True)
+
+
 def get_resdrive_path(drive_name: str) -> Path:
     """Get a path for a research drive.
     Please update when service acc logic is finalized"""
     drive_path = Path.home() / "mnt" / drive_name
+    ###WHILE TESTING MAKE THE DRIVE
+    make_fake_resdrive(drive_path)
     if not drive_path.is_dir():
         raise FileNotFoundError(
             "Research Drive must be mounted in order to generate RO-Crate"
@@ -263,16 +271,18 @@ def build_crate_contents(
 async def generate_ro_crate(
     drive_name: ResearchDriveID,
     session: SessionDep,
-) -> ROLoader:
+    drive_location: Path,
+    output_location: Path,
+) -> None:
     """Async task for generating the RO-crate in a research drive
     then moving all files into archive"""
-    drive_path = get_resdrive_path(drive_name)
-    return build_crate_contents(
+    build_crate_contents(
         drive_name,
         session,
         drive_location=drive_path / "Vault",
         output_location=drive_path / "Archive",
     )
+    zip_existing_crate(output_location / str(drive_name), drive_location)
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)

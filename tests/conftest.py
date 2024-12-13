@@ -174,7 +174,6 @@ def research_drive_service_factory(session: Session) -> SQLAlchemyModelFactory:
             text="res???#########-????????",
             letters="abcdefghijklmnopqrstuvwxyz",
         )
-        # submission = factory.SubFactory(drive_offboard_submission_factory)
 
     return ResearchDriveServiceFactory
 
