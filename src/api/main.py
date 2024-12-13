@@ -182,13 +182,11 @@ async def append_drive_info(
 
     # generate the RO-Crate now that db has been updated
     # for now assume "Real" research drive has been mounted somewhere on VM home directory
-    drive_path = get_resdrive_path(drive.name)
+
     background_tasks.add_task(
         generate_ro_crate,
         drive_name=drive.name,
         session=session,
-        drive_location=drive_path / "Vault",
-        output_location=drive_path / "Archive",
     )
 
     return {
@@ -227,13 +225,22 @@ def build_crate_contents(
 
     projects = drive_found.projects
 
+    if not drive_found.submission:
+        raise ValueError(
+            f"Research Drive ID {drive_name} does not have a valid form submission"
+        )
+
+    drive_submission = drive_found.submission
+
     if len(projects) == 0:
         raise ValueError(f"No projects linked with drive {drive_name}")
 
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
     ro_crate_builder = ROBuilder(ro_crate_loader.crate)
-    project_entities = [ro_crate_builder.add_project(project) for project in projects]
+    project_entities = [
+        ro_crate_builder.add_project(project, drive_submission) for project in projects
+    ]
     drive_entity = ro_crate_builder.add_research_drive_service(drive_found)
     ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
     drive_entity.append_to("project", project_entities)
@@ -254,16 +261,15 @@ def build_crate_contents(
 async def generate_ro_crate(
     drive_name: ResearchDriveID,
     session: SessionDep,
-    drive_location: Path,
-    output_location: Path,
 ) -> ROLoader:
     """Async task for generating the RO-crate in a research drive
     then moving all files into archive"""
+    drive_path = get_resdrive_path(drive_name)
     return build_crate_contents(
         drive_name,
         session,
-        drive_location,
-        output_location,
+        drive_location=drive_path / "Vault",
+        output_location=drive_path / "Archive",
     )
 
 

@@ -42,25 +42,22 @@ class ROBuilder:
     def __init__(self, crate: ROCrate) -> None:
         self.crate = crate
 
-    def add_project(self, project: Project) -> ContextEntity:
+    def add_project(
+        self, project: Project, project_submission: DriveOffboardSubmission
+    ) -> ContextEntity:
 
         project_submissions = [
-            drive.submission
-            for drive in project.research_drives
-            if drive.submission and drive.submission.is_completed
+            drive.submission for drive in project.research_drives if drive.submission
         ]
-        if len(project_submissions) == 0:
+
+        if (
+            not project_submission.is_completed
+            or project_submission not in project_submissions
+        ):
             raise ValueError(
                 "Project form has not been completed RO-Crate cannot be constructed"
             )
-        if len(project_submissions) > 1:
-            raise Warning(
-                "Multiple form submissions found for this project, using most recent"
-            )
-            project_submissions.sort(
-                key=lambda submission: submission.updated_time, reverse=True
-            )
-        project_submission = project_submissions[0]
+
         sumbission_properties = ROCrateDriveOffboardSubmission(
             project_submission
         ).model_dump(exclude={"id"}, by_alias=True, exclude_none=True)

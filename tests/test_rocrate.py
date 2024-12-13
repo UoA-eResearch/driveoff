@@ -27,7 +27,7 @@ def test_generate_crate(  # pylint: disable=too-many-arguments,too-many-position
     drive_name = "test_drive"
     target_drive = research_drive_service_factory.create(name=drive_name)
     project = project_factory.create(research_drives=[target_drive])
-    drive_offboard_submission_factory.create(drive=target_drive)
+    submission = drive_offboard_submission_factory.create(drive=target_drive)
 
     build_crate_contents(
         drive_name=drive_name,
@@ -49,7 +49,7 @@ def test_generate_crate(  # pylint: disable=too-many-arguments,too-many-position
     ro_crate_helpers.check_crate(entities)
 
     # create entities to check they have been created within RO-Crate json correctly
-    ro_project = test_ro_builder.add_project(project)
+    ro_project = test_ro_builder.add_project(project, submission)
     ro_drive = test_ro_builder.add_research_drive_service(target_drive)
     ro_drive.append_to("project", ro_project)
     entities_created = [ro_project]

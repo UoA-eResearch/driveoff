@@ -93,7 +93,9 @@ def test_add_project(
         project = project_factory.create()
         target_drive = project.research_drives[0]
         submission = drive_offboard_submission_factory.create(drive=target_drive)
-        ro_project = test_ro_builder.add_project(project=project)
+        ro_project = test_ro_builder.add_project(
+            project=project, project_submission=submission
+        )
         assert ro_project["name"] == project.title
         assert ro_project["description"] == project.description
         assert ro_project["division"] == project.division
@@ -122,16 +124,6 @@ def test_add_project(
         ]
 
 
-def test_project_no_submissions(
-    test_ro_builder: ROBuilder,
-    project_factory: SQLAlchemyModelFactory,
-) -> None:
-    """Test a project will fail to be added if it has no submissions"""
-    project = project_factory.create()
-    with pytest.raises(ValueError):
-        _ = test_ro_builder.add_project(project=project)
-
-
 def test_project_no_complete_submissions(
     test_ro_builder: ROBuilder,
     project_factory: SQLAlchemyModelFactory,
@@ -141,11 +133,13 @@ def test_project_no_complete_submissions(
     for _ in range(1, TEST_ITERATIONS):
         project = project_factory.create()
         target_drive = project.research_drives[0]
-        _ = drive_offboard_submission_factory.create(
+        submission = drive_offboard_submission_factory.create(
             drive=target_drive, is_completed=False
         )
         with pytest.raises(ValueError):
-            _ = test_ro_builder.add_project(project=project)
+            _ = test_ro_builder.add_project(
+                project=project, project_submission=submission
+            )
 
 
 def test_project_no_linked_submissions(
@@ -156,6 +150,8 @@ def test_project_no_linked_submissions(
     """Test a project failure if its submissions are not associated with the same drive"""
     for _ in range(1, TEST_ITERATIONS):
         project = project_factory.create()
-        _ = drive_offboard_submission_factory.create(is_completed=False)
+        submission = drive_offboard_submission_factory.create(is_completed=False)
         with pytest.raises(ValueError):
-            _ = test_ro_builder.add_project(project=project)
+            _ = test_ro_builder.add_project(
+                project=project, project_submission=submission
+            )
