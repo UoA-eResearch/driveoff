@@ -41,9 +41,12 @@ jobs:
       - name: pylint - static code analysis
         run: PYTHONPATH=src/ poetry run python -m pylint src/
 
+      - name: mypy - load types
+        run: PYTHONPATH=src/ poetry run mypy --install-types --non-interactive
+
       - name: mypy - static type checking
         # Takes configuration from pyproject.toml
-        run: PYTHONPATH=src/ poetry run python -m mypy
+        run: PYTHONPATH=src/ poetry run python -m mypy --install-types
 
       - name: pytest - run the tests
         run: PYTHONPATH=src/ poetry run python -m pytest -v --cov=src/ tests/

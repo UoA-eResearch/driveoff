@@ -18,7 +18,9 @@ def test_factories_all(  # pylint: disable=too-many-arguments,too-many-positiona
     member_factory.build()
     code_factory.build()
     research_drive_service_factory.build()
-    drive_offboard_submission_factory.build()
+    submission = drive_offboard_submission_factory.build()
+    sub_drive = submission.drive
+    assert sub_drive.submission == submission
     project_factory.build()
 
 

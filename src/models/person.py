@@ -2,6 +2,8 @@
 
 from typing import Optional
 
+from pydantic import AliasGenerator, ConfigDict
+from pydantic.alias_generators import to_camel
 from sqlmodel import Field, SQLModel
 
 from models.role import Role
@@ -36,3 +38,19 @@ class Person(SQLModel, table=True):
     email: Optional[str]
     full_name: str
     username: str
+
+
+class ROCratePerson(SQLModel):
+    "Data class for a Person model to be written as part of an RO-Crate"
+    # Bug with SQLModel library causing typing error:
+    # https://github.com/fastapi/sqlmodel/discussions/855
+    model_config = ConfigDict(  # type: ignore
+        alias_generator=AliasGenerator(
+            serialization_alias=to_camel,
+        )
+    )
+    email: Optional[str]
+    full_name: str
+
+    def __init__(self, person: Person):
+        super().__init__(**person.model_dump())
