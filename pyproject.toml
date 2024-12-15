@@ -16,6 +16,8 @@ rocrate = "^0.11.0"
 orjson = "^3.10"
 factory-boy = "^3.3.1"
 mock = "^5.1.0"
+pydantic-settings = "^2.6.1"
+
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.13.2"

@@ -29,13 +29,6 @@ export interface ResearchDriveService {
     used_gb: number
 }
 
-export enum DataClassification {
-    Public = "Public",
-    Internal = "Internal",
-    Sensitive = "Sensitive",
-    Restricted = "Restricted"
-}
-
 /**
  * Makes and returns an empty Project.
  * @returns An empty Project.

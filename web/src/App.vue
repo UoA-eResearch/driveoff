@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 import { formState } from './store';
+import { client } from './client';
 
 window.addEventListener('beforeunload', (event) => {
   // If the user has started the form but hasn't finished it, give a warning before
@@ -11,6 +12,14 @@ window.addEventListener('beforeunload', (event) => {
   }
 });
 
+client.setConfig({
+  baseUrl: import.meta.env.VITE_API_BASE_URL
+});
+
+client.interceptors.request.use((request, _) => {
+  request.headers.set('x-api-key', import.meta.env.VITE_API_KEY);
+  return request;
+});
 </script>
 
 <template>

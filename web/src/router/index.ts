@@ -53,6 +53,11 @@ const router = createRouter({
       path: "/unable-to-archive",
       name: "unable-to-archive",
       component: () => import("../views/UnableToArchiveView.vue")
+    },
+    {
+      path: "/service-error",
+      name: "service-error",
+      component: () => import("../views/ServiceErrorView.vue")
     }
   ]
 })
