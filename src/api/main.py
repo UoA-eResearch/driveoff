@@ -6,14 +6,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, AsyncGenerator, Iterable
 
-from fastapi import Depends, FastAPI, HTTPException, Response, Security, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Response,
+    Security,
+    status,
+)
 from pydantic.functional_validators import AfterValidator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.cors import add_cors_middleware
-from api.manifests import generate_manifest
+from api.manifests import bag_directory, create_manifests_directory, generate_manifest
 from api.security import ApiKey, validate_api_key, validate_permissions
+from crate.ro_builder import ROBuilder
+from crate.ro_loader import ROLoader
 from models.member import Member
 from models.person import Person
 from models.project import InputProject, Project, ProjectWithDriveMember
@@ -128,6 +138,7 @@ async def append_drive_info(
     input_submission: InputDriveOffboardSubmission,
     session: SessionDep,
     response: Response,
+    background_tasks: BackgroundTasks,
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
     """Handle requests to create new form submission."""
@@ -170,9 +181,98 @@ async def append_drive_info(
     session.add(related_project)
     session.add(submission)
     session.commit()
+
+    # generate the RO-Crate now that db has been updated
+    # for now assume "Real" research drive has been mounted somewhere on VM home directory
+
+    background_tasks.add_task(
+        generate_ro_crate,
+        drive_name=drive.name,
+        session=session,
+    )
+
     return {
         "message": f"Received additional RO-Crate metadata for {drive.name}.",
     }
+
+
+def get_resdrive_path(drive_name: str) -> Path:
+    """Get a path for a research drive.
+    Please update when service acc logic is finalized"""
+    drive_path = Path.home() / "mnt" / drive_name
+    if not drive_path.is_dir():
+        raise FileNotFoundError(
+            "Research Drive must be mounted in order to generate RO-Crate"
+        )
+    return drive_path
+
+
+def build_crate_contents(
+    drive_name: ResearchDriveID,
+    session: SessionDep,
+    drive_location: Path,
+    output_location: Path,
+) -> ROLoader:
+    """Generate an RO-Crate from a list of projects"""
+
+    code_query = select(ResearchDriveService).where(
+        ResearchDriveService.name == str(drive_name)
+    )
+    drive_found = session.exec(code_query).one()
+
+    if drive_found is None:
+        raise ValueError(
+            f"Research Drive ID {drive_name} no longer found in local database."
+        )
+
+    projects = drive_found.projects
+
+    if not drive_found.submission:
+        raise ValueError(
+            f"Research Drive ID {drive_name} does not have a valid form submission"
+        )
+
+    drive_submission = drive_found.submission
+
+    if len(projects) == 0:
+        raise ValueError(f"No projects linked with drive {drive_name}")
+
+    ro_crate_loader = ROLoader()
+    ro_crate_loader.init_crate()
+    ro_crate_builder = ROBuilder(ro_crate_loader.crate)
+    project_entities = [
+        ro_crate_builder.add_project(project, drive_submission) for project in projects
+    ]
+    drive_entity = ro_crate_builder.add_research_drive_service(drive_found)
+    ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
+    drive_entity.append_to("project", project_entities)
+    ro_crate_loader.write_crate(drive_location)
+    bag_directory(
+        drive_location,
+        bag_info={"projects": ",".join([project.title for project in projects])},
+    )
+    create_manifests_directory(
+        drive_path=drive_location,
+        output_location=output_location,
+        drive_name=str(drive_name),
+    )
+
+    return ro_crate_loader
+
+
+async def generate_ro_crate(
+    drive_name: ResearchDriveID,
+    session: SessionDep,
+) -> ROLoader:
+    """Async task for generating the RO-crate in a research drive
+    then moving all files into archive"""
+    drive_path = get_resdrive_path(drive_name)
+    return build_crate_contents(
+        drive_name,
+        session,
+        drive_location=drive_path / "Vault",
+        output_location=drive_path / "Archive",
+    )
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)
@@ -232,6 +332,4 @@ async def get_drive_manifest(
             detail=f"Manifest not available for {drive_id}",
         )
 
-    return {
-        "manifest": manifest,
-    }
+    return {"manifest": manifest}

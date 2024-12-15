@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from pydantic import AliasGenerator, ConfigDict
 from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -44,3 +45,33 @@ class DriveOffboardSubmission(BaseDriveOffboardSubmission, table=True):
     is_project_updated: bool
     drive_id: int | None = Field(default=None, foreign_key="researchdriveservice.id")
     drive: Optional["ResearchDriveService"] = Relationship(back_populates="submission")
+
+
+class ROCrateDriveOffboardSubmission(BaseDriveOffboardSubmission):
+    "Data class for a submission model to be written as part of an RO-Crate"
+    model_config = ConfigDict(  # type: ignore
+        alias_generator=AliasGenerator(
+            serialization_alias=to_camel,
+        )
+    )
+    id: int
+    updated_time: datetime
+
+    def __init__(self, submission: DriveOffboardSubmission):
+        super().__init__(**submission.model_dump())
+
+
+class ROCrateDeleteAction(SQLModel):
+    """Model to capture delete actions in an RO-Crate
+    that are derived from submissions"""
+
+    model_config = ConfigDict(  # type: ignore
+        alias_generator=AliasGenerator(
+            serialization_alias=to_camel,
+        )
+    )
+    schema_type: str = Field(
+        default="DeleteAction", schema_extra={"serialization_alias": "@type"}
+    )
+    action_Status: str = Field(default="PotentialActionStatus")
+    end_time: datetime

@@ -4,14 +4,18 @@ version = "0.1.0"
 description = "Prototype for research drive offboarding and archiving, from IDS team."
 authors = ["Chris Seal <c.seal@auckland.ac.nz>", "Noel Zeng", "Libby Li", "James Love", "Andrew Wilson"]
 readme = "README.md"
+
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = {extras = ["standard"], version = "^0.115.0"}
 sqlmodel = "^0.0.22"
 sqlalchemy = "^2.0.36"
 bagit = "^1.8.1"
-factory-boy = "^3.3.1"
 pytest-cov = "^6.0.0"
+rocrate = "^0.11.0"
+orjson = "^3.10"
+factory-boy = "^3.3.1"
+mock = "^5.1.0"
 pydantic-settings = "^2.6.1"
 
 
@@ -23,6 +27,14 @@ pytest = "^8.3.3"
 mypy = "^1.11.2"
 coverage = "^7.6.1"
 setuptools = "^75.6.0"
+factory-boy = "^3.3.1"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.3"
+factory-boy = "^3.3.1"
+rocrate = "^0.11.0"
+orjson = "^3.10"
+bagit = "^1.8.1"
 
 [build-system]
 requires = ["poetry-core"]
@@ -41,3 +53,6 @@ strict = true
 [tool.pytest.ini_options]
 pythonpath = "src tests"
 testpaths= ["tests"]
+
+[tool.pylint]
+extension-pkg-whitelist = ["orjson"]

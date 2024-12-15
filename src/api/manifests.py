@@ -3,15 +3,16 @@
 
 import multiprocessing
 import os
+import shutil
 from pathlib import Path
-from typing import Dict, Generator
+from typing import Dict, Generator, Optional
 
 import bagit
 
 from models.manifest import Manifest
 
 PROCESSES = max(multiprocessing.cpu_count() - 2, 1)
-DEFAULT_CHECKSUM = "sha512"
+DEFAULT_CHECKSUM = ["sha256", "sha512"]
 
 
 def _sorted_walk(data_dir: str) -> Generator[str, None, None]:
@@ -69,3 +70,52 @@ def bag_directory(drive_path: Path, bag_info: Dict[str, str]) -> None:
         processes=PROCESSES,
         checksums=DEFAULT_CHECKSUM,
     )
+
+
+def get_manifests_in_bag(drive_path: Path) -> list[Path]:
+    """Return a list of all manifest type files in the RO-Crate.
+
+    Args:
+        drive_path (Path): root directory of the RO-Crate or BagIt directory
+
+    Returns:
+        List[Path]: a list of all bagit manifest or RO-crate metadata paths
+    """
+    result: list[Path] = []
+    # avoid recursion as RO-Crates may contain a large volume of files
+    result.extend(drive_path.glob("*manifest-*.txt"))
+    result.extend(drive_path.glob("*bag-info.txt"))
+    if len(result) > 0:  # if there is a bagit manifest check data dir
+        result.extend((drive_path / "data").glob("*ro-crate-metadata.json"))
+        return result
+    # otherwise check for un-bagged RO-Crate
+    result.extend(drive_path.glob("*ro-crate-metadata.json"))
+    return result
+
+
+def create_manifests_directory(
+    drive_path: Path,
+    output_location: Optional[Path] = None,
+    drive_name: str = "",
+) -> None:
+    """Creates a directory containing relevant manifest files for an archived Crate.
+
+    Args:
+        output_location (Path): the path to where the manifests should be written,
+            defaults to the drive_path
+        drive_path (Path): the root path of the un-archived RO-Crate
+
+    Raises:
+        ValueError: if no manifests are found in the RO-Crate
+    """
+    if output_location is None:
+        output_location = drive_path.parent
+    manifests = get_manifests_in_bag(drive_path)
+    if not manifests:
+        raise ValueError(
+            "No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate"
+        )
+    manifest_dir = output_location / (drive_name + drive_path.name + "_manifests")
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    for manifest in manifests:
+        shutil.copy(str(manifest), str(manifest_dir / manifest.name))
