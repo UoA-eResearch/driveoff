@@ -8,17 +8,6 @@ Based on : [https://github.com/workflowhub-eu/about/tree/master/Workflow-RO-Crat
 * Test Crate-O [Mode](project_archivecrate_mode.json)
 * Preliminary [Terms](https://github.com/JLoveUOA/eres_project_archive-ro-terms/tree/master/eres-project-archive)
 
-<!-- As Encrypted crates differ for how they are constructed in memory as opposed to how they are written on disk a profile crate is provided for each.
-* [Profile Crate - In Memory `ro-crate-metadata.json`](TODO)
-  - [Profile Crate preview](TODO)
-* [Profile Crate - On Disk `ro-crate-metadata.json`](TODO)
-  - [Profile Crate preview](TODO)
-* [Example RO-Crate - In Memory`ro-crate-metadata.json`](TODO)
-  - [Example RO-Crate profile preview](TODO)
-* [Example RO-Crate - On Disk `ro-crate-metadata.json`](TODO)
-  - [Example RO-Crate profile preview](TODO) -->
-
-
 
 _eResearch Project Archive Crate_ is an extension of [_RO-Crate_](https://researchobject.github.io/ro-crate/) for documenting long term archived data in the University of Auckland's eResearch data storage systems on a Research Project Basis.
 
@@ -69,9 +58,7 @@ the `root data entity` MUST list the school or faculty this data belongs to via 
 | Domain | Property | Required? |type|Description|
 |---|----|---|-----|---|
 |**Root data entity ("@id": "./")**  | conformsTo   | MUST   | Text | A URI for the permalinked version of this document and a URI permalink to the [RO-Crate 1.1 specification](https://w3id.org/ro/crate/1.1) `https://w3id.org/ro/crate/1.1`|
-|**Root data entity ("@id": "./")**  | project   | MUST   |Project| The Project associated with this data|
-|**Root data entity ("@id": "./")**  | sourceOrganization   | MUST   | Organisation|The school or faculty linked with this research project and point of contact if `projectOwner` is not available|
-|**Root data entity ("@id": "./")**  | dataClassification   | MUST   | Text | The classification of the data for [research data retention](https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-classification) and [information security](https://www.protectivesecurity.govt.nz/classification/overview).  MUST be ONE of ["Public", "Internal", "Sensitive", or "Restricted"]. Default "Sensitive".|
+|**Root data entity ("@id": "./")**  |  mainEntity  | MUST   |Project OR ResearchDriveService | The Project or storage drive associated with this data|
 |**Root data entity ("@id": "./")**  | name   | MAY   | Text | A name describing this dataset.|
 |**Root data entity ("@id": "./")**  | hastPart   | MAY   | Dataset OR Datafile | Child Datasets and Files used to sub-section and further describe this archive.|
 
@@ -81,11 +68,11 @@ The `Project` describes the majority of the information for the research project
 
 `Projects` MUST list their unique eResearch Project Database ID as their `@id`.
 
-a `Project` MUST provide ONE owner of this project and _crate_ via `projectOwner`.
+a `Project` MUST provide ONE owner of this project and _crate_ via `members`.
 
-Additional people associated with the project MAY be provided via the `dataContact` , `dataOwner` and `member` properties.
+Additional people associated with the project MAY be provided via the  `member` property as `OrganizationRole`s.
 
-If the data stored within the _crate_ originates from a Dropbox or a Research Drive then the ID of that `dropbox` or `researchDrive` SHOULD be provided via their respective fields.
+If the data stored within the _crate_ originates from a Dropbox or a Research Drive then the ID of that `dropbox` or `researchDrive` MUST be provided via their respective fields.
 
 The `endDate` describes the date the project ends, e.g. the end of a PHD project or research grant. [Research data retention](https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention) dates may be inferred from this based on data classification this date and other factors (such as if this project was sensitive or relates to registered patients). 
 
@@ -93,22 +80,25 @@ The `endDate` describes the date the project ends, e.g. the end of a PHD project
 
 | Domain | Property | Required? |type|Description|
 |---|----|---|-----|---|
-|**Project**  | @id  | MUST   | Text | A unique ID for this project. Use code from eResearch Project Database if possible. e.g. ("@id":"#cer03107")|
-|**Project**  | @type  | MUST   | Text | MUST include "Project".|
-|**Project**  | projectOwner  | MUST  | Person | The owner of this project and primary contact for data retention. (Usually Primary Investigator)|
+|**Project**  | @id  | MUST   | Text | A unique ID for this project. Use id from eResearch Project Database if possible. e.g. ("@id":"#project/100")|
+|**Project**  | @type  | MUST   | Text | MUST include "Project" OR "ResearchProject".|
+|**Project**  | member  | MUST  | OrganizationRole | Members with access to this project and its associated services |
 |**Project**  | endDate  | MUST  | Date | The date that this project ends. Informs when archived data can be safely deleted (for instance for public data, data may be deleted 6 years after project end date).|
-|**Project**  | service  | MAY  | Text | Unique ID's of services associated with this project such as Virtual Machines or storage.|
+|**Project**  | services  | MAY  | Text | Unique ID's of services associated with this project such as Virtual Machines or storage.|
 |**Project**  | division  | MAY  | Text | The division linked with this project. e.g. "CIVENV"|
-|**Project**  | dropbox  | MAY  | Text OR URL | The URL or identifier of a Dropbox associated with this project SHOULD be included if a dropbox is present. MUST be included if data archived in this crate originated from said dropbox.|
 |**Project**  | description  | SHOULD  | Text | full description of the project.|
 |**Project**  | name  | SHOULD  | Text | Title describing the project.|
 |**Project**  | identifier  | MAY  | Text OR URL | additional identifiers associated with the project.|
 |**Project**  | startDate  | MAY  | Date | The date this project starts.|
-|**Project**  | dataOwner  | MAY | Person | Project members who own the data stored within, for example PHD students.|
-|**Project**  | dataContact  | MAY  | Person | a contact for ownership of this data.|
-|**Project**  | member  | MAY  | Person | Any other person associated with the project.|
 |**Project**  | requirements  | MAY  | Text | Free-text requirements for this projects, e.g. "requires human ethics approval".|
-|**Project**  | researchDrive  | MAY  | Text | the research storage drive associated with this project and archive crate.
+|**Project**  | dataClassification   | MUST   | Text | The classification of the data for [research data retention](https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-classification) and [information security](https://www.protectivesecurity.govt.nz/classification/overview).  MUST be ONE of ["Public", "Internal", "Sensitive", or "Restricted"]. Default "Sensitive".|
+|**Project**  | actions   | MAY   | DeleteAction | Any delete actions indicating when data associated with this project may safely be deleted. |
+|**Project**  | retentionPeriodYears   | MUST  | Number | How many years must be retained after project end date based on Data Classification or other justifications. |
+|**Project**  | retentionPeriodJustification   | MAY*  | text | Reasoning for why data should be retained for a given period. MUST be included if retention period differs from standards based on data classfication |
+
+## OrganizationRole
+
+`OrganizationRole` MUST describe how a `Person` relates to a `Project` to understand that person's  
 
 ## People
 

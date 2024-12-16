@@ -60,7 +60,7 @@ class ROBuilder:
 
         sumbission_properties = ROCrateDriveOffboardSubmission(
             project_submission
-        ).model_dump(exclude={"id"}, by_alias=True, exclude_none=True)
+        ).model_dump(exclude={"id","isCompleted"}, by_alias=True, exclude_none=True)
 
         crate_project = ROCrateProject(project)
         project_properties = crate_project.model_dump(
