@@ -62,6 +62,48 @@ def test_generate_crate(  # pylint: disable=too-many-arguments,too-many-position
     ro_crate_helpers.check_crate_contains(entities, entities_created)
 
 
+def test_crate_already_exists(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+    data_dir: Path,
+    archive_dir: Path,
+    session: Session,
+    research_drive_service_factory: SQLAlchemyModelFactory,
+    project_factory: SQLAlchemyModelFactory,
+    drive_offboard_submission_factory: SQLAlchemyModelFactory,
+) -> None:
+    "Test generation of an RO-Crate in a bagit package"
+    drive_name = "test_drive"
+    target_drive = research_drive_service_factory.create(name=drive_name)
+    _ = project_factory.create(research_drives=[target_drive])
+    _ = drive_offboard_submission_factory.create(drive=target_drive)
+
+    build_crate_contents(
+        drive_name=drive_name,
+        session=session,
+        drive_location=data_dir,
+        output_location=archive_dir,
+    )
+    build_crate_contents(
+        drive_name=drive_name,
+        session=session,
+        drive_location=data_dir,
+        output_location=archive_dir,
+    )
+
+    # check bagit created correctly
+    assert Path(data_dir / BAG_DIR_NAME).is_dir()
+    assert list(Path(data_dir).glob("*manifest-*.txt"))
+    assert list(Path(data_dir).glob("*bag-info.txt"))
+    bag = bagit.Bag(data_dir.as_posix())
+    assert bag.validate()
+    assert Path(data_dir / BAG_DIR_NAME / METADATA_FILE_NAME).is_file()
+
+    # check we didn't make a second one!
+    assert not Path(
+        data_dir / BAG_DIR_NAME / BAG_DIR_NAME / METADATA_FILE_NAME
+    ).is_file()
+    assert not Path(data_dir / BAG_DIR_NAME / BAG_DIR_NAME).exists()
+
+
 def test_zip_crate(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     data_dir: Path,
     archive_dir: Path,

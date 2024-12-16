@@ -15,13 +15,20 @@ PROCESSES = max(multiprocessing.cpu_count() - 2, 1)
 DEFAULT_CHECKSUM = ["sha256", "sha512"]
 
 
-def _sorted_walk(data_dir: str) -> Generator[str, None, None]:
+def _sorted_walk(data_dir: str, dirs_only: bool = False) -> Generator[str, None, None]:
+    "Generate a sorted list of filenames or directory names"
     for dirpath, dirnames, filenames in os.walk(data_dir):
-        filenames.sort()
+        relative_dirpath = Path(dirpath).relative_to(data_dir)
         dirnames.sort()
-        for fn in filenames:
-            path = os.path.join(dirpath, fn)
-            yield path
+        if len(filenames) > 1000 or dirs_only:
+            for dn in dirnames:
+                path = os.path.join(relative_dirpath, dn)
+                yield path
+        else:
+            filenames.sort()
+            for fn in filenames:
+                path = os.path.join(relative_dirpath, fn)
+                yield path
 
 
 def _encode_filename(s: str) -> str:
@@ -44,17 +51,20 @@ def genertate_filelist(drive_path: Path) -> str:
     return "\n".join(filenames)
 
 
-def generate_manifest(drive_id: str) -> Manifest:
+def generate_manifest(drive_path: Path) -> Manifest:
     """Generate a manifest from a drive ID.
     in future provide logic for a service account to mount a research drive.
     Currently generate a mockup from a test directory.
     """
     # mount drive based on ID
     # use service account to mount drive to mountpoint
-    _ = f"//files.auckland.ac.nz/research/{drive_id}"
-    mountpoint = Path("tests/restst000000001-testing")
-    manifest = genertate_filelist(mountpoint)
+    manifest = genertate_filelist(drive_path)
     return Manifest(manifest=manifest)
+
+
+def bagit_exists(drive_path: Path) -> bool:
+    """Return true if something looking like a bagIT is at this location"""
+    return (drive_path / "bagit.txt").is_file() and (drive_path / "data").is_dir()
 
 
 def bag_directory(drive_path: Path, bag_info: Dict[str, str]) -> None:
@@ -64,6 +74,13 @@ def bag_directory(drive_path: Path, bag_info: Dict[str, str]) -> None:
         drive_path (Path): the path to the directory to bag
         bag_info (Dict[str,str]): a dictionary documenting ownership of the bag
     """
+    # if a bagit already exists update it
+    if bagit_exists(drive_path):
+        bag = bagit.Bag(str(drive_path))
+        bag.info = bag.info | bag_info
+        bag.save(processes=PROCESSES, manifests=True)
+        return
+
     _ = bagit.make_bag(
         bag_dir=drive_path.as_posix(),
         bag_info=bag_info,
