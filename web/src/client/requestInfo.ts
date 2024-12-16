@@ -34,6 +34,7 @@ export async function loadRequestInfo(): Promise<boolean> {
         requestInfo.isLoading = true;
         requestInfo.project = await getProject();
         requestInfo.drive = await getDrive();
+        requestInfo.isLoading = false;
         return true;
     } catch (e) {
         requestInfo.isLoading = false;
