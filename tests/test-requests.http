@@ -28,6 +28,11 @@ GET {{server_url}}/api/v1/resdriveinfo/
 x-api-key: {{api_key}}
 
 ###
+GET {{server_url}}/api/v1/resdrivemanifest/
+    ?drive_id={{drive_id}}
+x-api-key: {{api_key}}
+
+###
 
 POST {{server_url}}/api/v1/resdriveinfo
 x-api-key: {{api_key}}
@@ -149,7 +154,7 @@ x-api-key: {{api_key}}
 {
     "retentionPeriodYears": 6,
     "dataClassification": "Sensitive",
-    "isCompleted": false,
+    "isCompleted": true,
     "driveName": "reslig202200001-Tītoki-metabolomics"
    
 }

@@ -20,10 +20,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.cors import add_cors_middleware
-from api.manifests import bag_directory, create_manifests_directory, generate_manifest
+from api.fake_resdrive import make_fake_resdrive
+from api.manifests import (
+    bag_directory,
+    bagit_exists,
+    create_manifests_directory,
+    generate_manifest,
+)
 from api.security import ApiKey, validate_api_key, validate_permissions
 from crate.ro_builder import ROBuilder
-from crate.ro_loader import ROLoader
+from crate.ro_loader import ROLoader, zip_existing_crate
 from models.member import Member
 from models.person import Person
 from models.project import InputProject, Project, ProjectWithDriveMember
@@ -124,7 +130,8 @@ async def set_drive_info(
     ]
     project.research_drives = drives
     for drive in drives:
-        drive.manifest = generate_manifest(drive.name)
+        dirve_path = get_resdrive_path(drive.name)
+        drive.manifest = generate_manifest(dirve_path / "Vault")
     # Add the validated services and members into the project
     project.members = members
     # Upsert the project.
@@ -200,6 +207,8 @@ def get_resdrive_path(drive_name: str) -> Path:
     """Get a path for a research drive.
     Please update when service acc logic is finalized"""
     drive_path = Path.home() / "mnt" / drive_name
+    ###WHILE TESTING MAKE THE DRIVE
+    make_fake_resdrive(drive_path)
     if not drive_path.is_dir():
         raise FileNotFoundError(
             "Research Drive must be mounted in order to generate RO-Crate"
@@ -246,7 +255,10 @@ def build_crate_contents(
     drive_entity = ro_crate_builder.add_research_drive_service(drive_found)
     ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
     drive_entity.append_to("project", project_entities)
-    ro_crate_loader.write_crate(drive_location)
+    ro_crate_location = drive_location
+    if bagit_exists(ro_crate_location):
+        ro_crate_location = ro_crate_location / "data"
+    ro_crate_loader.write_crate(ro_crate_location)
     bag_directory(
         drive_location,
         bag_info={"projects": ",".join([project.title for project in projects])},
@@ -263,16 +275,19 @@ def build_crate_contents(
 async def generate_ro_crate(
     drive_name: ResearchDriveID,
     session: SessionDep,
-) -> ROLoader:
+) -> None:
     """Async task for generating the RO-crate in a research drive
     then moving all files into archive"""
     drive_path = get_resdrive_path(drive_name)
-    return build_crate_contents(
+    drive_location = drive_path / "Vault"
+    output_location = drive_path / "Archive"
+    build_crate_contents(
         drive_name,
         session,
         drive_location=drive_path / "Vault",
         output_location=drive_path / "Archive",
     )
+    zip_existing_crate(output_location / str(drive_name), drive_location)
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)

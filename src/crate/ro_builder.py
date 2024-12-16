@@ -66,7 +66,6 @@ class ROBuilder:
         project_properties = crate_project.model_dump(
             exclude={"id", "codes"}, by_alias=True, exclude_none=True
         )
-        # project_properties = project_properties | sumbission_properties
         project_id = f"{PROJECT_PREFIX}{crate_project.id}"
         project_entity = ContextEntity(
             crate=self.crate,
