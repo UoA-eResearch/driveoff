@@ -1,7 +1,15 @@
+/**
+ * Functions for loading information about the archive request.
+ */
 import { requestInfo } from "@/store";
 import { getDriveInfoApiV1ResdriveinfoGet } from "./sdk.gen";
 import type { ProjectWithDriveMember, ResearchDriveService } from "./types.gen";
 
+/**
+ * Retrieves project information based on project code in URL.
+ * @returns Project information from server.
+ * @throws Exception if server did not return data or received an error status code.
+ */
 async function getProject(): Promise<ProjectWithDriveMember> {
     const params = new URLSearchParams(window.location.search);
     const driveId = params.get("drive");
@@ -13,13 +21,17 @@ async function getProject(): Promise<ProjectWithDriveMember> {
             drive_id: driveId
         }
     });
-    if (response.error || response.data === undefined) {
+    if (response.error || !response.response.ok || response.data === undefined) {
         throw response.error;
     }
     return response.data;
 }
 
-
+/**
+ * Retrieves drive information from server.
+ * @returns Drive information from server.
+ * @throws Exception if server did not return data.
+ */
 async function getDrive(): Promise<ResearchDriveService> {
     const project = await getProject();
     if (!project) {
@@ -28,6 +40,10 @@ async function getDrive(): Promise<ResearchDriveService> {
     return project.research_drives[0];
 }
 
+/**
+ * Retrieves archive information from server and stores it in the requestInfo store.
+* @returns True if request was loaded successfully, false if not.
+ */
 export async function loadRequestInfo(): Promise<boolean> {
     // Pre-populate archive request info.
     try {
