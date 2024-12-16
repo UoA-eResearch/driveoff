@@ -78,6 +78,32 @@ export type InputServices = {
 };
 
 /**
+ * SQL model for storing simple file manifests
+ */
+export type Manifest = {
+    id: number;
+    manifest: string;
+};
+
+/**
+ * Public model for project members.
+ */
+export type MemberPublic = {
+    role: Role;
+    person: Person;
+};
+
+/**
+ * Data class for a Person model in database.
+ */
+export type Person = {
+    id?: (number | null);
+    email: (string | null);
+    full_name: string;
+    username: string;
+};
+
+/**
  * Project model for data stored in database
  */
 export type Project = {
@@ -98,18 +124,48 @@ export type ProjectChanges = {
 };
 
 /**
+ * Public model for project with drive and member information.
+ */
+export type ProjectWithDriveMember = {
+    title: string;
+    description: string;
+    division: string;
+    start_date: string;
+    end_date: string;
+    id: number;
+    codes: Array<Code>;
+    research_drives: Array<ResearchDriveServicePublic>;
+    members: Array<MemberPublic>;
+};
+
+/**
  * Object describing a research drive service.
  */
 export type ResearchDriveService = {
+    name: string;
     allocated_gb: number;
+    free_gb: number;
+    used_gb: number;
+    percentage_used: number;
     date: string;
     first_day: string;
-    free_gb: number;
-    id: (number | null);
     last_day: (string | null);
+    id?: (number | null);
+};
+
+/**
+ * Public model for Research Drive Service.
+ */
+export type ResearchDriveServicePublic = {
     name: string;
-    percentage_used: number;
+    allocated_gb: number;
+    free_gb: number;
     used_gb: number;
+    percentage_used: number;
+    date: string;
+    first_day: string;
+    last_day: (string | null);
+    manifest: Manifest;
 };
 
 /**
@@ -144,9 +200,7 @@ export type GetDriveInfoApiV1ResdriveinfoGetData = {
     };
 };
 
-export type GetDriveInfoApiV1ResdriveinfoGetResponse = ({
-    [key: string]: (string);
-});
+export type GetDriveInfoApiV1ResdriveinfoGetResponse = (ProjectWithDriveMember);
 
 export type GetDriveInfoApiV1ResdriveinfoGetError = (HTTPValidationError);
 

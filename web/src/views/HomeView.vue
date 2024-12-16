@@ -20,10 +20,9 @@ function nextStep() {
     <p>Use this service if you have a research storage drive you no longer use.</p>
     <p>You can use this service to:</p>
     <ul>
-      <li>Confirm you want to archive the research drive. </li>
       <li>Check and update research storage drive details.</li>
       <li>Declare data classification and retention period for the stored files.</li>
-      <li>Add additional metadata to annotate your files.</li>
+      <li>Confirm you want to archive the research drive. </li>
     </ul>
     <section class="forward-btn">
       <a @click="nextStep()" class="btn btn-primary">Start</a>
@@ -42,10 +41,6 @@ function nextStep() {
     </ul>
   </section>
   </section>
-    <!-- <section class="before-you-start">
-      <h2>Before you start</h2>
-      <p>This service will ask you to confirm details such as .  Ensure you and your collaborators no longer actively use this drive. </p>
-    </section> -->
   </main>
 </template>
 
