@@ -60,7 +60,7 @@ class ROBuilder:
 
         sumbission_properties = ROCrateDriveOffboardSubmission(
             project_submission
-        ).model_dump(exclude={"id"}, by_alias=True, exclude_none=True)
+        ).model_dump(exclude={"id", "isCompleted"}, by_alias=True, exclude_none=True)
 
         crate_project = ROCrateProject(project)
         project_properties = crate_project.model_dump(
@@ -100,7 +100,7 @@ class ROBuilder:
             return member_entity
         person_entity = self.add_person(member.person)
         member_entity = ContextEntity(self.crate, identifier=member_id, properties=None)
-        member_entity["name"] = member.role.name if member.role else "No Role"
+        member_entity["roleName"] = member.role.name if member.role else "No Role"
         member_entity.append_to("member", person_entity)
         member_entity.properties()["@type"] = "OrganizationRole"
         return self.crate.add(member_entity)

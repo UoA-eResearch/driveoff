@@ -1,0 +1,21 @@
+term,type,label,description,domain,range
+Project,Class,project,"“A single Research Project, extended from https://schema.org/Project”",,
+project,Property,project,“The research project associated with this dataset”,Dataset,Project
+service,Property,service,"“the id of a virtual machine or storage service associated with this project""",Project,Text
+dataClassification,Property,dataClassification,"“The classification of the data for research data retention and information security. MUST be ONE of [""Public"", ""Internal"", ""Sensitive"", or ""Restricted""]. Default ""Sensitive""”",Project,Text
+requirements,Property,requirements,"“Free-text requirements for this projects, e.g. requires human ethics approval”",Project,Text
+endDate,Property,endDate,“The date this project ends”,Project,Date
+startDate,Property,startDate,“The date this project was started”,Project,Date
+member,Property,member,“Members with access to this project and its associated services”,Project,OrganizationRole
+division,Property,division,“the division of the school that owns this project”,Project,Text
+,Property,actions,“Any delete actions indicating when data associated with this project may safely be deleted.”,Project,Action
+,Property,retentionPeriodYears,“How many years must be retained after project end date based on Data Classification or other justifications.”,Project,Number
+,Property,retentionPeriodJustification,“Reasoning for why data should be retained for a given period. MUST be included if retention period differs from standards based on data classfication”,Project,Text
+,Property,member,“The person or persons that hold this role in this project.“,OrganizationRole,Text
+,Class,ResearchDriveService,“Network research drive the data originated from.”,,
+,Property,allocatedGb,“The total storage size on this research drive at time of archiving. in Gigabytes”,ResearchDriveService,Number
+,Property,firstDay,“The date the drive was first allocated.”,ResearchDriveService,Date
+,Property,freeGb,“The remaining storage space available on the research drive. in Gigabytes.”,ResearchDriveService,Number
+,Property,percentageUsed,“what percentage of storage was in use for this drive.”,ResearchDriveService,Number
+project,Property,project,“The research project associated with this storage drive”,ResearchDriveService,Project
+,Property,usedGb,“The storage in use at time of archiving (the total size of any archive created from this research drive). in Gigabytes.”,ResearchDriveService,Number
