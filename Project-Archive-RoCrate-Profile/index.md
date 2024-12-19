@@ -158,6 +158,7 @@ The *crate* itself MUST NOT be deleted, and should be kept as a record of the da
 The network research drive the data originated from MAY also be described using a `ResearchDriveService` object.
 
 ### Terms
+
 | Domain | Property | Required? |type|Description|
 |---|----|---|-----|---|
 |**ResearchDriveService**  | allocatedGb  | MAY | Number | The total storage size on this research drive at time of archiving. in Gigabytes (not gibibytes!). |
