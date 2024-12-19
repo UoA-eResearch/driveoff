@@ -17,7 +17,7 @@ def test_add_person(
         person = person_factory.create()
         ro_person = test_ro_builder.add_person(person)
         assert ro_person.get("email") == person.email
-        assert ro_person.get("fullName") == person.full_name
+        assert ro_person.get("name") == person.full_name
         assert ro_person.id == as_ro_id(person.username)
         assert ro_person.type == "Person"
         assert ro_person.get("id") is None
@@ -54,7 +54,7 @@ def test_add_member(
     for _ in range(1, TEST_ITERATIONS):
         member = member_factory.create()
         ro_member = test_ro_builder.add_member(member)
-        assert ro_member.get("name") == member.role.name
+        assert ro_member.get("roleName") == member.role.name
         assert ro_member.get("member") == [test_ro_builder.add_person(member.person)]
         assert ro_member.get("id") is None
         assert ro_member.type == "OrganizationRole"

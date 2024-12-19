@@ -31,7 +31,7 @@ _eResearch Project Archive Crate's_ MUST:
 
 _eResearch Project Archive Crates_ MUST be stored as a valid [BagIT](https://datatracker.ietf.org/doc/html/rfc8493) _Bag_. with the `ro_crate_metadata.json` and all data within the `data\` directory of the _Bag_. https://datatracker.ietf.org/doc/html/rfc8493
 
-_eResearch Project Archive Crates_ SHOULD be stored as a single file archive such as a `.tar` (https://lists.gnu.org/archive/html/info-gnu/2023-07/msg00005.html) or `.zip` containing the _Bag_ which in turns contains all metadata and data.
+_eResearch Project Archive Crates_ SHOULD be stored as a single file archive such as a `.tar` (https://lists.gnu.org/archive/html/info-gnu/2023-07/msg00005.html) or `.zip` containing the _Bag_ which in turns contains all metadata and data. `.zip` archives will be used as default.
 
 _eResearch Project Archive Crates_ MUST contain one `Project` describing the research project associated with the archived data.
 
@@ -59,7 +59,6 @@ the `root data entity` MUST list the school or faculty this data belongs to via 
 |---|----|---|-----|---|
 |**Root data entity ("@id": "./")**  | conformsTo   | MUST   | Text | A URI for the permalinked version of this document and a URI permalink to the [RO-Crate 1.1 specification](https://w3id.org/ro/crate/1.1) `https://w3id.org/ro/crate/1.1`|
 |**Root data entity ("@id": "./")**  |  mainEntity  | MUST   |Project OR ResearchDriveService | The Project or storage drive associated with this data|
-|**Root data entity ("@id": "./")**  | name   | MAY   | Text | A name describing this dataset.|
 |**Root data entity ("@id": "./")**  | hastPart   | MAY   | Dataset OR Datafile | Child Datasets and Files used to sub-section and further describe this archive.|
 
 ## Project
@@ -68,11 +67,11 @@ The `Project` describes the majority of the information for the research project
 
 `Projects` MUST list their unique eResearch Project Database ID as their `@id`.
 
-a `Project` MUST provide ONE owner of this project and _crate_ via `members`.
+a `Project` MUST provide ONE owner of this project and _crate_ via `members` using an `OrganizationRole` with name `Project Owner`.
 
 Additional people associated with the project MAY be provided via the  `member` property as `OrganizationRole`s.
 
-If the data stored within the _crate_ originates from a Dropbox or a Research Drive then the ID of that `dropbox` or `researchDrive` MUST be provided via their respective fields.
+If the data stored within the _crate_ originates from a Dropbox or a Research Drive then the ID of that `dropbox` or `ResearchDriveService` MUST be provided via 'services'
 
 The `endDate` describes the date the project ends, e.g. the end of a PHD project or research grant. [Research data retention](https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention) dates may be inferred from this based on data classification this date and other factors (such as if this project was sensitive or relates to registered patients). 
 
@@ -84,7 +83,7 @@ The `endDate` describes the date the project ends, e.g. the end of a PHD project
 |**Project**  | @type  | MUST   | Text | MUST include "Project" OR "ResearchProject".|
 |**Project**  | member  | MUST  | OrganizationRole | Members with access to this project and its associated services |
 |**Project**  | endDate  | MUST  | Date | The date that this project ends. Informs when archived data can be safely deleted (for instance for public data, data may be deleted 6 years after project end date).|
-|**Project**  | services  | MAY  | Text | Unique ID's of services associated with this project such as Virtual Machines or storage.|
+|**Project**  | services  | MAY  | Text OR ResearchDriveService | Unique ID's of services associated with this project such as Virtual Machines or storage.|
 |**Project**  | division  | MAY  | Text | The division linked with this project. e.g. "CIVENV"|
 |**Project**  | description  | SHOULD  | Text | full description of the project.|
 |**Project**  | name  | SHOULD  | Text | Title describing the project.|
@@ -98,7 +97,16 @@ The `endDate` describes the date the project ends, e.g. the end of a PHD project
 
 ## OrganizationRole
 
-`OrganizationRole` MUST describe how a `Person` relates to a `Project` to understand that person's  
+`OrganizationRole` MUST describe how a `Person` relates to a `Project` to understand that person's role regarding data ownership and project ownership.
+`OrganizationRole`s MUST provide a `Person` via `member` and the description of role via `name`. a name of `"Project Owner"`, `"Data Owner"`  and `"Data Contact"` SHOULD indicate primary stakeholders in research data.
+
+### Terms
+
+| Domain | Property | Required? |type|Description|
+|---|----|---|-----|---|
+|**OrganizationRole**  | @id  | MUST  | Text | A value that uniquely identifies a person or a group of peoples relationship to a project|
+|**OrganizationRole**  | member  | MUST  | Person | The person or persons that hold this role in this project. 
+|**OrganizationRole**  | roleName | MUST | Text | A this member's role regarding project data MUST be ONE of:["CeR Contact","Contact Person","Data Contact","Data Owner","Former Team Member","Grant PI","Primary Adviser","Primary Reviewer","Project Owner","Project Team Member","Reviewer","Supervisor","Support"] default: "Project Team Member" |
 
 ## People
 
@@ -110,7 +118,7 @@ The `endDate` describes the date the project ends, e.g. the end of a PHD project
 |---|----|---|-----|---|
 |**Person**  | @id  | MUST  | Text | A UPI that uniquely identifies this person in the University Active Directory Lookup. e.g. "pmcg006"|
 |**Person**  | email  | SHOULD  | Email | an email address that may be used to contact this person.
-|**Person**  | name | MAY  | name | The full name identifying this person.
+|**Person**  | name | MAY  | Text | The full name identifying this person.
 
 ## Additional Datasets
 
@@ -141,9 +149,26 @@ The *crate* itself MUST NOT be deleted, and should be kept as a record of the da
 
 | Domain | Property | Required? |type|Description|
 |---|----|---|-----|---|
-|**DeleteAction**  | targetCollection  | MUST  | Dataset | The dataset that is the target of this delete action.|
+|**DeleteAction**  | targetCollection  | MUST  | Dataset OR ResearchDriveService | The dataset that is the target of this delete action.|
 |**DeleteAction**  | actionStatus  | MUST  | ActionStatusType | Status of the deletion of the target dataset.|
 |**DeleteAction**  | endTime  | MUST  | DateTime | When the deletion of the data is to occur or has occurred.|
+
+## ResearchDriveService
+
+The network research drive the data originated from MAY also be described using a `ResearchDriveService` object.
+
+### Terms
+| Domain | Property | Required? |type|Description|
+|---|----|---|-----|---|
+|**ResearchDriveService**  | allocatedGb  | MAY | Number | The total storage size on this research drive at time of archiving. in Gigabytes (not gibibytes!). |
+|**ResearchDriveService**  | date  | SHOULD  | Date | The date the drive was archived at. |
+|**ResearchDriveService**  | firstDay  | SHOULD | Date | The date the drive was first allocated. |
+|**ResearchDriveService**  | freeGb  | MAY  | Number | The remaining storage space available on the research drive. in Gigabytes. |
+|**ResearchDriveService**  | name  | MUST  | Number | The longform name of this research drive eg. "reslig202200001-Tītoki-metabolomics". |
+|**ResearchDriveService**  | percentageUsed  | MAY | Number | what percentage of storage was in use for this drive. |
+|**ResearchDriveService**  | project  | MUST  | Project | projects linked to this research drive. |
+|**ResearchDriveService**  | usedGb  | MUST  | Number | The storage in use at time of archiving (the total size of any archive created from this research drive). in Gigabytes. |
+
 
 ## Example eResearch Project Archive Crate
 * [ro-crate-metadata.json](exampleCrate/ro-crate-metadata.json)
@@ -151,156 +176,128 @@ The *crate* itself MUST NOT be deleted, and should be kept as a record of the da
 
 ```json
 {
-    "@context": "https://w3id.org/ro/crate/1.1/context",
-    "@graph": [
-        {
-            "@id": "./",
-            "@type": "Dataset",
-            "conformsTo": [
-                "https://uoa-eresearch.github.io/Project-Archive-RoCrate-Profile/"
-            ],
-            "dataClassification": [
-                "Sensitive"
-            ],
-            "datePublished": "2024-10-03T01:05:33+00:00",
-            "hasPart": [
-                {
-                    "@id": "Vault/pancreatoblastoma/raw/"
-                },
-                {
-                    "@id": "Vault/pancreatoblastoma/bam/"
-                },
-                {
-                    "@id": "Vault/pancreatoblastoma/raw/rna/"
-                },
-                {
-                    "@id": "Vault/pancreatoblastoma/raw/rna/1806KHP-0132/A0006L_1.fastq.gz"
-                }
-            ],
-            "name": [
-                "Example Project Archive Crate"
-            ],
-            "project": [
-                {
-                    "@id": "#cer01502"
-                }
-            ],
-            "sourceOrganization": [
-                {
-                    "@id": "#UOA_FMHS"
-                }
-            ]
-        },
-        {
-            "@id": "ro-crate-metadata.json",
-            "@type": "CreativeWork",
-            "about": {
-                "@id": "./"
-            },
-            "conformsTo": {
-                "@id": "https://w3id.org/ro/crate/1.1"
-            }
-        },
-        {
-            "@id": "Vault/pancreatoblastoma/bam/",
-            "@type": "Dataset"
-        },
-        {
-            "@id": "Vault/pancreatoblastoma/raw/rna/",
-            "@type": "Dataset"
-        },
-        {
-            "@id": "Vault/pancreatoblastoma/raw/rna/1806KHP-0132/A0006L_1.fastq.gz",
-            "@type": "File"
-        },
-        {
-            "@id": "#jcar001",
-            "@type": "Person",
-            "email": "JCarberry@psychoceramics.brown.com",
-            "identifier": "https://orcid.org/0000-0001-7760-1240",
-            "name": "Josiah Carberry"
-        },
-        {
-            "@id": "#tmon023",
-            "@type": "Person",
-            "email": "TeamMember1@psychoceramics.brown.com",
-            "name": "TeamMember1"
-        },
-        {
-            "@id": "#tmtw023",
-            "@type": "Person",
-            "email": "TeamMember2@psychoceramics.brown.com",
-            "name": "TeamMember2"
-        },
-        {
-            "@id": "#UOA_FMHS",
-            "@type": "Organization",
-            "name": "University Of Auckland Faculty of Medical and Health Science"
-        },
-        {
-            "@id": "#cer01502",
-            "@type": "Project",
-            "dataContact": [
-                {
-                    "@id": "#tmon023"
-                },
-                {
-                    "@id": "#tmtw023"
-                }
-            ],
-            "dataOwner": [
-                {
-                    "@id": "#tmon023"
-                },
-                {
-                    "@id": "#tmtw023"
-                }
-            ],
-            "description": "This storage will be used to keep the Polaris image data and bioinformatics analysis data. Vectra Polaris is a pathology imaging system that provides researchers unparalleled speed, performance, and versatility for extracting proteomic and morphometric information from tissue sections. Using the Polaris and bioinformatics/computational approaches, we will explore multiple biomarkers and functional cellular interactions in spatial context.",
-            "division": "CIVENV",
-            "dropbox": "virtualeyes-lab",
-            "endDate": "2024-10-02",
-            "identifier": [
-                "ressci202400001",
-                "1507"
-            ],
-            "member": [
-                {
-                    "@id": "#jcar001"
-                },
-                {
-                    "@id": "#tmon023"
-                },
-                {
-                    "@id": "#tmtw023"
-                }
-            ],
-            "name": "Bioinfceramics",
-            "projectOwner": [
-                {
-                    "@id": "#jcar001"
-                }
-            ],
-            "requirements": "Part of a funded project research,Requires human ethics research",
-            "researchDrive": "ressci202400001-polaris-bioinformatics",
-            "service": [
-                "cbarpuptst01",
-                "sc-cer00466-2"
-            ],
-            "startDate": "2024-10-02"
-        },
-        {
-            "@id": "#DeleteArchiveAction",
-            "@type": "DeleteAction",
-            "actionStatus": "PotentialActionStatus",
-            "endTime": "2024-10-02",
-            "targetCollection": [
-                {
-                    "@id": "./"
-                }
-            ]
-        }
-    ]
+  "@context": "https://w3id.org/ro/crate/1.1/context",
+  "@graph": [
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "datePublished": "2024-12-16T00:17:52+00:00",
+      "mainEntity": [
+{
+  "@id": "#research_drive_service/reslig202200001-Tītoki-metabolomics"
+}
+      ]
+    },
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+"@id": "./"
+      },
+      "conformsTo": [
+{
+  "@id": "https://w3id.org/ro/crate/1.1"
+},
+{
+  "@id": "https://uoa-eresearch.github.io/Project-Archive-RoCrate-Profile/"
+}
+      ]
+    },
+    {
+      "@id": "#medr894",
+      "@type": "Person",
+      "email": "m.edric@test.auckland.ac.nz",
+      "fullName": "Melisa Edric"
+    },
+    {
+      "@id": "#member/100/ProjectTeamMember/medr894",
+      "@type": "OrganizationRole",
+      "member": [
+{
+  "@id": "#medr894"
+}
+      ],
+      "name": "Project Team Member"
+    },
+    {
+      "@id": "#snic021",
+      "@type": "Person",
+      "email": "s.nicholas@test.auckland.ac.nz",
+      "fullName": "Samina Nicholas"
+    },
+    {
+      "@id": "#member/100/ProjectOwner/snic021",
+      "@type": "OrganizationRole",
+      "member": [
+{
+  "@id": "#snic021"
+}
+      ],
+      "name": "Project Owner"
+    },
+    {
+      "@id": "#research_drive_service/reslig202200001-Tītoki-metabolomics",
+      "@type": "ResearchDriveService",
+      "allocatedGb": 25600.0,
+      "date": "2024-10-13T00:00:00",
+      "firstDay": "2022-01-09T00:00:00",
+      "freeGb": 24004.5,
+      "name": "reslig202200001-Tītoki-metabolomics",
+      "percentageUsed": 2.75578,
+      "project": [
+{
+  "@id": "#project/100"
+}
+      ],
+      "usedGb": 1596.0
+    },
+    {
+      "@id": "retention_period_for/#research_drive_service/reslig202200001-Tītoki-metabolomics",
+      "@type": "DeleteAction",
+      "actionStatus": "PotentialActionStatus",
+      "endTime": "2030-11-04T00:00:00",
+      "targetCollection": [
+{
+  "@id": "#research_drive_service/reslig202200001-Tītoki-metabolomics"
+}
+      ]
+    },
+    {
+      "@id": "#project/100",
+      "@type": "ResearchProject",
+      "actions": [
+{
+  "@id": "retention_period_for/#research_drive_service/reslig202200001-Tītoki-metabolomics"
+}
+      ],
+      "dataClassification": "Sensitive",
+      "description": "Stress in plants could be defined as any change in growth condition(s) that disrupts metabolic homeostasis and requires an adjustment of metabolic pathways in a process that is usually referred to as acclimation. Metabolomics could contribute significantly to the study of stress biology in plants and other organisms by identifying different compounds, such as by-products of stress metabolism, stress signal transduction molecules or molecules that are part of the acclimation response of plants.",
+      "division": "Liggins Institute",
+      "endDate": "2024-11-04T00:00:00",
+      "identifier": [
+"uoa00001",
+"reslig202200001"
+      ],
+      "isCompleted": true,
+      "member": [
+{
+  "@id": "#member/100/ProjectTeamMember/medr894"
+},
+{
+  "@id": "#member/100/ProjectOwner/snic021"
+}
+      ],
+      "name": "Tītoki metabolomics",
+      "retentionPeriodYears": 6,
+      "services": [
+{
+  "@id": "#research_drive_service/reslig202200001-Tītoki-metabolomics"
+}
+      ],
+      "startDate": "2022-01-01T00:00:00",
+      "updatedTime": "2024-12-16T13:17:52.290170"
+    }
+  ]
 }
 
 ```
