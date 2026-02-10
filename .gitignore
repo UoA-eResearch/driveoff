@@ -6,3 +6,5 @@ api_keys.json
 
 # Ignored local configuration files to keep secrets safe.
 *.local
+
+venv

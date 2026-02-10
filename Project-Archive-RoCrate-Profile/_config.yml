@@ -35,9 +35,9 @@ remote_theme: ELIXIR-Belgium/elixir-toolkit-theme
 topnav_title: eResearch Project Archive Crate
 
 theme_variables: 
-  theme_color: 1f8787
+  theme_color: 1f2bd4
   topnav:
-    brand_logo: uoa-logo.svg
+    brand_logo: uoa-logo.png
 
 plugins:
   - jekyll-feed
