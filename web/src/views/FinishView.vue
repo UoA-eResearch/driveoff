@@ -21,6 +21,7 @@ formState.hasFinishedForm = true;
 h3 {
     font-size: 1.5rem;
     margin-bottom: 0.5rem;
-    font-family: NationalBold, sans-serif;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 </style>

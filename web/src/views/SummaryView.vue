@@ -68,7 +68,8 @@ td {
     padding: 0.5rem;
 }
 td:first-child {
-    font-family: NationalBold;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 
 .forward-btn {
@@ -81,7 +82,8 @@ table {
 }
 
 dt {
-    font-family: NationalBold;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 
 dt:not(:first-child) {

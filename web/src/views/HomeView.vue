@@ -50,7 +50,7 @@ function nextStep() {
 .related-content h2 {
   font-size: 1.4rem;
   margin-bottom: 1.5rem;
-  font-family: NationalBook, sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
 /* 

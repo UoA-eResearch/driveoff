@@ -78,7 +78,8 @@ td {
     
 }
 td:first-child {
-    font-family: NationalBold;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 
 .forward-btn {
@@ -94,11 +95,13 @@ td:first-child {
 }
 
 .project-name {
-    font-family: NationalBold;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 
 dt {
-    font-family: NationalBold;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 
 dt:not(:first-child) {
