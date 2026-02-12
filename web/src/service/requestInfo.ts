@@ -37,7 +37,10 @@ async function getDrive(): Promise<ResearchDriveService> {
     if (!project) {
         throw new Error("Project is not loaded.");
     }
-    return project.research_drives[0];
+    if (!project.research_drives || project.research_drives.length === 0) {
+        throw new Error("Project does not have a research drive.");
+    }
+    return project.research_drives[0] as ResearchDriveService;
 }
 
 /**
