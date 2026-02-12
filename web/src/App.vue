@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
-import { formState, requestInfo } from './store';
-import { client } from './client';
-import { loadRequestInfo } from './client/requestInfo';
-import { onErrorCaptured } from 'vue';
+import { formState } from './store';
+import { client } from './client/client.gen';
+import { loadRequestInfo } from './service/requestInfo';
 import router from './router';
 
 window.addEventListener('beforeunload', (event) => {

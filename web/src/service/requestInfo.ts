@@ -2,8 +2,8 @@
  * Functions for loading information about the archive request.
  */
 import { requestInfo } from "@/store";
-import { getDriveInfoApiV1ResdriveinfoGet } from "./sdk.gen";
-import type { ProjectWithDriveMember, ResearchDriveService } from "./types.gen";
+import { getDriveInfoApiV1ResdriveinfoGet } from "../client/sdk.gen";
+import type { ProjectWithDriveMember, ResearchDriveService } from "../client/types.gen";
 
 /**
  * Retrieves project information based on project code in URL.

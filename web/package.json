@@ -12,10 +12,10 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build --force",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "watch-tsc": "tsc --noEmit --watch"
   },
   "dependencies": {
-    "@hey-api/client-fetch": "^0.5.2",
     "vue": "^3.4.29",
     "vue-router": "^4.3.3"
   },
