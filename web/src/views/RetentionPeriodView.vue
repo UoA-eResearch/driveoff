@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formState } from '@/store';
-import { ref, type Ref } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 const DOCUMENT_TITLE = "Retention period - Archive your research drive";
@@ -52,7 +52,7 @@ function tryContinue() {
             </form>
         </section>
         <section class="forward-btn">
-            <a @click="tryContinue()"class="btn btn-primary">Continue</a>
+            <a @click="tryContinue()" class="btn btn-primary">Continue</a>
         </section>
     </main>
 </template>
