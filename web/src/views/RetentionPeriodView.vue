@@ -38,21 +38,21 @@ function tryContinue() {
                 <p v-if="error" class="error-msg">{{ error }}</p>
                 <p>See <a class="btn-link" target="_blank" href="https://research-hub.auckland.ac.nz/managing-research-data/ethics-integrity-and-compliance/research-data-retention">Research data retention</a> for full guidance.</p>
             </div>
-            <form @submit.prevent="tryContinue()" novalidate class="option-list">
-                <input name="confirm-drive" type="radio" id="rp-6y" value="6" v-model="period">
+            <form novalidate class="option-list" @submit.prevent="tryContinue()">
+                <input id="rp-6y" v-model="period" name="confirm-drive" type="radio" value="6">
                 <label for="rp-6y">6 years from today</label>
-                <input name="confirm-drive" type="radio" id="rp-10y" value="10" v-model="period">
+                <input id="rp-10y" v-model="period" name="confirm-drive" type="radio" value="10">
                 <label for="rp-10y">10 years from today</label>
-                <input name="confirm-drive" type="radio" id="rp-20y" value="20" v-model="period">
+                <input id="rp-20y" v-model="period" name="confirm-drive" type="radio" value="20">
                 <label for="rp-20y">20 years from today</label>
-                <input name="confirm-drive" type="radio" id="rp-26y" value="26" v-model="period">
+                <input id="rp-26y" v-model="period" name="confirm-drive" type="radio" value="26">
                 <label for="rp-26y">26 years from today</label>
-                <input name="confirm-drive" type="radio" id="rp-custom" value="custom" v-model="period">
+                <input id="rp-custom" v-model="period" name="confirm-drive" type="radio" value="custom">
                 <label for="rp-custom">Something else</label>
             </form>
         </section>
         <section class="forward-btn">
-            <a @click="tryContinue()" class="btn btn-primary">Continue</a>
+            <a class="btn btn-primary" @click="tryContinue()">Continue</a>
         </section>
     </main>
 </template>
