@@ -19,7 +19,8 @@ client.setConfig({
   baseUrl: import.meta.env.VITE_API_BASE_URL
 });
 
-client.interceptors.request.use((request, _) => {
+client.interceptors.request.use((request) => {
+  console.log('Adding API key to request');
   request.headers.set('x-api-key', import.meta.env.VITE_API_KEY);
   return request;
 });

@@ -25,7 +25,7 @@ export const formState: FormStateStore = reactive({
 
 interface ArchiveRequestInfoStore {
     isLoading: boolean,
-    error: any,
+    error: unknown,
     project: ProjectWithDriveMember,
     drive: ResearchDriveService
 }
