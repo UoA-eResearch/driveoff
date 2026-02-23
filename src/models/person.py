@@ -50,7 +50,7 @@ class ROCratePerson(SQLModel):
         )
     )
     email: Optional[str]
-    full_name: str
+    full_name: str = Field(schema_extra={"serialization_alias": "name"})
 
     def __init__(self, person: Person):
         super().__init__(**person.model_dump())
