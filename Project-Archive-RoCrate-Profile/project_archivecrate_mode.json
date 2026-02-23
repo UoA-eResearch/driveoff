@@ -339,6 +339,24 @@
           ]
         },
         {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodYears",
+          "name": "retentionPeriodYears",
+          "help": "How many years must be retained after project end date based on Data Classification or other justifications.",
+          "multiple": false,
+          "type": [
+            "Number"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodJustification",
+          "name": "retentionPeriodJustification",
+          "help": "Reasoning for why data should be retained for a given period. MUST be included if retention period differs from standards based on data classification.",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
           "id": "http://schema.org/email",
           "name": "email",
           "help": "Email address.",

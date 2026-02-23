@@ -13,6 +13,8 @@
       "dropbox": "https://w3id.org/ro/terms/eres-project-archive#dropbox",
       "projectOwner": "https://w3id.org/ro/terms/eres-project-archive#projectOwner",
       "researchDrive": "https://w3id.org/ro/terms/eres-project-archive#researchDrive",
+      "retentionPeriodYears": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodYears",
+      "retentionPeriodJustification": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodJustification",
       "service": "https://w3id.org/ro/terms/eres-project-archive#service"
     },
     {
@@ -38,6 +40,12 @@
         },
         {
           "@id": "https://w3id.org/ro/terms/eres-project-archive#division"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodYears"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodJustification"
         },
         {
           "@id": "https://w3id.org/ro/terms/eres-project-archive#dropbox"
@@ -311,6 +319,31 @@
       "rdfs:label": "division",
       "rdfs:comment": "The division linked with this project. e.g. “CIVENV”",
       "rangeIncludes": [],
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      }
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodYears",
+      "@type": "rdf:Property",
+      "name": "retentionPeriodYears",
+      "rdfs:label": "retentionPeriodYears",
+      "rdfs:comment": "How many years must be retained after project end date based on Data Classification or other justifications.",
+      "domainIncludes": {
+        "@id": "http://schema.org/Project"
+      },
+      "rangeIncludes": [
+        {
+          "@id": "http://www.w3.org/2001/XMLSchema#integer"
+        }
+      ]
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodJustification",
+      "@type": "rdf:Property",
+      "name": "retentionPeriodJustification",
+      "rdfs:label": "retentionPeriodJustification",
+      "rdfs:comment": "Reasoning for why data should be retained for a given period. MUST be included if retention period differs from standards based on data classification.",
       "domainIncludes": {
         "@id": "http://schema.org/Project"
       }
