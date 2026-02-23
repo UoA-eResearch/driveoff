@@ -2,7 +2,7 @@
   "metadata": {
     "name": "Test Project Archive Crate",
     "description": "Test Project Archive Crate",
-    "version": "0.0.1",
+    "version": 0,
     "license": "GPLv3.0",
     "author": "University of Auckland"
   },
