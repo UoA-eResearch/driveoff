@@ -2,7 +2,7 @@
   "metadata": {
     "name": "Test Project Archive Crate",
     "description": "Test Project Archive Crate",
-    "version": 0,
+    "version": "0.0.1",
     "license": "GPLv3.0",
     "author": "University of Auckland"
   },
@@ -333,6 +333,24 @@
           "id": "http://schema.org/startDate",
           "name": "startDate",
           "help": "The start date and time of the item (in [ISO 8601 date format](http://en.wikipedia.org/wiki/ISO_8601)).",
+          "multiple": true,
+          "type": [
+            "Text"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodYears",
+          "name": "retentionPeriodYears",
+          "help": "How many years must be retained after project end date based on Data Classification or other justifications.",
+          "multiple": false,
+          "type": [
+            "Number"
+          ]
+        },
+        {
+          "id": "https://w3id.org/ro/terms/eres-project-archive#retentionPeriodJustification",
+          "name": "retentionPeriodJustification",
+          "help": "Reasoning for why data should be retained for a given period. MUST be included if retention period differs from standards based on data classification.",
           "multiple": true,
           "type": [
             "Text"

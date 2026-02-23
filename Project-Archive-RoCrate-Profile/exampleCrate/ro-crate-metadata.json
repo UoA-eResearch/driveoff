@@ -112,6 +112,7 @@
       ],
       "name": "Tītoki metabolomics",
       "retentionPeriodYears": 6,
+      "retentionPeriodJustification": "All research data, retention period from completion of the activity.",
       "services": [
         {
           "@id": "#research_drive_service/reslig202200001-Tītoki-metabolomics"
