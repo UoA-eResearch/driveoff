@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import { type DataClassification, type InputDriveOffboardSubmission, type ProjectChanges, type ProjectWithDriveMember, type ResearchDriveService } from './client';
+import { type DataClassification, type ProjectChanges, type ProjectWithDriveMember, type ResearchDriveService } from './client';
 
 interface FormStateStore {
     hasStartedForm: boolean;
@@ -25,7 +25,7 @@ export const formState: FormStateStore = reactive({
 
 interface ArchiveRequestInfoStore {
     isLoading: boolean,
-    error: any,
+    error: unknown,
     project: ProjectWithDriveMember,
     drive: ResearchDriveService
 }

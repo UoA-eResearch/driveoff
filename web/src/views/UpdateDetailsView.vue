@@ -41,28 +41,66 @@ function tryContinue() {
 }
 </script>
 <template>
-    <main>
-        <h1 class="app-title">Update project information</h1>
-        <div class="title-section">
-            <h2 class="page-title">About your work</h2>
-        </div>
-        <form novalidate @submit.prevent="tryContinue()">
-            <div class="form-group" :class="{ error : titleError }">
-                <label for="project-title" class="h2">Title</label>
-                <p v-if="titleError" class="error-msg">{{ titleError }}</p>
-                <input type="text" id="project-title" v-model="title">
-            </div>
-            <div class="form-group" :class="{ error : descriptionError }">
-                <label for="project-description" class="h2">Description</label>
-                <p v-if="descriptionError" class="error-msg">{{ descriptionError }}</p>
-                <textarea id="project-description" v-model="description"></textarea>
-            </div>
-        </form>
-        <section class="forward-btn">
-            <a @click.prevent="tryContinue()" class="btn btn-primary">Continue</a>
-        </section>
-    </main>
-
+  <main>
+    <h1 class="app-title">
+      Update project information
+    </h1>
+    <div class="title-section">
+      <h2 class="page-title">
+        About your work
+      </h2>
+    </div>
+    <form
+      novalidate
+      @submit.prevent="tryContinue()"
+    >
+      <div
+        class="form-group"
+        :class="{ error : titleError }"
+      >
+        <label
+          for="project-title"
+          class="h2"
+        >Title</label>
+        <p
+          v-if="titleError"
+          class="error-msg"
+        >
+          {{ titleError }}
+        </p>
+        <input
+          id="project-title"
+          v-model="title"
+          type="text"
+        >
+      </div>
+      <div
+        class="form-group"
+        :class="{ error : descriptionError }"
+      >
+        <label
+          for="project-description"
+          class="h2"
+        >Description</label>
+        <p
+          v-if="descriptionError"
+          class="error-msg"
+        >
+          {{ descriptionError }}
+        </p>
+        <textarea
+          id="project-description"
+          v-model="description"
+        />
+      </div>
+    </form>
+    <section class="forward-btn">
+      <a
+        class="btn btn-primary"
+        @click.prevent="tryContinue()"
+      >Continue</a>
+    </section>
+  </main>
 </template>
 
 <style scoped>

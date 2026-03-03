@@ -28,22 +28,43 @@ function tryContinue(){
 </script>
 
 <template>
-    <main>
-        <h1 class="app-title">Archive your research drive</h1>
-        <section :class="{ error: error}">
-            <div class="title-section" >
-                <h2 class="page-title">How many years do the files need to be retained for?</h2>
-                <p v-if="error" class="error-msg">{{ error }}</p>
-            </div>
-            <form novalidate @submit.prevent="tryContinue()">
-                <div class="form-group">
-                    <label for="custom-period">Years from today</label>
-                    <input type="number" id="custom-period" v-model="customPeriod">
-                </div>
-            </form>
-        </section>
-        <section class="forward-btn"><a @click="tryContinue()" class="btn btn-primary">Continue</a></section>
-    </main>
+  <main>
+    <h1 class="app-title">
+      Archive your research drive
+    </h1>
+    <section :class="{ error: error}">
+      <div class="title-section">
+        <h2 class="page-title">
+          How many years do the files need to be retained for?
+        </h2>
+        <p
+          v-if="error"
+          class="error-msg"
+        >
+          {{ error }}
+        </p>
+      </div>
+      <form
+        novalidate
+        @submit.prevent="tryContinue()"
+      >
+        <div class="form-group">
+          <label for="custom-period">Years from today</label>
+          <input
+            id="custom-period"
+            v-model="customPeriod"
+            type="number"
+          >
+        </div>
+      </form>
+    </section>
+    <section class="forward-btn">
+      <a
+        class="btn btn-primary"
+        @click="tryContinue()"
+      >Continue</a>
+    </section>
+  </main>
 </template>
 
 <style lang="css" scoped>

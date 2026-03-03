@@ -26,41 +26,68 @@ function tryContinue() {
 </script>
 
 <template>
-    <main>
-        <h1 class="app-title">Archive your research drive</h1>
-        <section :class="{ error : error }">
-            <div class="title-section">
-                <h2 class="page-title">Is this the drive you want to archive?</h2>
-                <p v-if="error" class="error-msg">{{ error }}</p>
-            </div>
-        <section class="drive-details-card box">
-            <h3 class="h2">Drive information</h3>
-            <dl class="details">
-                <dt>Name</dt>
-                <dl>{{ requestInfo.drive.name }}</dl>
-                <dt>Total space</dt>
-                <dl>{{ requestInfo.drive.allocated_gb }}GB</dl>
-                <dt>Used space</dt>
-                <dl>{{ requestInfo.drive.used_gb }}GB</dl>
-            </dl>
-        </section>
-        <form novalidate @submit.prevent="tryContinue()">
+  <main>
+    <h1 class="app-title">
+      Archive your research drive
+    </h1>
+    <section :class="{ error : error }">
+      <div class="title-section">
+        <h2 class="page-title">
+          Is this the drive you want to archive?
+        </h2>
+        <p
+          v-if="error"
+          class="error-msg"
+        >
+          {{ error }}
+        </p>
+      </div>
+      <section class="drive-details-card box">
+        <h3 class="h2">
+          Drive information
+        </h3>
+        <dl class="details">
+          <dt>Name</dt>
+          <dl>{{ requestInfo.drive.name }}</dl>
+          <dt>Total space</dt>
+          <dl>{{ requestInfo.drive.allocated_gb }}GB</dl>
+          <dt>Used space</dt>
+          <dl>{{ requestInfo.drive.used_gb }}GB</dl>
+        </dl>
+      </section>
+      <form
+        novalidate
+        @submit.prevent="tryContinue()"
+      >
         <fieldset>
-            <div class="option-list">
-                <input name="confirm-drive" type="radio" id="yes-drive" :value="true" v-model="formState.isCorrectDrive">
-                <label for="yes-drive">Yes, it is.</label>
-                <input name="confirm-drive" type="radio" id="no-drive" :value="false" v-model="formState.isCorrectDrive">
-                <label for="no-drive">No, it's not.</label>
-            </div>
+          <div class="option-list">
+            <input
+              id="yes-drive"
+              v-model="formState.isCorrectDrive"
+              name="confirm-drive"
+              type="radio"
+              :value="true"
+            >
+            <label for="yes-drive">Yes, it is.</label>
+            <input
+              id="no-drive"
+              v-model="formState.isCorrectDrive"
+              name="confirm-drive"
+              type="radio"
+              :value="false"
+            >
+            <label for="no-drive">No, it's not.</label>
+          </div>
         </fieldset>
-    </form>
+      </form>
     </section>
-        <section class="forward-btn">
-            
-            <a @click.prevent="tryContinue()" class="btn btn-primary">Continue</a>
-
-        </section>
-    </main>
+    <section class="forward-btn">
+      <a
+        class="btn btn-primary"
+        @click.prevent="tryContinue()"
+      >Continue</a>
+    </section>
+  </main>
 </template>
 
 <style scoped>
@@ -68,7 +95,8 @@ td {
     padding: 0.5rem;
 }
 td:first-child {
-    font-family: NationalBold;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 
 .forward-btn {
@@ -81,7 +109,8 @@ table {
 }
 
 dt {
-    font-family: NationalBold;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
 }
 
 dt:not(:first-child) {

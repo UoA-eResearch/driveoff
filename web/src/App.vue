@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
-import { formState, requestInfo } from './store';
-import { client } from './client';
-import { loadRequestInfo } from './client/requestInfo';
-import { onErrorCaptured } from 'vue';
+import { formState } from './store';
+import { client } from './client/client.gen';
+import { loadRequestInfo } from './service/requestInfo';
 import router from './router';
 
 window.addEventListener('beforeunload', (event) => {
@@ -20,7 +19,8 @@ client.setConfig({
   baseUrl: import.meta.env.VITE_API_BASE_URL
 });
 
-client.interceptors.request.use((request, _) => {
+client.interceptors.request.use((request) => {
+  console.log('Adding API key to request');
   request.headers.set('x-api-key', import.meta.env.VITE_API_KEY);
   return request;
 });

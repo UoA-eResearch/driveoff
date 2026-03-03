@@ -8,3 +8,5 @@ api_keys.json
 *.local
 
 venv
+
+vite.config.ts.timestamp*

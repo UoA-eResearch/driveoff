@@ -7,40 +7,14 @@
 @import url(error.css);
 @import url(form.css);
 
-/*UoA official fonts.*/
-@font-face {
-  font-family: 'NationalBold';
-  font-weight: bold;
-  src: url("/uoa/NationalWeb-Bold.eot");
-  src: url("/uoa/NationalWeb-Bold.woff2") format("woff2"), url("/uoa/NationalWeb-Bold.woff") format("woff")
-}
-
-@font-face {
-  font-family: 'NationalBoldItalic';
-  font-weight: bold;
-  font-style: italic;
-  src: url("/uoa/NationalWeb-BoldItalic.eot");
-  src: url("/uoa/NationalWeb-BoldItalic.woff2") format("woff2"), url("/uoa/NationalWeb-BoldItalic.woff") format("woff")
-}
-
-@font-face {
-  font-family: 'NationalBook';
-  src: url("/uoa/NationalWeb-Book.eot");
-  src: url("/uoa/NationalWeb-Book.woff2") format("woff2"), url("/uoa/NationalWeb-Book.woff") format("woff")
-}
-
-@font-face {
-  font-family: 'NationalBookItalic';
-  font-style: italic;
-  src: url("/uoa/NationalWeb-BookItalic.eot");
-  src: url("/uoa/NationalWeb-BookItalic.woff2") format("woff2"), url("/uoa/NationalWeb-BookItalic.woff") format("woff")
-}
+/*UoA official font.*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 
 body {
   padding: 0 1rem;
   margin: 0 auto;
   width: 100%;
-  font-family: NationalBook;
+  font-family: "Inter", sans-serif;
   font-weight: 400;
   font-size: 18px;
   color: rgb(74, 76, 76);
@@ -69,13 +43,15 @@ li {
 }
 
 strong {
-  font-family: NationalBold, sans-serif;
+  font-family: "Inter", sans-serif;
+  font-weight: 700;
 }
 
 .h2 {
   font-size: 1.5rem;
   margin-bottom: 0.5rem;
-  font-family: NationalBold, sans-serif;
+  font-family: "Inter", sans-serif;
+  font-weight: 700;
 }
 
 

@@ -2,8 +2,8 @@
  * Functions for loading information about the archive request.
  */
 import { requestInfo } from "@/store";
-import { getDriveInfoApiV1ResdriveinfoGet } from "./sdk.gen";
-import type { ProjectWithDriveMember, ResearchDriveService } from "./types.gen";
+import { getDriveInfoApiV1ResdriveinfoGet } from "../client/sdk.gen";
+import type { ProjectWithDriveMember, ResearchDriveService } from "../client/types.gen";
 
 /**
  * Retrieves project information based on project code in URL.
@@ -37,7 +37,10 @@ async function getDrive(): Promise<ResearchDriveService> {
     if (!project) {
         throw new Error("Project is not loaded.");
     }
-    return project.research_drives[0];
+    if (!project.research_drives || project.research_drives.length === 0) {
+        throw new Error("Project does not have a research drive.");
+    }
+    return project.research_drives[0] as ResearchDriveService;
 }
 
 /**
