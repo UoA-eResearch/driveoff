@@ -11,17 +11,19 @@ import argparse
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Any
 
 
 def load_json(path: str) -> Any:
+    """Load JSON data from a file."""
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
 
 
 def post_json(url: str, payload: Any, api_key: str | None = None) -> None:
+    """POST JSON data to a URL, optionally with an API key."""
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     if api_key:
@@ -37,8 +39,8 @@ def post_json(url: str, payload: Any, api_key: str | None = None) -> None:
         print(f"HTTP Error: {e.code} {e.reason}")
         try:
             print(e.read().decode("utf-8"))
-        except Exception:
-            pass
+        except UnicodeDecodeError:
+            print("Error decoding response body.")
         sys.exit(1)
     except urllib.error.URLError as e:
         print(f"URL Error: {e.reason}")
@@ -46,12 +48,14 @@ def post_json(url: str, payload: Any, api_key: str | None = None) -> None:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
         prog="driveoff-cli", description="Driveoff CLI: create RO crates via API"
     )
     sub = parser.add_subparsers(dest="command")
 
     def add_common_args(p: argparse.ArgumentParser) -> None:
+        """Add common arguments for the subcommands."""
         p.add_argument("json_file", help="Path to JSON file with payload to send")
         p.add_argument(
             "--api-url",
@@ -79,7 +83,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     post = sub.add_parser(
         "post-resdriveinfo",
-        help="POST research drive/project info to /resdriveinfo endpoint. You will want to do this before create-crate to send the initial metadata to the API.",
+        help="""
+            POST research drive/project info to /resdriveinfo endpoint.
+            You will want to do this before create-crate to send the initial
+            metadata to the API.
+        """,
     )
     add_common_args(post)
 
@@ -87,6 +95,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Main entry point for the CLI."""
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
