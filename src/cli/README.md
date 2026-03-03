@@ -10,22 +10,39 @@ Quick start
 - Run with Python directly (no install required):
 
 ```bash
-python src/cli/cli.py create-crate path/to/payload.json --api-url http://localhost:8000 --endpoint /api/v1/submission
+python src/cli/cli.py <command> path/to/payload.json --api-url http://localhost:8000
 ```
+
+Where `<command>` is either `post-resdriveinfo` or `create-crate` (see below). The API URL defaults to `http://localhost:8000` if not provided.
 
 Options
 -------
 - `--dry-run`: print the payload instead of sending it
 - `--pretty`: pretty-print JSON when used with `--dry-run`
-- `--endpoint`: API endpoint path or full URL (default: `/api/v1/submission`)
 
-Example payload
+API key
+-------
+
+The API requires an API key. You can provide it in two ways:
+
+- Command-line: pass `--api-key YOUR_KEY` to the subcommand.
+- Environment variable: set `DRIVEOFF_API_KEY` and the CLI will use it when `--api-key` is omitted.
+
+The key is sent in an `X-API-Key: <key>` header.
+
+Commands
+---------------
+
+- `post-resdriveinfo` always POSTs to `/api/v1/resdriveinfo` on the configured `--api-url`. This endpoint is used for sending the initial project/drive metadata to the API before creating the RO-Crate.
+- `create-crate` always POSTs to `/api/v1/submission` on the configured `--api-url`. This endpoint is used to kick off the RO-Crate creation process after the project/drive metadata has been sent.
+
+Example post-resdriveinfo payload:
 ----------------
 ```json
 {
-  "title": "Tītoki metabolomics",
-  "description": "Metabolomics study of stress responses in Tītoki plants.",
-  "division": "Liggins Institute",
+  "title": "Project Title",
+  "description": "Project Description.",
+  "division": "Centre for eResearch",
   "start_date": "2022-01-01",
   "end_date": "2026-11-04",
   "id": 100,
@@ -42,7 +59,7 @@ Example payload
         ]
       },
       "role": {
-        "id": null,
+        "id": 1,
         "name": "Project Owner"
       }
     },
@@ -58,7 +75,7 @@ Example payload
         ]
       },
       "role": {
-        "id": null,
+        "id": 3,
         "name": "Project Team Member"
       }
     }
@@ -70,7 +87,7 @@ Example payload
     },
     {
       "id": null,
-      "code": "reslig202200001"
+      "code": "rescer201200001"
     }
   ],
   "services": {
@@ -82,11 +99,27 @@ Example payload
         "free_gb": 24004.5,
         "id": null,
         "last_day": null,
-        "name": "reslig202200001-Tītoki-metabolomics",
+        "name": "rescer201200001-example-drive-name",
         "percentage_used": 2.75578,
         "used_gb": 1596.0
       }
     ]
+  }
+}
+```
+
+Example create-crate payload:
+----------------
+```json
+{
+  "retentionPeriodYears": 6,
+  "retentionPeriodJustification": "Something here",
+  "dataClassification": "Public",
+  "isCompleted": true,
+  "driveName": "rescer201200001-example-drive-name",
+  "projectChanges": {
+    "title": "New title",
+    "description": "New description"
   }
 }
 ```

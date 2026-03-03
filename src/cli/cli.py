@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
@@ -20,11 +21,12 @@ def load_json(path: str) -> Any:
         return json.load(fh)
 
 
-def post_json(url: str, payload: Any) -> None:
+def post_json(url: str, payload: Any, api_key: str | None = None) -> None:
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"}, method="POST"
-    )
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["X-API-Key"] = api_key
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req) as resp:
             body = resp.read().decode("utf-8")
@@ -49,26 +51,37 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
+    def add_common_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("json_file", help="Path to JSON file with payload to send")
+        p.add_argument(
+            "--api-url",
+            default="http://localhost:8000",
+            help="Base API URL (default: http://localhost:8000)",
+        )
+        p.add_argument(
+            "--api-key",
+            default=None,
+            help="API key to send as Authorization Bearer token (or set DRIVEOFF_API_KEY)",
+        )
+        p.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Print payload and exit without sending",
+        )
+        p.add_argument(
+            "--pretty", action="store_true", help="Pretty-print payload on dry-run"
+        )
+
     create = sub.add_parser(
         "create-crate", help="Create an RO-Crate by POSTing JSON to the API"
     )
-    create.add_argument("json_file", help="Path to JSON file with payload to send")
-    create.add_argument(
-        "--api-url",
-        default="http://localhost:8000",
-        help="Base API URL (default: http://localhost:8000)",
+    add_common_args(create)
+
+    post = sub.add_parser(
+        "post-resdriveinfo",
+        help="POST research drive/project info to /resdriveinfo endpoint. You will want to do this before create-crate to send the initial metadata to the API.",
     )
-    create.add_argument(
-        "--endpoint",
-        default="/api/v1/submission",
-        help="API endpoint path or full URL (default: /api/v1/submission)",
-    )
-    create.add_argument(
-        "--dry-run", action="store_true", help="Print payload and exit without sending"
-    )
-    create.add_argument(
-        "--pretty", action="store_true", help="Pretty-print payload on dry-run"
-    )
+    add_common_args(post)
 
     return parser
 
@@ -76,6 +89,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
+
+    # prefer explicit arg, otherwise read from env var
+    env_api_key = os.environ.get("DRIVEOFF_API_KEY")
 
     if args.command == "create-crate":
         payload = load_json(args.json_file)
@@ -86,14 +102,27 @@ def main(argv: list[str] | None = None) -> None:
                 print(json.dumps(payload, ensure_ascii=False))
             return
 
-        # build target URL
-        if args.endpoint.startswith("http://") or args.endpoint.startswith("https://"):
-            target = args.endpoint
-        else:
-            target = args.api_url.rstrip("/") + "/" + args.endpoint.lstrip("/")
+        # fixed endpoint for create-crate
+        endpoint = "/api/v1/submission"
+        target = args.api_url.rstrip("/") + endpoint
 
         print(f"Posting payload from {args.json_file} to {target}")
-        post_json(target, payload)
+        post_json(target, payload, args.api_key or env_api_key)
+    elif args.command == "post-resdriveinfo":
+        payload = load_json(args.json_file)
+        if args.dry_run:
+            if args.pretty:
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+            else:
+                print(json.dumps(payload, ensure_ascii=False))
+            return
+
+        # fixed endpoint for post-resdriveinfo
+        endpoint = "/api/v1/resdriveinfo"
+        target = args.api_url.rstrip("/") + endpoint
+
+        print(f"Posting payload from {args.json_file} to {target}")
+        post_json(target, payload, args.api_key or env_api_key)
     else:
         parser.print_help()
 
