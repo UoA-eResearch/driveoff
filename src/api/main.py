@@ -27,6 +27,7 @@ from api.manifests import (
     create_manifests_directory,
     generate_manifest,
 )
+from api.projectdb import init_projectdb
 from api.security import ApiKey, validate_api_key, validate_permissions
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader, zip_existing_crate
@@ -68,9 +69,20 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifecycle method for the API"""
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Lifecycle method for the API
+
+    This creates DB tables and initialises the ProjectDB client during
+    application startup so routes can depend on it.
+    """
     create_db_and_tables()
+    # initialise ProjectDB client for use in endpoints
+    try:
+        init_projectdb(app)
+    except Exception:
+        # If the ProjectDB client cannot be initialised, allow app to start
+        # but the dependency will raise if used.
+        pass
     yield
 
 
@@ -84,15 +96,15 @@ RESEARCH_DRIVE_REGEX = re.compile(r"res[a-z]{3}[0-9]{9}-[a-zA-Z0-9-_]+")
 ENDPOINT_PREFIX = "/api/v1"
 
 
-def validate_resdrive_identifier(drive_id: str) -> str:
-    """Check if the string is a valid Research Drive identifier."""
-    if RESEARCH_DRIVE_REGEX.match(drive_id) is None:
-        raise ValueError(f"'{drive_id}' is not a valid Research Drive identifier.")
+def validate_resdrive_name(drive_name: str) -> str:
+    """Check if the string is a valid Research Drive name."""
+    if RESEARCH_DRIVE_REGEX.match(drive_name) is None:
+        raise ValueError(f"'{drive_name}' is not a valid Research Drive name.")
 
-    return drive_id
+    return drive_name
 
 
-ResearchDriveID = Annotated[str, AfterValidator(validate_resdrive_identifier)]
+ResearchDriveName = Annotated[str, AfterValidator(validate_resdrive_name)]
 
 
 @app.post(ENDPOINT_PREFIX + "/resdriveinfo")
@@ -130,8 +142,8 @@ async def set_drive_info(
     ]
     project.research_drives = drives
     for drive in drives:
-        dirve_path = get_resdrive_path(drive.name)
-        drive.manifest = generate_manifest(dirve_path / "Vault")
+        drive_path = get_resdrive_path(drive.name)
+        drive.manifest = generate_manifest(drive_path / "Vault")
     # Add the validated services and members into the project
     project.members = members
     # Upsert the project.
@@ -217,7 +229,7 @@ def get_resdrive_path(drive_name: str) -> Path:
 
 
 def build_crate_contents(
-    drive_name: ResearchDriveID,
+    drive_name: ResearchDriveName,
     session: SessionDep,
     drive_location: Path,
     output_location: Path,
@@ -273,7 +285,7 @@ def build_crate_contents(
 
 
 async def generate_ro_crate(
-    drive_name: ResearchDriveID,
+    drive_name: ResearchDriveName,
     session: SessionDep,
 ) -> None:
     """Async task for generating the RO-crate in a research drive
@@ -292,7 +304,7 @@ async def generate_ro_crate(
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)
 async def get_drive_info(
-    drive_id: ResearchDriveID,
+    drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
 ) -> Project:
@@ -301,21 +313,21 @@ async def get_drive_info(
     validate_permissions("GET", api_key)
 
     code_query = select(ResearchDriveService).where(
-        ResearchDriveService.name == drive_id
+        ResearchDriveService.name == drive_name
     )
     drive_found = session.exec(code_query).first()
 
     if drive_found is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Research Drive ID {drive_id} not found in local database.",
+            detail=f"Research Drive {drive_name} not found in local database.",
         )
 
     projects = drive_found.projects
     if len(projects) == 0:
         raise HTTPException(
             status_code=404,
-            detail=f"No Projects associated with {drive_id} in local database",
+            detail=f"No Projects associated with {drive_name} in local database",
         )
 
     return projects[0]
@@ -323,28 +335,28 @@ async def get_drive_info(
 
 @app.get(ENDPOINT_PREFIX + "/resdrivemanifest")
 async def get_drive_manifest(
-    drive_id: ResearchDriveID,
+    drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
 ) -> dict[str, str]:
     """Retrieve a manifest from a research drive that has been loaded into the backend"""
     validate_permissions("GET", api_key)
     code_query = select(ResearchDriveService).where(
-        ResearchDriveService.name == drive_id
+        ResearchDriveService.name == drive_name
     )
     drive_found = session.exec(code_query).first()
 
     if drive_found is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Research Drive ID {drive_id} not found in local database.",
+            detail=f"Research Drive {drive_name} not found in local database.",
         )
     manifest = drive_found.manifest.manifest
 
     if manifest is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Manifest not available for {drive_id}",
+            detail=f"Manifest not available for {drive_name}",
         )
 
     return {"manifest": manifest}
