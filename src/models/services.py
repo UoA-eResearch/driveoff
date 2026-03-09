@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import AliasGenerator, ConfigDict
+from pydantic import AliasGenerator, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -87,6 +87,22 @@ class InputServices(SQLModel):
     """Input object describing relevant storage services."""
 
     research_drive: list[ResearchDriveService]
+
+    @model_validator(mode="before")
+    def normalize_services(cls, values: dict):
+        """Ensure `research_drive` is a list of items; extract from wrappers.
+
+        ProjectDB may return structures like {'research_drive': {'items': [...]}}
+        or the list directly. Normalize to a list for model validation.
+        """
+        if not isinstance(values, dict):
+            return values
+        rd = values.get("research_drive")
+        if isinstance(rd, dict) and "items" in rd:
+            values["research_drive"] = rd.get("items", [])
+        elif rd is None:
+            values.setdefault("research_drive", [])
+        return values
 
 
 class ResearchDriveServicePublic(BaseDriveService):

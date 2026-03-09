@@ -58,7 +58,7 @@ class ROBuilder:
                 "Project form has not been completed RO-Crate cannot be constructed"
             )
 
-        sumbission_properties = ROCrateDriveOffboardSubmission(
+        submission_properties = ROCrateDriveOffboardSubmission(
             project_submission
         ).model_dump(exclude={"id", "isCompleted"}, by_alias=True, exclude_none=True)
 
@@ -70,7 +70,7 @@ class ROBuilder:
         project_entity = ContextEntity(
             crate=self.crate,
             identifier=project_id,
-            properties=project_properties | sumbission_properties,
+            properties=project_properties | submission_properties,
         )
         # generate delete action from project_submission
         project_entity.append_to("identifier", [code.code for code in project.codes])

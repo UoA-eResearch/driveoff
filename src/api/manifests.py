@@ -1,5 +1,4 @@
-"""Scripts for generating file manifests
-"""
+"""Scripts for generating file manifests"""
 
 import multiprocessing
 import os
@@ -37,7 +36,7 @@ def _encode_filename(s: str) -> str:
     return s
 
 
-def genertate_filelist(drive_path: Path) -> str:
+def generate_filelist(drive_path: Path) -> str:
     """Generate a list of all the files in a path separated by newlines.
     Sorts on filenames and dirnames to mirror bagit process.
     """
@@ -58,7 +57,7 @@ def generate_manifest(drive_path: Path) -> Manifest:
     """
     # mount drive based on ID
     # use service account to mount drive to mountpoint
-    manifest = genertate_filelist(drive_path)
+    manifest = generate_filelist(drive_path)
     return Manifest(manifest=manifest)
 
 

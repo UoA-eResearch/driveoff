@@ -1,7 +1,6 @@
-"""sql models for storing maninfests
-"""
+"""sql models for storing maninfests"""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -23,7 +22,7 @@ class ManifestDriveLink(SQLModel, table=True):
 class Manifest(SQLModel, table=True):
     """SQL model for storing simple file manifests"""
 
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     manifest: str
     research_drive: "ResearchDriveService" = Relationship(
         link_model=ManifestDriveLink, back_populates="manifest"

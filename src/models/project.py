@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import AliasGenerator, ConfigDict
+from pydantic import AliasGenerator, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -45,6 +45,47 @@ class InputProject(BaseProject):
     members: list[InputPerson]
     codes: list[Code]
     services: InputServices
+
+    @model_validator(mode="before")
+    def normalize_project(cls, values: dict):
+        """Normalize project-level wrappers such as codes and services.
+
+        ProjectDB may return codes as {'items': [...]} or similar wrappers.
+        Ensure `codes` is a list and `services` exists as a dict suitable for
+        `InputServices` parsing.
+        """
+        if not isinstance(values, dict):
+            return values
+
+        codes = values.get("codes")
+        if isinstance(codes, dict) and "items" in codes:
+            values["codes"] = codes.get("items", [])
+        elif codes is None:
+            values.setdefault("codes", [])
+
+        # Ensure services is present
+        services = values.get("services")
+        if services is None:
+            values.setdefault("services", {"research_drive": []})
+        # Coerce date strings into datetime objects if present
+        from datetime import datetime as _dt
+
+        for key in ("start_date", "end_date"):
+            v = values.get(key)
+            if v is None:
+                continue
+            if isinstance(v, str):
+                try:
+                    values[key] = _dt.fromisoformat(v)
+                except Exception:
+                    # try common fallback formats
+                    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+                        try:
+                            values[key] = _dt.strptime(v, fmt)
+                            break
+                        except Exception:
+                            continue
+        return values
 
 
 class ProjectCodeLink(SQLModel, table=True):
