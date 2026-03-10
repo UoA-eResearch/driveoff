@@ -18,7 +18,8 @@ orjson = "^3.10"
 factory-boy = "^3.3.1"
 mock = "^5.1.0"
 pydantic-settings = "^2.6.1"
-
+boto3 = "^1.42.65"
+types-boto3-s3 = "^1.42.37"
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.13.2"

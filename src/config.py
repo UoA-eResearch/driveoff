@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import SecretStr
 
 
 def get_env_file() -> list[Path]:
@@ -28,9 +29,13 @@ def get_env_file() -> list[Path]:
 class Settings(BaseSettings):
     """
     Configurations for Driveoff. Use get_settings() for a cached version of the settings.
+    For secrets use `SecretStr` so they are not accidentally logged.
     """
 
     cors_allow_host: list[str] = []
+    activescale_hostname: str = ""
+    activescale_access_key: SecretStr | None = None
+    activescale_secret_key: SecretStr | None = None
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 

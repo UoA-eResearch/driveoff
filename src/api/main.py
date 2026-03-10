@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.cors import add_cors_middleware
+from api.activescale import init_activescale
 from api.fake_resdrive import make_fake_resdrive
 from api.manifests import (
     bag_directory,
@@ -68,9 +69,13 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle method for the API"""
     create_db_and_tables()
+
+    # initialize external services
+    init_activescale(app)
+
     yield
 
 
