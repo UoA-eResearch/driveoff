@@ -3,7 +3,7 @@ from config import get_settings
 from fastapi import FastAPI, Request
 from types_boto3_s3 import S3Client
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 
 def init_activescale(app: FastAPI) -> None:
@@ -49,6 +49,8 @@ def init_activescale(app: FastAPI) -> None:
             print(f"Access denied for bucket '{bucket_name}'. Check IAM permissions.")
         else:
             print(f"A ClientError occurred: {e.response['Error']['Message']}")
+    except EndpointConnectionError:
+        print("Could not connect to the S3 endpoint. Check network connectivity.")
     except Exception as e:
         raise ValueError("Failed to connect to ActiveScale S3 client.") from e
     app.state.activescale = client
