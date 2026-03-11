@@ -61,7 +61,7 @@ def init_activescale(app: FastAPI) -> None:
         print("Could not connect to the S3 endpoint. Check network connectivity.")
     except Exception as e:
         raise ValueError("Failed to connect to ActiveScale S3 client.") from e
-    app.state.activescale = client
+    app.state.activescale = client  # TODO: check if this is best practice / may need to change for thread safety
 
 
 def get_activescale_client(request: Request) -> S3Client:
@@ -73,3 +73,201 @@ def get_activescale_client(request: Request) -> S3Client:
     if client is None:
         raise RuntimeError("ActiveScale client not initialised on application state")
     return client
+
+
+# *** S3 interactions - generic for any S3-compatible service, not just ActiveScale. Pass in initialised client. ***
+
+
+def list_buckets(client: S3Client) -> list[str]:
+    """List buckets in an S3 account using the provided client."""
+    try:
+        response = client.list_buckets()
+        buckets = [
+            bucket["Name"] for bucket in response.get("Buckets", []) if "Name" in bucket
+        ]
+        return buckets
+    except ClientError as e:
+        print(
+            f"An error occurred while listing buckets: {e.response['Error']['Message']}"
+        )
+        return []
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return []
+
+
+def upload_file(
+    client: S3Client, bucket_name: str, file_key: str, file_content: bytes
+) -> bool:
+    """Upload a file to an S3 bucket using the provided client.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket to upload to.
+        file_key (str): The key (path/filename) to use for the uploaded file in the bucket.
+        file_content (bytes): The content of the file to upload.
+
+    Returns:
+        bool: True if the upload is successful, False otherwise.
+    """
+    try:
+        client.put_object(Bucket=bucket_name, Key=file_key, Body=file_content)
+        print(f"File '{file_key}' uploaded successfully to bucket '{bucket_name}'.")
+        return True
+    except ClientError as e:
+        print(
+            f"An error occurred while uploading the file: {e.response['Error']['Message']}"
+        )
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return False
+
+
+def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | None:
+    """Download a file from an S3 bucket using the provided client.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket to download from.
+        file_key (str): The key (path/filename) of the file to download.
+
+    Returns:
+        bytes | None: The content of the downloaded file as bytes if successful, None otherwise.
+    """
+    try:
+        response = client.get_object(Bucket=bucket_name, Key=file_key)
+        file_content = response["Body"].read()
+        print(f"File '{file_key}' downloaded successfully from bucket '{bucket_name}'.")
+        return file_content
+    except ClientError as e:
+        print(
+            f"An error occurred while downloading the file: {e.response['Error']['Message']}"
+        )
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return None
+
+
+def bulk_upload_files(
+    client: S3Client, bucket_name: str, files: list[tuple[str, bytes]]
+) -> dict[str, bool]:
+    """Upload multiple files to an S3 bucket using the provided client.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket to upload to.
+        files (list[tuple[str, bytes]]): A list of tuples where each tuple contains a file key and its content.
+
+    Returns:
+        dict[str, bool]: A dictionary mapping each file key to a boolean indicating whether the upload was successful.
+    """
+    results = {}
+    for file_key, file_content in files:
+        success = upload_file(client, bucket_name, file_key, file_content)
+        results[file_key] = success
+    return results
+
+
+def bulk_download_files(
+    client: S3Client, bucket_name: str, file_keys: list[str]
+) -> dict[str, bytes | None]:
+    """Download multiple files from an S3 bucket using the provided client.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket to download from.
+        file_keys (list[str]): A list of file keys to download.
+
+    Returns:
+        dict[str, bytes | None]: A dictionary mapping each file key to its content as bytes if successful, or None if the download failed.
+    """
+    results = {}
+    for file_key in file_keys:
+        content = download_file(client, bucket_name, file_key)
+        results[file_key] = content
+    return results
+
+
+def create_bucket(client: S3Client, bucket_name: str) -> bool:
+    """Create a new S3 bucket using the provided client.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket to create.
+
+    Returns:
+        bool: True if the bucket was created successfully, False otherwise.
+    """
+    try:
+        client.create_bucket(Bucket=bucket_name)
+        print(f"Bucket '{bucket_name}' created successfully.")
+        return True
+    except ClientError as e:
+        print(
+            f"An error occurred while creating the bucket: {e.response['Error']['Message']}"
+        )
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return False
+
+
+def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> bool:
+    """Set the bucket policy for an S3 bucket using the provided client.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket to set the policy for.
+        policy_json (str): The bucket policy in JSON format.
+
+    Returns:
+        bool: True if the bucket policy was set successfully, False otherwise.
+    """
+    try:
+        client.put_bucket_policy(Bucket=bucket_name, Policy=policy_json)
+        print(f"Bucket policy for '{bucket_name}' set successfully.")
+        return True
+    except ClientError as e:
+        print(
+            f"An error occurred while setting the bucket policy: {e.response['Error']['Message']}"
+        )
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return False
+
+
+def set_bucket_tags(
+    client: S3Client, bucket_name: str, tag_set: list[dict[str, str]]
+) -> bool:
+    """Set tags for an S3 bucket using the provided client.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket to set tags for.
+        tag_set (list[dict[str, str]]): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
+
+    Returns:
+        bool: True if the bucket tags were set successfully, False otherwise.
+    """
+    try:
+        client.put_bucket_tagging(
+            Bucket=bucket_name,
+            Tagging={
+                "TagSet": [
+                    {"Key": k, "Value": v} for tag in tag_set for k, v in tag.items()
+                ]
+            },
+        )
+        print(f"Bucket tags for '{bucket_name}' set successfully.")
+        return True
+    except ClientError as e:
+        print(
+            f"An error occurred while setting the bucket tags: {e.response['Error']['Message']}"
+        )
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return False
