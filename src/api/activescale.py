@@ -1,16 +1,23 @@
 from __future__ import annotations
+from botocore.config import Config
+from botocore.exceptions import ClientError, EndpointConnectionError
 from config import get_settings
 from fastapi import FastAPI, Request
 from types_boto3_s3 import S3Client
 import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError
+
+
+config = Config(
+    retries={"total_max_attempts": 3, "mode": "standard"}, signature_version="s3v4"
+)
+
+# TODO: make this more generic and reusable for other S3-compatible services, not just ActiveScale. E.g. ability to create different sessions/clients with specific credentials
+# TODO: make a standardized way to handle s3 errors.
+# TODO: look into boto3 sessions and whether we should be using sessions instead of clients directly. Also thread safety of the client/session.
 
 
 def init_activescale(app: FastAPI) -> None:
-    """Initialize a ActiveScale S3 client and attach it to the FastAPI app state.
-
-    TODO: look into boto3 session management and whether we should be using sessions instead of clients directly.
-    """
+    """Initialize a ActiveScale S3 client and attach it to the FastAPI app state."""
     print("Initializing ActiveScale S3 client...")
     settings = get_settings()
 
@@ -34,6 +41,7 @@ def init_activescale(app: FastAPI) -> None:
         endpoint_url=f"https://{hostname}",
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
+        config=config,
     )
     bucket_name = "test-temp"
     try:
