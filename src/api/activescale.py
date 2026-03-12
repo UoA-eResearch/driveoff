@@ -2,6 +2,7 @@ from __future__ import annotations
 from botocore.config import Config
 from botocore.exceptions import ClientError, EndpointConnectionError
 from contextlib import contextmanager
+from typing import Generator, cast
 from config import get_settings
 from fastapi import FastAPI, Request
 from types_boto3_s3 import S3Client
@@ -125,7 +126,7 @@ def get_activescale_client(request: Request) -> S3Client:
 
 
 @contextmanager
-def get_activescale_client_context() -> S3Client:
+def get_activescale_client_context() -> Generator[S3Client, None, None]:
     """Context manager for creating a temporary ActiveScale S3 client.
 
     Use this in background tasks or other contexts where you don't have access to the FastAPI request object.
@@ -140,10 +141,13 @@ def get_activescale_client_context() -> S3Client:
             "ActiveScale session not initialized. Call init_activescale first."
         )
 
-    client = _activescale_session.client(
-        "s3",
-        endpoint_url=f"https://{get_settings().activescale_hostname}",
-        config=config,
+    client: S3Client = cast(
+        S3Client,
+        _activescale_session.client(
+            "s3",
+            endpoint_url=f"https://{get_settings().activescale_hostname}",
+            config=config,
+        ),
     )
     try:
         yield client
@@ -186,8 +190,8 @@ def upload_file(
     bucket_name: str,
     file_key: str,
     file_content: bytes,
-    metadata: dict[str, str] = {},
-    tags: dict[str, str] = {},
+    metadata: dict[str, str] | None = None,
+    tags: dict[str, str] | None = None,
 ) -> bool:
     """Upload a file to an S3 bucket using the provided client.
 
@@ -196,12 +200,16 @@ def upload_file(
         bucket_name (str): The name of the S3 bucket to upload to.
         file_key (str): The key (path/filename) to use for the uploaded file in the bucket.
         file_content (bytes): The content of the file to upload.
-        metadata (dict[str, str]): Optional dictionary of metadata to attach to the uploaded object.
-        tags (dict[str, str]): Optional dictionary of tags to apply to the uploaded object.
+        metadata (dict[str, str] | None): Optional dictionary of metadata to attach to the uploaded object.
+        tags (dict[str, str] | None): Optional dictionary of tags to apply to the uploaded object.
 
     Returns:
         bool: True if the upload is successful, False otherwise.
     """
+    if metadata is None:
+        metadata = {}
+    if tags is None:
+        tags = {}
     try:
         tag_string = "&".join(f"{key}={value}" for key, value in tags.items())
 
@@ -297,7 +305,7 @@ def bulk_download_files(
 def create_bucket(
     client: S3Client,
     bucket_name: str,
-    tags: list[TagTypeDef] = [],
+    tags: list[TagTypeDef] | None = None,
     enable_object_lock: bool = True,
 ) -> bool:
     """Create a new S3 bucket using the provided client.
@@ -305,12 +313,14 @@ def create_bucket(
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to create.
-        tags (list[TagTypeDef]): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
+        tags (list[TagTypeDef] | None): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
         enable_object_lock (bool): Whether to enable object lock for the bucket.
 
     Returns:
         bool: True if the bucket was created successfully, False otherwise.
     """
+    if tags is None:
+        tags = []
     try:
         client.create_bucket(
             Bucket=bucket_name,
@@ -361,7 +371,7 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
 
 
 def set_bucket_tags(
-    client: S3Client, bucket_name: str, tags: list[TagTypeDef] = []
+    client: S3Client, bucket_name: str, tags: list[TagTypeDef] | None = None
 ) -> bool:
     """Set tags for an S3 bucket using the provided client.
 
@@ -373,6 +383,8 @@ def set_bucket_tags(
     Returns:
         bool: True if the bucket tags were set successfully, False otherwise.
     """
+    if tags is None:
+        tags = []
     try:
         client.put_bucket_tagging(
             Bucket=bucket_name,
