@@ -209,7 +209,10 @@ def bulk_download_files(
 
 
 def create_bucket(
-    client: S3Client, bucket_name: str, tags: list[TagTypeDef] = []
+    client: S3Client,
+    bucket_name: str,
+    tags: list[TagTypeDef] = [],
+    enable_object_lock: bool = True,
 ) -> bool:
     """Create a new S3 bucket using the provided client.
 
@@ -217,6 +220,7 @@ def create_bucket(
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to create.
         tags (list[TagTypeDef]): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
+        enable_object_lock (bool): Whether to enable object lock for the bucket.
 
     Returns:
         bool: True if the bucket was created successfully, False otherwise.
@@ -224,7 +228,7 @@ def create_bucket(
     try:
         client.create_bucket(
             Bucket=bucket_name,
-            ObjectLockEnabledForBucket=True,
+            ObjectLockEnabledForBucket=enable_object_lock,
             CreateBucketConfiguration={"Tags": tags},
         )
         print(f"Bucket '{bucket_name}' created successfully.")
