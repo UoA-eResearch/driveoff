@@ -1,5 +1,4 @@
-"""Scripts for generating file manifests
-"""
+"""Scripts for generating file manifests"""
 
 import multiprocessing
 import os

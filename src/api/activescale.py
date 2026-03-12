@@ -1,14 +1,17 @@
 from __future__ import annotations
-from botocore.config import Config
-from botocore.exceptions import ClientError, EndpointConnectionError
+
+import logging
 from contextlib import contextmanager
 from typing import Generator, cast
-from config import get_settings
+
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError, EndpointConnectionError
 from fastapi import FastAPI, Request
 from types_boto3_s3 import S3Client
 from types_boto3_s3.type_defs import TagTypeDef
-import boto3
-import logging
+
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 

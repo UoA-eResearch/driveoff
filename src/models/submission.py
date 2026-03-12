@@ -49,6 +49,7 @@ class DriveOffboardSubmission(BaseDriveOffboardSubmission, table=True):
 
 class ROCrateDriveOffboardSubmission(BaseDriveOffboardSubmission):
     "Data class for a submission model to be written as part of an RO-Crate"
+
     model_config = ConfigDict(  # type: ignore
         alias_generator=AliasGenerator(
             serialization_alias=to_camel,

@@ -11,7 +11,6 @@ import orjson
 from bagit import Bag
 from rocrate.rocrate import ROCrate
 
-
 logger = logging.getLogger(__name__)
 
 JsonType = Dict[str, Any]

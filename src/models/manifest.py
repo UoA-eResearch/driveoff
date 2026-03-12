@@ -1,5 +1,4 @@
-"""sql models for storing maninfests
-"""
+"""sql models for storing maninfests"""
 
 from typing import TYPE_CHECKING
 

@@ -23,6 +23,7 @@ class InputIdentityResultItems(SQLModel):
 
 class InputPerson(SQLModel):
     "Data class for a Person model in POST request."
+
     id: Optional[int] = Field(default=None, primary_key=True)
     email: Optional[str] = Field(schema_extra={"validation_alias": "person.email"})
     full_name: str = Field(schema_extra={"validation_alias": "person.full_name"})
@@ -34,6 +35,7 @@ class InputPerson(SQLModel):
 
 class Person(SQLModel, table=True):
     "Data class for a Person model in database."
+
     id: Optional[int] = Field(default=None, primary_key=True)
     email: Optional[str]
     full_name: str
@@ -42,6 +44,7 @@ class Person(SQLModel, table=True):
 
 class ROCratePerson(SQLModel):
     "Data class for a Person model to be written as part of an RO-Crate"
+
     # Bug with SQLModel library causing typing error:
     # https://github.com/fastapi/sqlmodel/discussions/855
     model_config = ConfigDict(  # type: ignore

@@ -40,6 +40,7 @@ class ResearchDriveProjectLink(SQLModel, table=True):
 
 class BaseResearchDriveService(SQLModel):
     "Base Model describing a research drive service"
+
     allocated_gb: float
     date: datetime
     first_day: datetime
