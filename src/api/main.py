@@ -207,11 +207,14 @@ async def append_drive_info(
     background_tasks.add_task(
         generate_ro_crate,
         drive_name=drive.name,
-        session=session,
     )
 
+    message = (
+        f"Started RO-Crate generation and upload to ActiveScale for {drive.name}. "
+        "This may take some time depending on the size of the drive."
+    )
     return {
-        "message": f"Received additional RO-Crate metadata for {drive.name}.",
+        "message": message,
     }
 
 
@@ -286,7 +289,6 @@ def build_crate_contents(
 
 async def generate_ro_crate(
     drive_name: ResearchDriveID,
-    session: SessionDep,
 ) -> None:
     """Async task for generating the RO-crate in a research drive, archiving and uploading.
 
@@ -295,78 +297,80 @@ async def generate_ro_crate(
     2. Creates a ZIP archive of the completed crate
     3. Uploads the archive to ActiveScale for long-term storage
     """
-    try:
-        logger.info("Starting RO-Crate generation for drive: %s", drive_name)
+    # Create a fresh session for this background task
+    with Session(engine) as session:
+        try:
+            logger.info("Starting RO-Crate generation for drive: %s", drive_name)
 
-        drive_path = get_resdrive_path(drive_name)
-        drive_location = drive_path / "Vault"
-        output_location = drive_path / "Archive"
+            drive_path = get_resdrive_path(drive_name)
+            drive_location = drive_path / "Vault"
+            output_location = drive_path / "Archive"
 
-        # Build the crate contents
-        logger.info("Building RO-Crate contents for %s", drive_name)
-        build_crate_contents(
-            drive_name,
-            session,
-            drive_location=drive_location,
-            output_location=output_location,
-        )
+            # Build the crate contents
+            logger.info("Building RO-Crate contents for %s", drive_name)
+            build_crate_contents(
+                drive_name,
+                session,
+                drive_location=drive_location,
+                output_location=output_location,
+            )
 
-        # Create the ZIP archive
-        logger.info("Creating ZIP archive for %s", drive_name)
-        archive_dir = output_location / str(drive_name)
-        zip_existing_crate(archive_dir, drive_location)
-        # Compute expected zip file path
-        zip_file = archive_dir.with_suffix(".zip")
+            # Create the ZIP archive
+            logger.info("Creating ZIP archive for %s", drive_name)
+            archive_dir = output_location / str(drive_name)
+            zip_existing_crate(archive_dir, drive_location)
+            # Compute expected zip file path
+            zip_file = archive_dir.with_suffix(".zip")
 
-        # Upload the archive to ActiveScale
-        logger.info("Uploading RO-Crate archive for %s to ActiveScale", drive_name)
-        with get_activescale_client_context() as client:
-            # Read the ZIP file
-            if zip_file.exists():
-                with open(zip_file, "rb") as f:
-                    zip_content = f.read()
+            # Upload the archive to ActiveScale
+            logger.info("Uploading RO-Crate archive for %s to ActiveScale", drive_name)
+            with get_activescale_client_context() as client:
+                # Read the ZIP file
+                if zip_file.exists():
+                    with open(zip_file, "rb") as f:
+                        zip_content = f.read()
 
-                # Upload to ActiveScale with drive_name as the key
-                bucket_name = "research-archive-test"
-                file_key = f"ro-crates/{drive_name}/{zip_file.name}"
-                metadata = {
-                    "drive-name": drive_name,
-                    "archived-datetime": datetime.now().isoformat(),
-                }
+                    # Upload to ActiveScale with drive_name as the key
+                    bucket_name = "research-archive-test"
+                    file_key = f"ro-crates/{drive_name}/{zip_file.name}"
+                    metadata = {
+                        "drive-name": drive_name,
+                        "archived-datetime": datetime.now().isoformat(),
+                    }
 
-                success = upload_file(
-                    client,
-                    bucket_name,
-                    file_key,
-                    zip_content,
-                    metadata=metadata,
-                )
-
-                if success:
-                    logger.info(
-                        "Successfully uploaded RO-Crate archive for %s to "
-                        "ActiveScale at %s",
-                        drive_name,
+                    success = upload_file(
+                        client,
+                        bucket_name,
                         file_key,
+                        zip_content,
+                        metadata=metadata,
                     )
+
+                    if success:
+                        logger.info(
+                            "Successfully uploaded RO-Crate archive for %s to "
+                            "ActiveScale at %s",
+                            drive_name,
+                            file_key,
+                        )
+                    else:
+                        logger.error(
+                            "Failed to upload RO-Crate archive for %s to ActiveScale",
+                            drive_name,
+                        )
                 else:
-                    logger.error(
-                        "Failed to upload RO-Crate archive for %s to ActiveScale",
-                        drive_name,
-                    )
-            else:
-                logger.error("ZIP archive path not found for %s", drive_name)
+                    logger.error("ZIP archive path not found for %s", drive_name)
 
-        logger.info("Completed RO-Crate generation and upload for %s", drive_name)
+            logger.info("Completed RO-Crate generation and upload for %s", drive_name)
 
-    except (OSError, ValueError) as e:
-        logger.error(
-            "Error in generate_ro_crate for drive %s: %s: %s",
-            drive_name,
-            type(e).__name__,
-            str(e),
-            exc_info=True,
-        )
+        except (OSError, ValueError) as e:
+            logger.error(
+                "Error in generate_ro_crate for drive %s: %s: %s",
+                drive_name,
+                type(e).__name__,
+                str(e),
+                exc_info=True,
+            )
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)

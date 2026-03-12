@@ -22,7 +22,10 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 config = Config(
-    retries={"total_max_attempts": 3, "mode": "standard"}, signature_version="s3v4"
+    retries={"total_max_attempts": 3, "mode": "standard"},
+    signature_version="s3v4",
+    connect_timeout=10,
+    read_timeout=30,
 )
 
 # THREAD SAFETY NOTES:
@@ -79,43 +82,8 @@ def init_activescale(app: FastAPI) -> None:
     """
     global _activescale_session  # pylint: disable=global-statement
     logger.info("Initializing ActiveScale session...")
-
     try:
         _activescale_session = _create_activescale_session()
-
-        # Verify connectivity by attempting to access the bucket
-        bucket_name = "research-archive-test"
-        client = _activescale_session.client(
-            "s3",
-            endpoint_url=f"https://{get_settings().activescale_hostname}",
-            config=config,
-        )
-        try:
-            client.head_bucket(Bucket=bucket_name)
-            logger.info(
-                "ActiveScale connection successful. Bucket '%s' exists and is accessible.",
-                bucket_name,
-            )
-        except ClientError as e:
-            error_code = e.response["Error"]["Code"]
-            if error_code == "404":
-                logger.warning("Bucket '%s' does not exist.", bucket_name)
-            elif error_code == "403":
-                logger.warning(
-                    "Access denied for bucket '%s'. Check IAM permissions.",
-                    bucket_name,
-                )
-            else:
-                logger.error(
-                    "ClientError accessing bucket: %s",
-                    e.response["Error"]["Message"],
-                )
-        except EndpointConnectionError:
-            logger.error(
-                "Could not connect to the S3 endpoint. Check network connectivity."
-            )
-            raise
-
         app.state.activescale_session = _activescale_session
     except ValueError:
         raise
@@ -177,6 +145,38 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
 
 
 # S3 interactions - generic for any S3-compatible service. Pass in initialised client.
+
+
+def verify_connection(client: S3Client, bucket_name: str) -> bool:
+    """Verify S3 client connectivity by attempting to access bucket"""
+
+    # bucket_name = "research-archive-test"
+    try:
+        client.head_bucket(Bucket=bucket_name)
+        logger.info(
+            "ActiveScale connection successful. Bucket '%s' exists and is accessible.",
+            bucket_name,
+        )
+        return True
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        if error_code == "404":
+            logger.warning("Bucket '%s' does not exist.", bucket_name)
+        elif error_code == "403":
+            logger.warning(
+                "Access denied for bucket '%s'. Check IAM permissions.",
+                bucket_name,
+            )
+        else:
+            logger.error(
+                "ClientError accessing bucket: %s",
+                e.response["Error"]["Message"],
+            )
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
+        )
+    return False
 
 
 def list_buckets(client: S3Client) -> list[str]:
@@ -250,6 +250,11 @@ def upload_file(
             file_key,
             e.response["Error"]["Code"],
             e.response["Error"]["Message"],
+        )
+        return False
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return False
     except OSError as e:
