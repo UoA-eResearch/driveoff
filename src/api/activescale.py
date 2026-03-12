@@ -4,6 +4,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from config import get_settings
 from fastapi import FastAPI, Request
 from types_boto3_s3 import S3Client
+from types_boto3_s3.type_defs import TagTypeDef
 import boto3
 
 
@@ -22,6 +23,7 @@ def init_activescale(app: FastAPI) -> None:
     settings = get_settings()
 
     hostname = settings.activescale_hostname
+    region = settings.activescale_region
     access_key = (
         settings.activescale_access_key.get_secret_value()
         if settings.activescale_access_key
@@ -39,11 +41,12 @@ def init_activescale(app: FastAPI) -> None:
     client = boto3.client(
         "s3",
         endpoint_url=f"https://{hostname}",
+        region_name=region,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         config=config,
     )
-    bucket_name = "test-temp"
+    bucket_name = "research-archive-test"
     try:
         client.head_bucket(Bucket=bucket_name)
         print(
@@ -97,7 +100,12 @@ def list_buckets(client: S3Client) -> list[str]:
 
 
 def upload_file(
-    client: S3Client, bucket_name: str, file_key: str, file_content: bytes
+    client: S3Client,
+    bucket_name: str,
+    file_key: str,
+    file_content: bytes,
+    metadata: dict[str, str] = {},
+    tags: dict[str, str] = {},
 ) -> bool:
     """Upload a file to an S3 bucket using the provided client.
 
@@ -106,12 +114,22 @@ def upload_file(
         bucket_name (str): The name of the S3 bucket to upload to.
         file_key (str): The key (path/filename) to use for the uploaded file in the bucket.
         file_content (bytes): The content of the file to upload.
+        metadata (dict[str, str]): Optional dictionary of metadata to attach to the uploaded object.
+        tags (dict[str, str]): Optional dictionary of tags to apply to the uploaded object.
 
     Returns:
         bool: True if the upload is successful, False otherwise.
     """
     try:
-        client.put_object(Bucket=bucket_name, Key=file_key, Body=file_content)
+        tag_string = "&".join(f"{key}={value}" for key, value in tags.items())
+
+        client.put_object(
+            Bucket=bucket_name,
+            Key=file_key,
+            Body=file_content,
+            Metadata=metadata,
+            Tagging=tag_string,
+        )
         print(f"File '{file_key}' uploaded successfully to bucket '{bucket_name}'.")
         return True
     except ClientError as e:
@@ -190,18 +208,25 @@ def bulk_download_files(
     return results
 
 
-def create_bucket(client: S3Client, bucket_name: str) -> bool:
+def create_bucket(
+    client: S3Client, bucket_name: str, tags: list[TagTypeDef] = []
+) -> bool:
     """Create a new S3 bucket using the provided client.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to create.
+        tags (list[TagTypeDef]): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
 
     Returns:
         bool: True if the bucket was created successfully, False otherwise.
     """
     try:
-        client.create_bucket(Bucket=bucket_name)
+        client.create_bucket(
+            Bucket=bucket_name,
+            ObjectLockEnabledForBucket=True,
+            CreateBucketConfiguration={"Tags": tags},
+        )
         print(f"Bucket '{bucket_name}' created successfully.")
         return True
     except ClientError as e:
@@ -240,14 +265,14 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
 
 
 def set_bucket_tags(
-    client: S3Client, bucket_name: str, tag_set: list[dict[str, str]]
+    client: S3Client, bucket_name: str, tags: list[TagTypeDef] = []
 ) -> bool:
     """Set tags for an S3 bucket using the provided client.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to set tags for.
-        tag_set (list[dict[str, str]]): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
+        tags (list[TagTypeDef] | None): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
 
     Returns:
         bool: True if the bucket tags were set successfully, False otherwise.
@@ -255,11 +280,7 @@ def set_bucket_tags(
     try:
         client.put_bucket_tagging(
             Bucket=bucket_name,
-            Tagging={
-                "TagSet": [
-                    {"Key": k, "Value": v} for tag in tag_set for k, v in tag.items()
-                ]
-            },
+            Tagging={"TagSet": tags},
         )
         print(f"Bucket tags for '{bucket_name}' set successfully.")
         return True

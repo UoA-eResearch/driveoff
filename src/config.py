@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     cors_allow_host: list[str] = []
     activescale_hostname: str = ""
+    activescale_region: str = ""
     activescale_access_key: SecretStr | None = None
     activescale_secret_key: SecretStr | None = None
 
