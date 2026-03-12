@@ -1,5 +1,6 @@
 """Definition of endpoints/routers for the webserver."""
 
+import logging
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -20,7 +21,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.cors import add_cors_middleware
-from api.activescale import init_activescale
+from api.activescale import (
+    init_activescale,
+    get_activescale_client_context,
+    upload_file,
+)
 from api.fake_resdrive import make_fake_resdrive
 from api.manifests import (
     bag_directory,
@@ -37,6 +42,8 @@ from models.project import InputProject, Project, ProjectWithDriveMember
 from models.role import prepopulate_roles
 from models.services import ResearchDriveService
 from models.submission import DriveOffboardSubmission, InputDriveOffboardSubmission
+
+logger = logging.getLogger(__name__)
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -281,18 +288,75 @@ async def generate_ro_crate(
     drive_name: ResearchDriveID,
     session: SessionDep,
 ) -> None:
-    """Async task for generating the RO-crate in a research drive
-    then moving all files into archive"""
-    drive_path = get_resdrive_path(drive_name)
-    drive_location = drive_path / "Vault"
-    output_location = drive_path / "Archive"
-    build_crate_contents(
-        drive_name,
-        session,
-        drive_location=drive_path / "Vault",
-        output_location=drive_path / "Archive",
-    )
-    zip_existing_crate(output_location / str(drive_name), drive_location)
+    """Async task for generating the RO-crate in a research drive, archiving it, and uploading to ActiveScale.
+
+    This background task:
+    1. Generates RO-Crate metadata and BagIT structure
+    2. Creates a ZIP archive of the completed crate
+    3. Uploads the archive to ActiveScale for long-term storage
+    """
+    try:
+        logger.info(f"Starting RO-Crate generation for drive: {drive_name}")
+
+        drive_path = get_resdrive_path(drive_name)
+        drive_location = drive_path / "Vault"
+        output_location = drive_path / "Archive"
+
+        # Build the crate contents
+        logger.info(f"Building RO-Crate contents for {drive_name}")
+        build_crate_contents(
+            drive_name,
+            session,
+            drive_location=drive_location,
+            output_location=output_location,
+        )
+
+        # Create the ZIP archive
+        logger.info(f"Creating ZIP archive for {drive_name}")
+        zip_path = zip_existing_crate(output_location / str(drive_name), drive_location)
+
+        # Upload the archive to ActiveScale
+        logger.info(f"Uploading RO-Crate archive for {drive_name} to ActiveScale")
+        with get_activescale_client_context() as client:
+            # Read the ZIP file
+            if zip_path and Path(zip_path).exists():
+                with open(zip_path, "rb") as f:
+                    zip_content = f.read()
+
+                # Upload to ActiveScale with drive_name as the key
+                bucket_name = "research-archive-test"
+                file_key = f"ro-crates/{drive_name}/{Path(zip_path).name}"
+                metadata = {
+                    "drive-name": drive_name,
+                    "archived-datetime": datetime.now().isoformat(),
+                }
+
+                success = upload_file(
+                    client,
+                    bucket_name,
+                    file_key,
+                    zip_content,
+                    metadata=metadata,
+                )
+
+                if success:
+                    logger.info(
+                        f"Successfully uploaded RO-Crate archive for {drive_name} to ActiveScale at {file_key}"
+                    )
+                else:
+                    logger.error(
+                        f"Failed to upload RO-Crate archive for {drive_name} to ActiveScale"
+                    )
+            else:
+                logger.error(f"ZIP archive path not found for {drive_name}")
+
+        logger.info(f"Completed RO-Crate generation and upload for {drive_name}")
+
+    except Exception as e:
+        logger.error(
+            f"Error in generate_ro_crate for drive {drive_name}: {type(e).__name__}: {str(e)}",
+            exc_info=True,
+        )
 
 
 @app.get(ENDPOINT_PREFIX + "/resdriveinfo", response_model=ProjectWithDriveMember)

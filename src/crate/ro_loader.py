@@ -1,6 +1,6 @@
-"""Classes and functions for loading and archiving RO-Crates
-"""
+"""Classes and functions for loading and archiving RO-Crates"""
 
+import logging
 import shutil
 import tarfile
 from enum import Enum
@@ -11,11 +11,15 @@ import orjson
 from bagit import Bag
 from rocrate.rocrate import ROCrate
 
+
+logger = logging.getLogger(__name__)
+
 JsonType = Dict[str, Any]
 
 
 class ARCHIVETYPE(str, Enum):
     "Enum for Archive types it is possible to write the RO-Crate as"
+
     ZIP = "zip"
     TAR = "tar"
     TAR_GZ = "tar.gz"
@@ -93,7 +97,7 @@ class ROLoader:
     def serialize_crate(self) -> JsonType:
         """Write the ro crate metadata to a json string and return it"""
         as_jsonld: JsonType = self.crate.metadata.generate()
-        print("serialized crate is", as_jsonld)
+        logger.debug("serialized crate is %s", as_jsonld)
         return as_jsonld
 
     def archive_crate(

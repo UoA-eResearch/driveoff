@@ -1,25 +1,35 @@
 from __future__ import annotations
 from botocore.config import Config
 from botocore.exceptions import ClientError, EndpointConnectionError
+from contextlib import contextmanager
 from config import get_settings
 from fastapi import FastAPI, Request
 from types_boto3_s3 import S3Client
 from types_boto3_s3.type_defs import TagTypeDef
 import boto3
+import logging
 
+logger = logging.getLogger(__name__)
 
 config = Config(
     retries={"total_max_attempts": 3, "mode": "standard"}, signature_version="s3v4"
 )
 
+# THREAD SAFETY NOTES:
+# - Boto3 S3 clients are thread-safe for concurrent requests (urllib3 connection pooling is thread-safe)
+# - We use boto3.Session to manage connection pools efficiently
+# - Clients created from a session are lightweight and reusable
+# - This pattern works for both sync request handlers and async background tasks
+
 # TODO: make this more generic and reusable for other S3-compatible services, not just ActiveScale. E.g. ability to create different sessions/clients with specific credentials
-# TODO: make a standardized way to handle s3 errors.
-# TODO: look into boto3 sessions and whether we should be using sessions instead of clients directly. Also thread safety of the client/session.
+# TODO: look into standardized way to handle s3 errors across the codebase.
 
 
-def init_activescale(app: FastAPI) -> None:
-    """Initialize a ActiveScale S3 client and attach it to the FastAPI app state."""
-    print("Initializing ActiveScale S3 client...")
+_activescale_session: boto3.Session | None = None
+
+
+def _create_activescale_session() -> boto3.Session:
+    """Create a boto3 Session with ActiveScale credentials from environment settings."""
     settings = get_settings()
 
     hostname = settings.activescale_hostname
@@ -38,64 +48,136 @@ def init_activescale(app: FastAPI) -> None:
         raise ValueError(
             "ActiveScale credentials are not fully set in environment variables."
         )
-    client = boto3.client(
-        "s3",
-        endpoint_url=f"https://{hostname}",
-        region_name=region,
+
+    session = boto3.Session(
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        config=config,
+        region_name=region,
     )
-    bucket_name = "research-archive-test"
+    return session
+
+
+def init_activescale(app: FastAPI) -> None:
+    """Initialize ActiveScale session during app startup and attach it to the FastAPI app state.
+
+    The session is thread-safe and manages connection pooling efficiently.
+    Clients created from this session can be safely used from multiple threads and in background tasks.
+    """
+    global _activescale_session
+    logger.info("Initializing ActiveScale session...")
+
     try:
-        client.head_bucket(Bucket=bucket_name)
-        print(
-            f"Connection successful. Bucket '{bucket_name}' exists and is accessible."
+        _activescale_session = _create_activescale_session()
+
+        # Verify connectivity by attempting to access the bucket
+        bucket_name = "research-archive-test"
+        client = _activescale_session.client(
+            "s3",
+            endpoint_url=f"https://{get_settings().activescale_hostname}",
+            config=config,
         )
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        if error_code == "404":
-            print(f"Bucket '{bucket_name}' does not exist.")
-        elif error_code == "403":
-            print(f"Access denied for bucket '{bucket_name}'. Check IAM permissions.")
-        else:
-            print(f"A ClientError occurred: {e.response['Error']['Message']}")
-    except EndpointConnectionError:
-        print("Could not connect to the S3 endpoint. Check network connectivity.")
+        try:
+            client.head_bucket(Bucket=bucket_name)
+            logger.info(
+                f"ActiveScale connection successful. Bucket '{bucket_name}' exists and is accessible."
+            )
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            if error_code == "404":
+                logger.warning(f"Bucket '{bucket_name}' does not exist.")
+            elif error_code == "403":
+                logger.warning(
+                    f"Access denied for bucket '{bucket_name}'. Check IAM permissions."
+                )
+            else:
+                logger.error(
+                    f"ClientError accessing bucket: {e.response['Error']['Message']}"
+                )
+        except EndpointConnectionError as e:
+            logger.error(
+                "Could not connect to the S3 endpoint. Check network connectivity."
+            )
+            raise
+
+        app.state.activescale_session = _activescale_session
     except Exception as e:
-        raise ValueError("Failed to connect to ActiveScale S3 client.") from e
-    app.state.activescale = client  # TODO: check if this is best practice / may need to change for thread safety
+        logger.error(f"Failed to initialize ActiveScale: {str(e)}")
+        raise ValueError("Failed to initialize ActiveScale session.") from e
 
 
 def get_activescale_client(request: Request) -> S3Client:
-    """FastAPI dependency to retrieve the initialized ActiveScale S3 client.
+    """FastAPI dependency to create an ActiveScale S3 client for a request.
 
-    Endpoints can use ``Depends(get_activescale_client)`` to receive the client.
+    Clients created from the session are thread-safe and lightweight.
+    Multiple concurrent requests can safely use separate clients.
     """
-    client = getattr(request.app.state, "activescale", None)
-    if client is None:
-        raise RuntimeError("ActiveScale client not initialised on application state")
+    session = getattr(request.app.state, "activescale_session", None)
+    if session is None:
+        logger.error("ActiveScale session not initialized on application state")
+        raise RuntimeError("ActiveScale session not initialised on application state")
+
+    client = session.client(
+        "s3",
+        endpoint_url=f"https://{get_settings().activescale_hostname}",
+        config=config,
+    )
     return client
+
+
+@contextmanager
+def get_activescale_client_context() -> S3Client:
+    """Context manager for creating a temporary ActiveScale S3 client.
+
+    Use this in background tasks or other contexts where you don't have access to the FastAPI request object.
+
+    Example:
+        with get_activescale_client_context() as client:
+            upload_file(client, bucket, key, content)
+    """
+    if _activescale_session is None:
+        logger.error("ActiveScale session not initialized globally")
+        raise RuntimeError(
+            "ActiveScale session not initialized. Call init_activescale first."
+        )
+
+    client = _activescale_session.client(
+        "s3",
+        endpoint_url=f"https://{get_settings().activescale_hostname}",
+        config=config,
+    )
+    try:
+        yield client
+    finally:
+        # Clients are lightweight and don't hold significant resources
+        # but closing explicitly is good practice
+        client.close()
 
 
 # *** S3 interactions - generic for any S3-compatible service, not just ActiveScale. Pass in initialised client. ***
 
 
 def list_buckets(client: S3Client) -> list[str]:
-    """List buckets in an S3 account using the provided client."""
+    """List buckets in an S3 account using the provided client.
+
+    Returns:
+        list[str]: List of bucket names, or empty list if operation fails.
+    """
     try:
         response = client.list_buckets()
         buckets = [
             bucket["Name"] for bucket in response.get("Buckets", []) if "Name" in bucket
         ]
+        logger.debug(f"Successfully listed {len(buckets)} buckets")
         return buckets
     except ClientError as e:
-        print(
-            f"An error occurred while listing buckets: {e.response['Error']['Message']}"
+        logger.error(
+            f"ClientError while listing buckets: {e.response['Error']['Code']} - {e.response['Error']['Message']}"
         )
         return []
     except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
+        logger.error(
+            f"Unexpected error while listing buckets: {type(e).__name__}: {str(e)}"
+        )
         return []
 
 
@@ -130,15 +212,17 @@ def upload_file(
             Metadata=metadata,
             Tagging=tag_string,
         )
-        print(f"File '{file_key}' uploaded successfully to bucket '{bucket_name}'.")
+        logger.info(f"Successfully uploaded '{file_key}' to bucket '{bucket_name}'")
         return True
     except ClientError as e:
-        print(
-            f"An error occurred while uploading the file: {e.response['Error']['Message']}"
+        logger.error(
+            f"ClientError uploading '{file_key}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
         )
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
+        logger.error(
+            f"Unexpected error uploading '{file_key}': {type(e).__name__}: {str(e)}"
+        )
         return False
 
 
@@ -156,15 +240,17 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
     try:
         response = client.get_object(Bucket=bucket_name, Key=file_key)
         file_content = response["Body"].read()
-        print(f"File '{file_key}' downloaded successfully from bucket '{bucket_name}'.")
+        logger.info(f"Successfully downloaded '{file_key}' from bucket '{bucket_name}'")
         return file_content
     except ClientError as e:
-        print(
-            f"An error occurred while downloading the file: {e.response['Error']['Message']}"
+        logger.error(
+            f"ClientError downloading '{file_key}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
         )
         return None
     except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
+        logger.error(
+            f"Unexpected error downloading '{file_key}': {type(e).__name__}: {str(e)}"
+        )
         return None
 
 
@@ -231,15 +317,19 @@ def create_bucket(
             ObjectLockEnabledForBucket=enable_object_lock,
             CreateBucketConfiguration={"Tags": tags},
         )
-        print(f"Bucket '{bucket_name}' created successfully.")
+        logger.info(
+            f"Successfully created bucket '{bucket_name}' with object lock {'enabled' if enable_object_lock else 'disabled'}"
+        )
         return True
     except ClientError as e:
-        print(
-            f"An error occurred while creating the bucket: {e.response['Error']['Message']}"
+        logger.error(
+            f"ClientError creating bucket '{bucket_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
         )
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
+        logger.error(
+            f"Unexpected error creating bucket '{bucket_name}': {type(e).__name__}: {str(e)}"
+        )
         return False
 
 
@@ -256,15 +346,17 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
     """
     try:
         client.put_bucket_policy(Bucket=bucket_name, Policy=policy_json)
-        print(f"Bucket policy for '{bucket_name}' set successfully.")
+        logger.info(f"Successfully set bucket policy for '{bucket_name}'")
         return True
     except ClientError as e:
-        print(
-            f"An error occurred while setting the bucket policy: {e.response['Error']['Message']}"
+        logger.error(
+            f"ClientError setting policy for '{bucket_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
         )
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
+        logger.error(
+            f"Unexpected error setting policy for '{bucket_name}': {type(e).__name__}: {str(e)}"
+        )
         return False
 
 
@@ -286,13 +378,15 @@ def set_bucket_tags(
             Bucket=bucket_name,
             Tagging={"TagSet": tags},
         )
-        print(f"Bucket tags for '{bucket_name}' set successfully.")
+        logger.info(f"Successfully set {len(tags)} tags for bucket '{bucket_name}'")
         return True
     except ClientError as e:
-        print(
-            f"An error occurred while setting the bucket tags: {e.response['Error']['Message']}"
+        logger.error(
+            f"ClientError setting tags for '{bucket_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
         )
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
+        logger.error(
+            f"Unexpected error setting tags for '{bucket_name}': {type(e).__name__}: {str(e)}"
+        )
         return False
