@@ -1,3 +1,9 @@
+"""S3/ActiveScale integration module for archival storage operations.
+
+Provides functionality to initialize and interact with ActiveScale S3-compatible
+storage, including session management, file upload/download, and bucket operations.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -20,13 +26,16 @@ config = Config(
 )
 
 # THREAD SAFETY NOTES:
-# - Boto3 S3 clients are thread-safe for concurrent requests (urllib3 connection pooling is thread-safe)
+# - Boto3 S3 clients are thread-safe for concurrent requests (urllib3 connection
+#   pooling is thread-safe)
 # - We use boto3.Session to manage connection pools efficiently
 # - Clients created from a session are lightweight and reusable
 # - This pattern works for both sync request handlers and async background tasks
 
-# TODO: make this more generic and reusable for other S3-compatible services, not just ActiveScale. E.g. ability to create different sessions/clients with specific credentials
-# TODO: look into standardized way to handle s3 errors across the codebase.
+# NOTE: Currently handles ActiveScale and S3-compatible services. Future work:
+# - Make this more generic and reusable for other S3-compatible services
+# - Implement ability to create different sessions/clients with specific credentials
+# - Standardize S3 error handling across the codebase
 
 
 _activescale_session: boto3.Session | None = None
@@ -65,9 +74,10 @@ def init_activescale(app: FastAPI) -> None:
     """Initialize ActiveScale session during app startup and attach it to the FastAPI app state.
 
     The session is thread-safe and manages connection pooling efficiently.
-    Clients created from this session can be safely used from multiple threads and in background tasks.
+    Clients created from this session can be safely used from multiple threads and in
+    background tasks.
     """
-    global _activescale_session
+    global _activescale_session  # pylint: disable=global-statement
     logger.info("Initializing ActiveScale session...")
 
     try:
@@ -83,29 +93,34 @@ def init_activescale(app: FastAPI) -> None:
         try:
             client.head_bucket(Bucket=bucket_name)
             logger.info(
-                f"ActiveScale connection successful. Bucket '{bucket_name}' exists and is accessible."
+                "ActiveScale connection successful. Bucket '%s' exists and is accessible.",
+                bucket_name,
             )
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
             if error_code == "404":
-                logger.warning(f"Bucket '{bucket_name}' does not exist.")
+                logger.warning("Bucket '%s' does not exist.", bucket_name)
             elif error_code == "403":
                 logger.warning(
-                    f"Access denied for bucket '{bucket_name}'. Check IAM permissions."
+                    "Access denied for bucket '%s'. Check IAM permissions.",
+                    bucket_name,
                 )
             else:
                 logger.error(
-                    f"ClientError accessing bucket: {e.response['Error']['Message']}"
+                    "ClientError accessing bucket: %s",
+                    e.response["Error"]["Message"],
                 )
-        except EndpointConnectionError as e:
+        except EndpointConnectionError:
             logger.error(
                 "Could not connect to the S3 endpoint. Check network connectivity."
             )
             raise
 
         app.state.activescale_session = _activescale_session
+    except ValueError:
+        raise
     except Exception as e:
-        logger.error(f"Failed to initialize ActiveScale: {str(e)}")
+        logger.error("Failed to initialize ActiveScale: %s", str(e))
         raise ValueError("Failed to initialize ActiveScale session.") from e
 
 
@@ -132,7 +147,8 @@ def get_activescale_client(request: Request) -> S3Client:
 def get_activescale_client_context() -> Generator[S3Client, None, None]:
     """Context manager for creating a temporary ActiveScale S3 client.
 
-    Use this in background tasks or other contexts where you don't have access to the FastAPI request object.
+    Use this in background tasks or other contexts where you don't have access to the
+    FastAPI request object.
 
     Example:
         with get_activescale_client_context() as client:
@@ -160,7 +176,7 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
         client.close()
 
 
-# *** S3 interactions - generic for any S3-compatible service, not just ActiveScale. Pass in initialised client. ***
+# S3 interactions - generic for any S3-compatible service. Pass in initialised client.
 
 
 def list_buckets(client: S3Client) -> list[str]:
@@ -174,16 +190,20 @@ def list_buckets(client: S3Client) -> list[str]:
         buckets = [
             bucket["Name"] for bucket in response.get("Buckets", []) if "Name" in bucket
         ]
-        logger.debug(f"Successfully listed {len(buckets)} buckets")
+        logger.debug("Successfully listed %d buckets", len(buckets))
         return buckets
     except ClientError as e:
         logger.error(
-            f"ClientError while listing buckets: {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            "ClientError while listing buckets: %s - %s",
+            e.response["Error"]["Code"],
+            e.response["Error"]["Message"],
         )
         return []
-    except Exception as e:
+    except OSError as e:
         logger.error(
-            f"Unexpected error while listing buckets: {type(e).__name__}: {str(e)}"
+            "Unexpected error while listing buckets: %s: %s",
+            type(e).__name__,
+            str(e),
         )
         return []
 
@@ -196,14 +216,14 @@ def upload_file(
     metadata: dict[str, str] | None = None,
     tags: dict[str, str] | None = None,
 ) -> bool:
-    """Upload a file to an S3 bucket using the provided client.
+    """Upload a file to an S3 bucket.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to upload to.
-        file_key (str): The key (path/filename) to use for the uploaded file in the bucket.
+        file_key (str): The key (path/filename) in the bucket.
         file_content (bytes): The content of the file to upload.
-        metadata (dict[str, str] | None): Optional dictionary of metadata to attach to the uploaded object.
+        metadata (dict[str, str] | None): Optional metadata for the object.
         tags (dict[str, str] | None): Optional dictionary of tags to apply to the uploaded object.
 
     Returns:
@@ -215,7 +235,6 @@ def upload_file(
         tags = {}
     try:
         tag_string = "&".join(f"{key}={value}" for key, value in tags.items())
-
         client.put_object(
             Bucket=bucket_name,
             Key=file_key,
@@ -223,22 +242,28 @@ def upload_file(
             Metadata=metadata,
             Tagging=tag_string,
         )
-        logger.info(f"Successfully uploaded '{file_key}' to bucket '{bucket_name}'")
+        logger.info("Successfully uploaded '%s' to bucket '%s'", file_key, bucket_name)
         return True
     except ClientError as e:
         logger.error(
-            f"ClientError uploading '{file_key}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            "ClientError uploading '%s': %s - %s",
+            file_key,
+            e.response["Error"]["Code"],
+            e.response["Error"]["Message"],
         )
         return False
-    except Exception as e:
+    except OSError as e:
         logger.error(
-            f"Unexpected error uploading '{file_key}': {type(e).__name__}: {str(e)}"
+            "Unexpected error uploading '%s': %s: %s",
+            file_key,
+            type(e).__name__,
+            str(e),
         )
         return False
 
 
 def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | None:
-    """Download a file from an S3 bucket using the provided client.
+    """Download a file from an S3 bucket.
 
     Args:
         client (S3Client): An initialized S3 client.
@@ -246,21 +271,29 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
         file_key (str): The key (path/filename) of the file to download.
 
     Returns:
-        bytes | None: The content of the downloaded file as bytes if successful, None otherwise.
+        bytes | None: The downloaded file content or None if unsuccessful.
     """
     try:
         response = client.get_object(Bucket=bucket_name, Key=file_key)
         file_content = response["Body"].read()
-        logger.info(f"Successfully downloaded '{file_key}' from bucket '{bucket_name}'")
+        logger.info(
+            "Successfully downloaded '%s' from bucket '%s'", file_key, bucket_name
+        )
         return file_content
     except ClientError as e:
         logger.error(
-            f"ClientError downloading '{file_key}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            "ClientError downloading '%s': %s - %s",
+            file_key,
+            e.response["Error"]["Code"],
+            e.response["Error"]["Message"],
         )
         return None
-    except Exception as e:
+    except OSError as e:
         logger.error(
-            f"Unexpected error downloading '{file_key}': {type(e).__name__}: {str(e)}"
+            "Unexpected error downloading '%s': %s: %s",
+            file_key,
+            type(e).__name__,
+            str(e),
         )
         return None
 
@@ -268,15 +301,15 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
 def bulk_upload_files(
     client: S3Client, bucket_name: str, files: list[tuple[str, bytes]]
 ) -> dict[str, bool]:
-    """Upload multiple files to an S3 bucket using the provided client.
+    """Upload multiple files to an S3 bucket.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to upload to.
-        files (list[tuple[str, bytes]]): A list of tuples where each tuple contains a file key and its content.
+        files (list[tuple[str, bytes]]): List of tuples with file key and content.
 
     Returns:
-        dict[str, bool]: A dictionary mapping each file key to a boolean indicating whether the upload was successful.
+        dict[str, bool]: Mapping of file key to upload success status.
     """
     results = {}
     for file_key, file_content in files:
@@ -288,15 +321,15 @@ def bulk_upload_files(
 def bulk_download_files(
     client: S3Client, bucket_name: str, file_keys: list[str]
 ) -> dict[str, bytes | None]:
-    """Download multiple files from an S3 bucket using the provided client.
+    """Download multiple files from an S3 bucket.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to download from.
-        file_keys (list[str]): A list of file keys to download.
+        file_keys (list[str]): List of file keys to download.
 
     Returns:
-        dict[str, bytes | None]: A dictionary mapping each file key to its content as bytes if successful, or None if the download failed.
+        dict[str, bytes | None]: Mapping of file key to content or None if failed.
     """
     results = {}
     for file_key in file_keys:
@@ -311,16 +344,16 @@ def create_bucket(
     tags: list[TagTypeDef] | None = None,
     enable_object_lock: bool = True,
 ) -> bool:
-    """Create a new S3 bucket using the provided client.
+    """Create a new S3 bucket.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to create.
-        tags (list[TagTypeDef] | None): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
-        enable_object_lock (bool): Whether to enable object lock for the bucket.
+        tags (list[TagTypeDef] | None): List of tag dictionaries with Key/Value.
+        enable_object_lock (bool): Whether to enable object lock.
 
     Returns:
-        bool: True if the bucket was created successfully, False otherwise.
+        bool: True if successful, False otherwise.
     """
     if tags is None:
         tags = []
@@ -330,45 +363,60 @@ def create_bucket(
             ObjectLockEnabledForBucket=enable_object_lock,
             CreateBucketConfiguration={"Tags": tags},
         )
+        lock_status = "enabled" if enable_object_lock else "disabled"
         logger.info(
-            f"Successfully created bucket '{bucket_name}' with object lock {'enabled' if enable_object_lock else 'disabled'}"
+            "Successfully created bucket '%s' with object lock %s",
+            bucket_name,
+            lock_status,
         )
         return True
     except ClientError as e:
         logger.error(
-            f"ClientError creating bucket '{bucket_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            "ClientError creating bucket '%s': %s - %s",
+            bucket_name,
+            e.response["Error"]["Code"],
+            e.response["Error"]["Message"],
         )
         return False
-    except Exception as e:
+    except OSError as e:
         logger.error(
-            f"Unexpected error creating bucket '{bucket_name}': {type(e).__name__}: {str(e)}"
+            "Unexpected error creating bucket '%s': %s: %s",
+            bucket_name,
+            type(e).__name__,
+            str(e),
         )
         return False
 
 
 def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> bool:
-    """Set the bucket policy for an S3 bucket using the provided client.
+    """Set the bucket policy for an S3 bucket.
 
     Args:
         client (S3Client): An initialized S3 client.
-        bucket_name (str): The name of the S3 bucket to set the policy for.
+        bucket_name (str): The name of the S3 bucket.
         policy_json (str): The bucket policy in JSON format.
 
     Returns:
-        bool: True if the bucket policy was set successfully, False otherwise.
+        bool: True if successful, False otherwise.
     """
     try:
         client.put_bucket_policy(Bucket=bucket_name, Policy=policy_json)
-        logger.info(f"Successfully set bucket policy for '{bucket_name}'")
+        logger.info("Successfully set bucket policy for '%s'", bucket_name)
         return True
     except ClientError as e:
         logger.error(
-            f"ClientError setting policy for '{bucket_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            "ClientError setting policy for '%s': %s - %s",
+            bucket_name,
+            e.response["Error"]["Code"],
+            e.response["Error"]["Message"],
         )
         return False
-    except Exception as e:
+    except OSError as e:
         logger.error(
-            f"Unexpected error setting policy for '{bucket_name}': {type(e).__name__}: {str(e)}"
+            "Unexpected error setting policy for '%s': %s: %s",
+            bucket_name,
+            type(e).__name__,
+            str(e),
         )
         return False
 
@@ -376,15 +424,15 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
 def set_bucket_tags(
     client: S3Client, bucket_name: str, tags: list[TagTypeDef] | None = None
 ) -> bool:
-    """Set tags for an S3 bucket using the provided client.
+    """Set tags for an S3 bucket.
 
     Args:
         client (S3Client): An initialized S3 client.
-        bucket_name (str): The name of the S3 bucket to set tags for.
-        tags (list[TagTypeDef] | None): A list of dictionaries containing tag key-value pairs with "Key" and "Value" fields.
+        bucket_name (str): The name of the S3 bucket.
+        tags (list[TagTypeDef] | None): List of tag dictionaries with Key/Value.
 
     Returns:
-        bool: True if the bucket tags were set successfully, False otherwise.
+        bool: True if successful, False otherwise.
     """
     if tags is None:
         tags = []
@@ -393,15 +441,21 @@ def set_bucket_tags(
             Bucket=bucket_name,
             Tagging={"TagSet": tags},
         )
-        logger.info(f"Successfully set {len(tags)} tags for bucket '{bucket_name}'")
+        logger.info("Successfully set %d tags for bucket '%s'", len(tags), bucket_name)
         return True
     except ClientError as e:
         logger.error(
-            f"ClientError setting tags for '{bucket_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            "ClientError setting tags for '%s': %s - %s",
+            bucket_name,
+            e.response["Error"]["Code"],
+            e.response["Error"]["Message"],
         )
         return False
-    except Exception as e:
+    except OSError as e:
         logger.error(
-            f"Unexpected error setting tags for '{bucket_name}': {type(e).__name__}: {str(e)}"
+            "Unexpected error setting tags for '%s': %s: %s",
+            bucket_name,
+            type(e).__name__,
+            str(e),
         )
         return False

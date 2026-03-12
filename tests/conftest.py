@@ -4,9 +4,11 @@ import json
 import random
 import shutil
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Generator, List
+from unittest.mock import MagicMock, patch
 
 import factory
 import orjson
@@ -66,10 +68,23 @@ def client_fixture(session: Session) -> TestClient:
             test_api_key: ApiKey(value=test_api_key, actions=["GET", "PUT", "POST"])
         }
 
+    # Mock the ActiveScale client context to avoid connecting to real service
+    @contextmanager
+    def mock_activescale_client_context():
+        """Mock context manager for ActiveScale client."""
+        mock_client = MagicMock()
+        mock_client.put_object = MagicMock(return_value={})
+        yield mock_client
+
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[read_api_keys] = read_api_keys_override
-    client = TestClient(app, headers={"x-api-key": test_api_key})
-    yield client
+    
+    with patch("api.main.get_activescale_client_context", mock_activescale_client_context):
+        with patch("api.main.init_activescale"):
+            with patch("api.main.upload_file", return_value=True):
+                client = TestClient(app, headers={"x-api-key": test_api_key})
+                yield client
+    
     app.dependency_overrides.clear()
 
 
