@@ -329,7 +329,10 @@ async def generate_ro_crate(
             zip_file = archive_dir.with_suffix(".zip")
 
             # Upload the archive to ActiveScale
-            logger.info("Uploading RO-Crate archive for %s to ActiveScale", drive_name)
+            logger.info(
+                "About to start uploading RO-Crate archive for %s to ActiveScale",
+                drive_name,
+            )
             with get_activescale_client_context() as client:
                 if zip_file.exists():
                     # Upload to ActiveScale with drive_name as the key
@@ -362,9 +365,6 @@ async def generate_ro_crate(
                         )
                 else:
                     logger.error("ZIP archive path not found for %s", drive_name)
-
-            logger.info("Completed RO-Crate generation and upload for %s", drive_name)
-
         except (OSError, ValueError) as e:
             logger.error(
                 "Error in generate_ro_crate for drive %s: %s: %s",

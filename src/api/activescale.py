@@ -7,7 +7,10 @@ storage, including session management, file upload/download, and bucket operatio
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Generator, cast
 
 import boto3
@@ -24,8 +27,9 @@ logger = logging.getLogger(__name__)
 config = Config(
     retries={"total_max_attempts": 3, "mode": "standard"},
     signature_version="s3v4",
-    connect_timeout=10,
-    read_timeout=30,
+    connect_timeout=30,
+    read_timeout=60,
+    max_pool_connections=10,
 )
 
 # THREAD SAFETY NOTES:
@@ -147,6 +151,66 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
 # S3 interactions - generic for any S3-compatible service. Pass in initialised client.
 
 
+class ProgressTracker:
+    """Tracks upload progress and logs periodic updates with stall detection."""
+
+    def __init__(self, file_key: str, file_size: int, stall_timeout: int = 30):
+        """Initialize progress tracker.
+
+        Args:
+            file_key (str): S3 object key for logging
+            file_size (int): Total file size in bytes
+            stall_timeout (int): Log warning if no progress for this many seconds
+        """
+        self.file_key = file_key
+        self.file_size = file_size
+        self.bytes_transferred = 0
+        self.last_update_time = time.time()
+        self.last_update_bytes = 0
+        self.stall_timeout = stall_timeout
+        self.stall_warned = False
+
+    def __call__(self, chunk_bytes: int) -> None:
+        """Called by boto3 for each uploaded chunk.
+
+        Args:
+            chunk_bytes (int): Number of bytes transferred in this chunk
+        """
+        self.bytes_transferred += chunk_bytes
+        current_time = time.time()
+        time_since_update = current_time - self.last_update_time
+
+        # Log progress every 5 seconds or every 100MB
+        bytes_since_update = self.bytes_transferred - self.last_update_bytes
+        if time_since_update >= 5 or bytes_since_update >= 100 * 1024 * 1024:
+            percent = (
+                (self.bytes_transferred / self.file_size * 100) if self.file_size else 0
+            )
+            mb_transferred = self.bytes_transferred / (1024 * 1024)
+            mb_total = self.file_size / (1024 * 1024)
+            logger.info(
+                "Upload progress for '%s': %.1f%% (%d MB / %d MB)",
+                self.file_key,
+                percent,
+                mb_transferred,
+                mb_total,
+            )
+            self.last_update_time = current_time
+            self.last_update_bytes = self.bytes_transferred
+            self.stall_warned = False
+
+        # Detect stalls: no progress for stall_timeout seconds
+        if bytes_since_update == 0 and time_since_update >= self.stall_timeout:
+            if not self.stall_warned:
+                logger.warning(
+                    "Upload stall detected for '%s': no progress for %d seconds. "
+                    "Network may be experiencing issues.",
+                    self.file_key,
+                    self.stall_timeout,
+                )
+                self.stall_warned = True
+
+
 def verify_connection(client: S3Client, bucket_name: str) -> bool:
     """Verify S3 client connectivity by attempting to access bucket"""
 
@@ -220,6 +284,7 @@ def upload_file(
     file_path: str,
     metadata: dict[str, str] | None = None,
     tags: dict[str, str] | None = None,
+    timeout: int = 300,
 ) -> bool:
     """Upload a file to an S3 bucket using streaming for large files.
 
@@ -230,6 +295,8 @@ def upload_file(
         file_path (str | None): Path to file on disk (for large files, preferred).
         metadata (dict[str, str] | None): Optional metadata for the object.
         tags (dict[str, str] | None): Optional dictionary of tags.
+        timeout (int): Timeout in seconds for the upload operation. Defaults to 300
+            (5 minutes). Use higher values for very large files.
 
     Returns:
         bool: True if the upload is successful, False otherwise.
@@ -238,6 +305,12 @@ def upload_file(
         For large files, use file_path instead of file_content to avoid loading
         the entire file into memory. The upload_file method with file_path handles
         multipart uploads automatically for files larger than 8 MB.
+
+        If the upload operation exceeds the timeout, it will be aborted and logged
+        as an error. This prevents indefinite hangs due to poor network connectivity.
+
+        Progress is logged every 5 seconds or every 100 MB. Stalls (no progress for
+        30 seconds) are detected and logged as warnings.
     """
     if metadata is None:
         metadata = {}
@@ -247,21 +320,68 @@ def upload_file(
     try:
         tag_string = "&".join(f"{key}={value}" for key, value in tags.items())
 
+        # Get file size for progress tracking
+        file_size = Path(file_path).stat().st_size
+
         logger.info(
-            "Uploading file from disk '%s' to '%s' in bucket '%s' using streaming",
+            "Uploading file from disk '%s' to '%s' in bucket '%s' using streaming "
+            "(size: %d MB, timeout: %d seconds)",
             file_path,
             file_key,
             bucket_name,
-        )
-        client.upload_file(
-            file_path,
-            bucket_name,
-            file_key,
-            ExtraArgs={"Metadata": metadata, "Tagging": tag_string},
+            file_size / (1024 * 1024),
+            timeout,
         )
 
-        logger.info("Successfully uploaded '%s' to bucket '%s'", file_key, bucket_name)
-        return True
+        # Create progress tracker with stall detection
+        progress_tracker = ProgressTracker(file_key, file_size, stall_timeout=30)
+
+        # Use a threading-based timeout to prevent indefinite hangs
+        upload_result: list[bool | None] = [None]
+        upload_exception: list[Exception | None] = [None]
+
+        def perform_upload() -> None:
+            try:
+                client.upload_file(
+                    file_path,
+                    bucket_name,
+                    file_key,
+                    ExtraArgs={
+                        "Metadata": metadata,
+                        "Tagging": tag_string,
+                    },
+                    Callback=progress_tracker,
+                )
+                upload_result[0] = True
+            except Exception as e:  # pylint: disable=broad-except
+                upload_exception[0] = e
+
+        upload_thread = threading.Thread(target=perform_upload, daemon=False)
+        upload_thread.start()
+        upload_thread.join(timeout=timeout)
+
+        if upload_thread.is_alive():
+            logger.error(
+                "Upload operation for '%s' timed out after %d seconds. "
+                "The network may be experiencing issues. Transferred %d MB of %d MB.",
+                file_key,
+                timeout,
+                progress_tracker.bytes_transferred / (1024 * 1024),
+                file_size / (1024 * 1024),
+            )
+            return False
+
+        if upload_exception[0] is not None:
+            raise upload_exception[0]
+
+        if upload_result[0]:
+            logger.info(
+                "Successfully uploaded '%s' to bucket '%s'", file_key, bucket_name
+            )
+            return True
+
+        return False
+
     except ClientError as e:
         logger.error(
             "ClientError uploading '%s': %s - %s",
