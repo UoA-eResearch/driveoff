@@ -199,7 +199,12 @@ def list_buckets(client: S3Client) -> list[str]:
             e.response["Error"]["Message"],
         )
         return []
-    except OSError as e:
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
+        )
+        return []
+    except Exception as e:
         logger.error(
             "Unexpected error while listing buckets: %s: %s",
             type(e).__name__,
@@ -212,36 +217,49 @@ def upload_file(
     client: S3Client,
     bucket_name: str,
     file_key: str,
-    file_content: bytes,
+    file_path: str,
     metadata: dict[str, str] | None = None,
     tags: dict[str, str] | None = None,
 ) -> bool:
-    """Upload a file to an S3 bucket.
+    """Upload a file to an S3 bucket using streaming for large files.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to upload to.
         file_key (str): The key (path/filename) in the bucket.
-        file_content (bytes): The content of the file to upload.
+        file_path (str | None): Path to file on disk (for large files, preferred).
         metadata (dict[str, str] | None): Optional metadata for the object.
-        tags (dict[str, str] | None): Optional dictionary of tags to apply to the uploaded object.
+        tags (dict[str, str] | None): Optional dictionary of tags.
 
     Returns:
         bool: True if the upload is successful, False otherwise.
+
+    Note:
+        For large files, use file_path instead of file_content to avoid loading
+        the entire file into memory. The upload_file method with file_path handles
+        multipart uploads automatically for files larger than 8 MB.
     """
     if metadata is None:
         metadata = {}
     if tags is None:
         tags = {}
+
     try:
         tag_string = "&".join(f"{key}={value}" for key, value in tags.items())
-        client.put_object(
-            Bucket=bucket_name,
-            Key=file_key,
-            Body=file_content,
-            Metadata=metadata,
-            Tagging=tag_string,
+
+        logger.info(
+            "Uploading file from disk '%s' to '%s' in bucket '%s' using streaming",
+            file_path,
+            file_key,
+            bucket_name,
         )
+        client.upload_file(
+            file_path,
+            bucket_name,
+            file_key,
+            ExtraArgs={"Metadata": metadata, "Tagging": tag_string},
+        )
+
         logger.info("Successfully uploaded '%s' to bucket '%s'", file_key, bucket_name)
         return True
     except ClientError as e:
@@ -257,7 +275,7 @@ def upload_file(
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return False
-    except OSError as e:
+    except Exception as e:
         logger.error(
             "Unexpected error uploading '%s': %s: %s",
             file_key,
@@ -293,7 +311,12 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
             e.response["Error"]["Message"],
         )
         return None
-    except OSError as e:
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
+        )
+        return None
+    except Exception as e:
         logger.error(
             "Unexpected error downloading '%s': %s: %s",
             file_key,
@@ -301,46 +324,6 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
             str(e),
         )
         return None
-
-
-def bulk_upload_files(
-    client: S3Client, bucket_name: str, files: list[tuple[str, bytes]]
-) -> dict[str, bool]:
-    """Upload multiple files to an S3 bucket.
-
-    Args:
-        client (S3Client): An initialized S3 client.
-        bucket_name (str): The name of the S3 bucket to upload to.
-        files (list[tuple[str, bytes]]): List of tuples with file key and content.
-
-    Returns:
-        dict[str, bool]: Mapping of file key to upload success status.
-    """
-    results = {}
-    for file_key, file_content in files:
-        success = upload_file(client, bucket_name, file_key, file_content)
-        results[file_key] = success
-    return results
-
-
-def bulk_download_files(
-    client: S3Client, bucket_name: str, file_keys: list[str]
-) -> dict[str, bytes | None]:
-    """Download multiple files from an S3 bucket.
-
-    Args:
-        client (S3Client): An initialized S3 client.
-        bucket_name (str): The name of the S3 bucket to download from.
-        file_keys (list[str]): List of file keys to download.
-
-    Returns:
-        dict[str, bytes | None]: Mapping of file key to content or None if failed.
-    """
-    results = {}
-    for file_key in file_keys:
-        content = download_file(client, bucket_name, file_key)
-        results[file_key] = content
-    return results
 
 
 def create_bucket(
@@ -383,7 +366,12 @@ def create_bucket(
             e.response["Error"]["Message"],
         )
         return False
-    except OSError as e:
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
+        )
+        return False
+    except Exception as e:
         logger.error(
             "Unexpected error creating bucket '%s': %s: %s",
             bucket_name,
@@ -416,7 +404,12 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
             e.response["Error"]["Message"],
         )
         return False
-    except OSError as e:
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
+        )
+        return False
+    except Exception as e:
         logger.error(
             "Unexpected error setting policy for '%s': %s: %s",
             bucket_name,
@@ -456,7 +449,12 @@ def set_bucket_tags(
             e.response["Error"]["Message"],
         )
         return False
-    except OSError as e:
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
+        )
+        return False
+    except Exception as e:
         logger.error(
             "Unexpected error setting tags for '%s': %s: %s",
             bucket_name,

@@ -34,6 +34,7 @@ from api.manifests import (
     generate_manifest,
 )
 from api.security import ApiKey, validate_api_key, validate_permissions
+from config import get_settings
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader, zip_existing_crate
 from models.member import Member
@@ -43,6 +44,11 @@ from models.role import prepopulate_roles
 from models.services import ResearchDriveService
 from models.submission import DriveOffboardSubmission, InputDriveOffboardSubmission
 
+# Configure logging with level from environment
+logging.basicConfig(
+    level=get_settings().log_level,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 # Ensure driveoff directory is created
@@ -325,11 +331,7 @@ async def generate_ro_crate(
             # Upload the archive to ActiveScale
             logger.info("Uploading RO-Crate archive for %s to ActiveScale", drive_name)
             with get_activescale_client_context() as client:
-                # Read the ZIP file
                 if zip_file.exists():
-                    with open(zip_file, "rb") as f:
-                        zip_content = f.read()
-
                     # Upload to ActiveScale with drive_name as the key
                     bucket_name = "research-archive-test"
                     file_key = f"ro-crates/{drive_name}/{zip_file.name}"
@@ -342,7 +344,7 @@ async def generate_ro_crate(
                         client,
                         bucket_name,
                         file_key,
-                        zip_content,
+                        file_path=str(zip_file),
                         metadata=metadata,
                     )
 
