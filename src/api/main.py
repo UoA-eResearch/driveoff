@@ -333,6 +333,13 @@ async def generate_ro_crate(
                 "About to start uploading RO-Crate archive for %s to ActiveScale",
                 drive_name,
             )
+
+            # Query for the drive to get its ID
+            drive_query = select(ResearchDriveService).where(
+                ResearchDriveService.name == drive_name
+            )
+            drive = session.exec(drive_query).first()
+
             with get_activescale_client_context() as client:
                 if zip_file.exists():
                     # Upload to ActiveScale with drive_name as the key
@@ -350,6 +357,18 @@ async def generate_ro_crate(
                         file_path=str(zip_file),
                         metadata=metadata,
                     )
+
+                    # Update submission record with upload result
+                    if drive:
+                        submission_query = select(DriveOffboardSubmission).where(
+                            DriveOffboardSubmission.drive_id == drive.id
+                        )
+                        submission = session.exec(submission_query).first()
+                        if submission:
+                            submission.activescale_file_key = file_key
+                            submission.archive_uploaded = success
+                            session.add(submission)
+                            session.commit()
 
                     if success:
                         logger.info(

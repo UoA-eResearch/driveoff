@@ -45,6 +45,13 @@ class DriveOffboardSubmission(BaseDriveOffboardSubmission, table=True):
     is_project_updated: bool
     drive_id: int | None = Field(default=None, foreign_key="researchdriveservice.id")
     drive: Optional["ResearchDriveService"] = Relationship(back_populates="submission")
+    activescale_file_key: str | None = Field(
+        default=None, description="S3/ActiveScale path where archive was uploaded"
+    )
+    archive_uploaded: bool | None = Field(
+        default=None,
+        description="True if archive successfully uploaded, False if upload failed",
+    )
 
 
 class ROCrateDriveOffboardSubmission(BaseDriveOffboardSubmission):
