@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     activescale_region: str = ""
     activescale_access_key: SecretStr | None = None
     activescale_secret_key: SecretStr | None = None
+    log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 
