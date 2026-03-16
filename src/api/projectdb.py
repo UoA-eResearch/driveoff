@@ -11,10 +11,10 @@ from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 def init_projectdb(app: FastAPI, environment: Optional[str] = None) -> None:
     """Initialize a ProjectDBApi client and attach it to the FastAPI app state.
 
-    The environment can be provided or read from the `DRIVEOFF_PROJECTDB_ENV`
+    The environment can be provided or read from the `PROJECTDB_ENV`
     environment variable (defaults to "test").
     """
-    env = environment or os.environ.get("DRIVEOFF_PROJECTDB_ENV", "test")
+    env = environment or os.environ.get("PROJECTDB_ENV", "test")
     client = ProjectDBApi.from_config(environment=env)
     app.state.projectdb = client
 
