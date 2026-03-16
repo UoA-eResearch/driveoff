@@ -118,7 +118,17 @@ async def set_drive_info(
 ) -> Project:
     """Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data."""
     validate_permissions("POST", api_key)
-    project = transform_project_data(input_project)
+    drive_name = None
+    if (
+        not input_project.services.research_drive
+        or len(input_project.services.research_drive) == 0
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Project must include at least one research drive in services to set drive info.",
+        )
+    drive_name = input_project.services.research_drive[0].name
+    project = transform_project_data(input_project, drive_name)
     # Upsert the project.
     session.merge(project)
     session.commit()
