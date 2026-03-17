@@ -235,15 +235,10 @@ def build_crate_contents_async(
     members_list: list,
     project_data: dict,
     archive_metadata: dict,
-    projectdb: ProjectDBApi,
     drive_location: Path,
     output_location: Path,
 ) -> None:
-    """Generate RO-Crate by fetching live data from ProjectDB.
-
-    This replaces the old build_crate_contents which read from stored
-    project/member data. Now we fetch on-demand from ProjectDB.
-    """
+    """Generate RO-Crate with data from ProjectDB."""
     # Build RO-Crate
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
@@ -336,7 +331,6 @@ async def generate_ro_crate_async(
                 members_list=members_list,
                 project_data=project_data,
                 archive_metadata=archive_metadata,
-                projectdb=projectdb_client,
                 drive_location=drive_location,
                 output_location=output_location,
             )
