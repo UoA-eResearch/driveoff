@@ -1,77 +1,47 @@
-"""Classes related to user submission for offboarding."""
+"""Archive submission model - minimal reference to ProjectDB records."""
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from pydantic import AliasGenerator, ConfigDict
-from pydantic.alias_generators import to_camel
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.common import DataClassification
-from models.project_changes import ProjectChanges
-
-if TYPE_CHECKING:
-    from models.services import ResearchDriveService
+from models.manifest import Manifest
 
 
-class BaseDriveOffboardSubmission(SQLModel):
-    """Model of drive offboarding submission with common fields."""
+class ArchiveSubmission(SQLModel, table=True):
+    """Minimal archive record storing references to ProjectDB and archive metadata.
 
-    # https://github.com/fastapi/sqlmodel/discussions/855
-    model_config = {  # pyright: ignore
-        "alias_generator": to_camel,
-        "str_strip_whitespace": True,
-    }
+    This replaces the old DriveOffboardSubmission and removes all duplicate data
+    storage. We only store IDs that reference ProjectDB records plus archive-specific
+    metadata (retention, classification, location).
+    """
 
+    id: int | None = Field(default=None, primary_key=True)
+
+    # ProjectDB references (not stored in local DB)
+    drive_id: int
+    project_id: int
+    drive_name: str = Field(index=True)
+
+    # Archiving metadata from submission form
     retention_period_years: int
     retention_period_justification: str | None = Field(default=None)
     data_classification: DataClassification
-    is_completed: bool
 
+    # Archive tracking
+    archive_date: datetime
+    archive_location: str  # Path to zipped RO-Crate (stored as string for SQLite)
 
-class InputDriveOffboardSubmission(BaseDriveOffboardSubmission):
-    """Submission data model for the POST request."""
+    # Manifest relationship
+    manifest_id: int | None = Field(default=None, foreign_key="manifest.id")
+    manifest: Optional[Manifest] = Relationship()
 
-    drive_name: str
-    project_changes: ProjectChanges | None = Field(default=None)
+    # Status and audit
+    is_completed: bool = Field(default=False)
+    created_timestamp: datetime = Field(default_factory=datetime.now)
 
-
-class DriveOffboardSubmission(BaseDriveOffboardSubmission, table=True):
-    """Model that represents a user's submission in the drive
-    offboarding process retrieved."""
-
-    id: int | None = Field(default=None, primary_key=True)
-    updated_time: datetime
-    is_project_updated: bool
-    drive_id: int | None = Field(default=None, foreign_key="researchdriveservice.id")
-    drive: Optional["ResearchDriveService"] = Relationship(back_populates="submission")
-
-
-class ROCrateDriveOffboardSubmission(BaseDriveOffboardSubmission):
-    "Data class for a submission model to be written as part of an RO-Crate"
-    model_config = ConfigDict(  # type: ignore
-        alias_generator=AliasGenerator(
-            serialization_alias=to_camel,
-        )
+    # Index for efficient queries by drive and timestamp
+    __table_args__ = (
+        # This will be added as composite index in migration
     )
-    id: int
-    updated_time: datetime
-
-    def __init__(self, submission: DriveOffboardSubmission):
-        super().__init__(**submission.model_dump())
-
-
-class ROCrateDeleteAction(SQLModel):
-    """Model to capture delete actions in an RO-Crate
-    that are derived from submissions"""
-
-    model_config = ConfigDict(  # type: ignore
-        alias_generator=AliasGenerator(
-            serialization_alias=to_camel,
-        )
-    )
-    schema_type: str = Field(
-        default="DeleteAction", schema_extra={"serialization_alias": "@type"}
-    )
-    action_Status: str = Field(default="PotentialActionStatus")
-    end_time: datetime
