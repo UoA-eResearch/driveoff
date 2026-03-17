@@ -17,6 +17,7 @@ from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
 from api.main import app, get_session
+from api.projectdb import get_projectdb_client
 from api.security import ApiKey, read_api_keys
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import PROFILE as ARCHIVE_PROFILE
@@ -47,6 +48,7 @@ def session_fixture() -> Generator[Session, Any, Any]:
 @pytest.fixture(name="client")
 def client_fixture(session: Session) -> TestClient:
     """test client with mocked dependencies"""
+    from unittest.mock import MagicMock
 
     def get_session_override() -> Session:
         return session
@@ -54,11 +56,48 @@ def client_fixture(session: Session) -> TestClient:
     # Generate a random API key and use it for the tests.
     test_api_key: str = str(uuid.uuid4())
 
-    def read_api_keys_override() -> ApiKey:
-        return ApiKey(value=test_api_key, actions=["GET", "PUT", "POST"])
+    def read_api_keys_override():
+        api_key_obj = ApiKey(value=test_api_key, actions=["GET", "PUT", "POST"])
+        return {test_api_key: api_key_obj}
+
+    # Mock ProjectDB client for API tests
+    def get_projectdb_client_override():
+        mock_projectdb = MagicMock()
+        mock_projectdb.get_research_drive_projects.return_value = [
+            {
+                "project": {
+                    "id": 123,
+                    "title": "Test Project",
+                    "description": "Test Description",
+                    "division": "Engineering",
+                    "codes": {"items": [{"code": "TEST-001"}]},
+                }
+            }
+        ]
+        mock_projectdb.get_project.return_value = {
+            "id": 123,
+            "title": "Test Project",
+            "description": "Test Description",
+            "division": "Engineering",
+            "end_date": "2024-11-04",
+            "codes": {"items": [{"code": "TEST-001"}]},
+        }
+        mock_projectdb.get_project_members.return_value = [
+            {
+                "person": {
+                    "username": "user1",
+                    "full_name": "User One",
+                    "email": "user1@example.com",
+                    "identities": {"items": [{"username": "user1"}]},
+                },
+                "role": {"role": "Principal Investigator"},
+            }
+        ]
+        return mock_projectdb
 
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[read_api_keys] = read_api_keys_override
+    app.dependency_overrides[get_projectdb_client] = get_projectdb_client_override
     client = TestClient(app, headers={"x-api-key": test_api_key})
     yield client
     app.dependency_overrides.clear()
@@ -143,6 +182,47 @@ def project_members_expanded() -> List[Dict[str, Any]]:
             return json.load(f)
     # Fallback if file doesn't exist - empty list
     return []
+
+
+@pytest.fixture()
+def test_project_dict() -> Dict[str, Any]:
+    """Reusable test project data matching ProjectDB structure"""
+    from datetime import datetime
+
+    return {
+        "id": 123,
+        "title": "Test Project",
+        "description": "A test project",
+        "division": "Engineering",
+        "start_date": datetime(2022, 1, 1),
+        "end_date": datetime(2024, 11, 4),
+        "codes": {"items": [{"code": "CODE-001"}, {"code": "CODE-002"}]},
+    }
+
+
+@pytest.fixture()
+def test_member_dict() -> Dict[str, Any]:
+    """Reusable test member data matching ProjectDB structure"""
+    return {
+        "person": {
+            "username": "jdoe123",
+            "full_name": "John Doe",
+            "email": "j.doe@example.com",
+            "identities": {"items": [{"username": "jdoe123"}]},
+        },
+        "role": {"role": "Principal Investigator"},
+    }
+
+
+@pytest.fixture()
+def test_archive_metadata() -> Dict[str, Any]:
+    """Reusable archive metadata for tests"""
+    return {
+        "drive_name": "restst000000001-testing",
+        "retention_period_years": 7,
+        "retention_period_justification": "Standard retention",
+        "data_classification": "Sensitive",
+    }
 
 
 class ROCRATEHelpers:

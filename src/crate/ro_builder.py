@@ -47,34 +47,30 @@ class ROBuilder:
         project_id = project.get("id")
         codes = project.get("codes", {})
 
-        # Build research project properties (linked entity, not root)
-        research_project_properties = {
-            "@type": "ResearchProject",
-            "name": project.get("title", ""),
-            "description": project.get("description", ""),
-            "identifier": [
-                code.get("code") for code in codes.get("items", []) if code.get("code")
-            ],
-        }
-
-        # Add optional research project fields
-        if division := project.get("division"):
-            research_project_properties["division"] = division
-        if start_date := project.get("start_date"):
-            research_project_properties["startDate"] = start_date
-        if end_date := project.get("end_date"):
-            research_project_properties["endDate"] = end_date
-        if is_completed := project.get("is_completed"):
-            research_project_properties["isCompleted"] = is_completed
-        if updated_time := project.get("updated_time"):
-            research_project_properties["updatedTime"] = updated_time
-
         # Root dataset entity represents the archive with archive metadata
         project_properties = {
             "@type": "Dataset",
             "name": project.get("title", ""),
             "description": project.get("description", ""),
         }
+
+        # Add optional project metadata fields
+        if division := project.get("division"):
+            project_properties["division"] = division
+        if start_date := project.get("start_date"):
+            project_properties["startDate"] = start_date
+        if end_date := project.get("end_date"):
+            project_properties["endDate"] = end_date
+        if is_completed := project.get("is_completed"):
+            project_properties["isCompleted"] = is_completed
+        if updated_time := project.get("updated_time"):
+            project_properties["updatedTime"] = updated_time
+
+        # Add project identifiers (codes)
+        if codes and codes.get("items"):
+            project_properties["identifier"] = [
+                code.get("code") for code in codes.get("items", []) if code.get("code")
+            ]
 
         # Add archive metadata properties to the dataset
         archive_properties = {
@@ -322,7 +318,7 @@ class ROBuilder:
             properties={
                 "@type": "DeleteAction",
                 "actionStatus": "PotentialActionStatus",
-                "endTime": delete_date.isoformat(),
+                "endTime": delete_date.strftime("%Y-%m-%d"),
             },
         )
 

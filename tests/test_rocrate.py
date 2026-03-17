@@ -1,16 +1,12 @@
 """Test creation and writing of RO-Crates"""
 
-import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import bagit
 from conftest import ROCRATEHelpers
 
 from crate.ro_builder import ROBuilder
-from crate.ro_loader import zip_existing_crate
 
 METADATA_FILE_NAME = "ro-crate-metadata.json"
 BAG_DIR_NAME = "data"
@@ -44,7 +40,7 @@ def test_generate_crate_builder(
         "drive_name": "test-drive",
         "retention_period_years": 7,
         "retention_period_justification": "Standard retention",
-        "data_classification": "OPEN",
+        "data_classification": "Sensitive",
     }
 
     ro_project = test_ro_builder.add_project(
@@ -81,7 +77,7 @@ def test_crate_metadata_present(test_ro_builder: ROBuilder) -> None:
             "drive_name": "test",
             "retention_period_years": 7,
             "retention_period_justification": "test",
-            "data_classification": "OPEN",
+            "data_classification": "Sensitive",
         },
     )
 

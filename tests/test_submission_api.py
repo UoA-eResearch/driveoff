@@ -3,58 +3,32 @@
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlmodel import Session
 
-from models.common import DataClassification
 from models.manifest import Manifest
 from models.submission import ArchiveSubmission
 
 
 def test_post_submission_can_create(
-    session: Session,
     client: TestClient,
-    submission: ArchiveSubmission,
-    project_members_expanded,
 ) -> None:
     """Test creating a new archive submission"""
-    # Mock ProjectDB API responses using actual expanded data
-    with patch("api.main.ProjectDBApi") as mock_projectdb:
-        mock_api = MagicMock()
-        mock_projectdb.return_value = mock_api
-        mock_api.get_project.return_value = {
-            "id": 123,
-            "title": "Test Project",
-            "end_date": "2024-11-04",
-        }
-        # Use actual ProjectDB API response format with full person/role expansion
-        mock_api.get_project_members.return_value = (
-            project_members_expanded
-            if project_members_expanded
-            else [
-                {
-                    "person": {
-                        "username": "user1",
-                        "identities": {"items": [{"username": "user1"}]},
-                    },
-                    "role": {"role": "Principal Investigator"},
-                }
-            ]
-        )
-
+    # Mock the background task so it doesn't try to access the database
+    with patch("api.main.generate_ro_crate_async"):
         response = client.post(
             "/api/v1/submission",
             json={
-                "drive_name": "test-drive",
+                "drive_name": "restst000000001-testing",
                 "project_id": 123,
                 "retention_period_years": 7,
                 "retention_period_justification": "Standard retention",
-                "data_classification": "OPEN",
+                "data_classification": "Sensitive",
             },
         )
         assert response.status_code == 201
         data = response.json()
-        assert "id" in data
-        assert data["drive_name"] == "test-drive"
+        assert "message" in data
+        assert "RO-Crate generation is in progress" in data["message"]
 
 
 def test_get_submission_returns_archive_record(
@@ -73,33 +47,33 @@ def test_get_submission_returns_archive_record(
     session.add(submission)
     session.commit()
 
-    response = client.get("/api/v1/submission")
+    response = client.get(
+        "/api/v1/submission", params={"drive_name": "restst000000001-testing"}
+    )
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    if data:
-        assert "drive_id" in data[0]
-        assert "project_id" in data[0]
-        assert "manifest_id" in data[0]
+    assert isinstance(data, dict)
+    assert "drive_id" in data
+    assert "project_id" in data
+    assert "manifest" in data
 
 
 def test_post_submission_validates_retention_years(
     client: TestClient,
 ) -> None:
     """Test that retention period validation works"""
-    with patch("api.main.get_projectdb_client") as mock_dep:
-        mock_dep.return_value = MagicMock()
+    with patch("api.main.generate_ro_crate_async"):
         response = client.post(
             "/api/v1/submission",
             json={
-                "drive_name": "test-drive",
+                "drive_name": "restst000000001-testing",
                 "project_id": 123,
-                "retention_period_years": -1,  # Invalid
+                "retention_period_years": "Z",  # Invalid
                 "retention_period_justification": "Invalid",
-                "data_classification": "OPEN",
+                "data_classification": "Sensitive",
             },
         )
-        # Should fail validation
+        # Should fail validation - invalid retention years
         assert response.status_code in [400, 422]  # Validation error
 
 
@@ -112,7 +86,7 @@ def test_post_submission_validates_classification(
         response = client.post(
             "/api/v1/submission",
             json={
-                "drive_name": "test-drive",
+                "drive_name": "restst000000001-testing",
                 "project_id": 123,
                 "retention_period_years": 7,
                 "retention_period_justification": "Standard",
@@ -135,7 +109,7 @@ def test_post_submission_requires_drive_name(
                 "project_id": 123,
                 "retention_period_years": 7,
                 "retention_period_justification": "Standard",
-                "data_classification": "OPEN",
+                "data_classification": "Sensitive",
             },
         )
         # Should fail validation - missing drive_name

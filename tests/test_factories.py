@@ -1,10 +1,7 @@
 """Tests for fixture functionality"""
 
-from datetime import datetime
-
 from sqlmodel import Session
 
-from models.common import DataClassification
 from models.manifest import Manifest
 from models.submission import ArchiveSubmission
 

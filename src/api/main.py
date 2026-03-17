@@ -123,28 +123,28 @@ async def create_submission(
 
     # Fetch drive info from ProjectDB to validate it exists
     try:
-        # Mock implementation - replace with actual ProjectDB call
-        drive = [
-            {
-                "allocated_gb": 4000.0,
-                "archived": 0,
-                "date": "2026-03-09",
-                "deleted": 0,
-                "free_gb": 4000.0,
-                "id": 6904394,
-                "name": "ressci202300019-testresearchdrive",
-                "num_files": 4,
-                "percentage_used": 0.0,
-                "used_gb": 0.0,
-            }
-        ]
+        # TODO: Using mock data for now
+        # ProjectDB API is currently being updated to add get_research_drive_by_name() method
+        # Once available, this mock should be replaced with:
+        #   drive = projectdb.get_research_drive_by_name(request.drive_name)
+        drive = {
+            "allocated_gb": 4000.0,
+            "archived": 0,
+            "date": "2026-03-09",
+            "deleted": 0,
+            "free_gb": 4000.0,
+            "id": 6904394,
+            "name": request.drive_name,
+            "num_files": 4,
+            "percentage_used": 0.0,
+            "used_gb": 0.0,
+        }
 
-        if drive is None or len(drive) == 0:
+        if not drive:
             raise HTTPException(
                 status_code=404,
                 detail=f"Research Drive {request.drive_name} not found in ProjectDB.",
             )
-        drive = drive[0]
 
         # Resolve project_id if not provided
         if request.project_id is None:
@@ -209,8 +209,7 @@ async def create_submission(
         )
 
         return {
-            "message": f"Archive submission created for {request.drive_name}. RO-Crate generation is in progress.",
-            "submission": f"{submission}",
+            "message": f"Archive submission created for {request.drive_name}. RO-Crate generation is in progress."
         }
     except HTTPException:
         raise

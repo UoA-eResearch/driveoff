@@ -74,38 +74,19 @@ def test_add_delete_action(test_ro_builder: ROBuilder) -> None:
     assert delete_action.get("id") is None
 
 
-def test_add_project(test_ro_builder: ROBuilder) -> None:
+def test_add_project(
+    test_ro_builder: ROBuilder,
+    test_project_dict,
+    test_member_dict,
+    test_archive_metadata,
+) -> None:
     """Test adding a project to the ro-crate data"""
-    project_dict = {
-        "id": 123,
-        "title": "Test Project",
-        "description": "A test project",
-        "division": "Engineering",
-        "start_date": datetime(2022, 1, 1),
-        "end_date": datetime(2024, 11, 4),
-        "codes": {"items": [{"code": "CODE-001"}, {"code": "CODE-002"}]},
-    }
-    members_list = [
-        {
-            "person": {
-                "username": "jdoe123",
-                "full_name": "John Doe",
-                "email": "j.doe@example.com",
-                "identities": {"items": [{"username": "jdoe123"}]},
-            },
-            "role": {"role": "Principal Investigator"},
-        }
-    ]
-    archive_metadata = {
-        "drive_name": "test-drive",
-        "retention_period_years": 7,
-        "retention_period_justification": "Standard retention",
-        "data_classification": "OPEN",
-    }
+    members_list = [test_member_dict]
+
     ro_project = test_ro_builder.add_project(
-        project=project_dict,
+        project=test_project_dict,
         members=members_list,
-        archive_metadata=archive_metadata,
+        archive_metadata=test_archive_metadata,
     )
     assert ro_project["name"] == "Test Project"
     assert ro_project["description"] == "A test project"
@@ -141,7 +122,7 @@ def test_add_project_with_expanded_projectdb_data(
         "drive_name": "ressci202300019-testresearchdrive",
         "retention_period_years": 7,
         "retention_period_justification": "Standard retention",
-        "data_classification": "INTERNAL",
+        "data_classification": "Sensitive",
     }
 
     ro_project = test_ro_builder.add_project(
