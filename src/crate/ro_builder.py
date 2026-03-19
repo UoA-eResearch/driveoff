@@ -1,6 +1,6 @@
 # pylint: disable-all
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from dateutil.relativedelta import relativedelta
 from rocrate.model.contextentity import ContextEntity
@@ -108,7 +108,7 @@ class ROBuilder:
         )
         project_entity.append_to("actions", [delete_action])
 
-        return self.crate.add(project_entity)
+        return cast(ContextEntity, self.crate.add(project_entity))
 
     def _extract_username(self, person: Dict[str, Any]) -> str:
         """Extract username from person dict, trying multiple sources.
@@ -213,7 +213,7 @@ class ROBuilder:
         member_entity.append_to("member", person_entity)
         member_entity.properties()["@type"] = "OrganizationRole"
 
-        return self.crate.add(member_entity)
+        return cast(ContextEntity, self.crate.add(member_entity))
 
     def add_person(self, person: Dict[str, Any]) -> RoPerson:
         """Add a person to the crate from raw ProjectDB person dict.
@@ -238,7 +238,7 @@ class ROBuilder:
             identifier=username,
             properties=person_properties,
         )
-        return self.crate.add(person_entity)
+        return cast(RoPerson, self.crate.add(person_entity))
 
     def add_research_drive_service(
         self, drive_data: dict[str, Any] | str
@@ -281,7 +281,7 @@ class ROBuilder:
             identifier=rd_id,
             properties=drive_properties,
         )
-        return self.crate.add(rd_entity)
+        return cast(ContextEntity, self.crate.add(rd_entity))
 
     def add_delete_action(
         self,
@@ -327,4 +327,4 @@ class ROBuilder:
         drive_entity = self.add_research_drive_service(drive_name)
         delete_entity.append_to("targetCollection", drive_entity)
 
-        return self.crate.add(delete_entity)
+        return cast(ContextEntity, self.crate.add(delete_entity))
