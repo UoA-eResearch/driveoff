@@ -46,7 +46,7 @@ def session_fixture() -> Generator[Session, Any, Any]:
 
 
 @pytest.fixture(name="client")
-def client_fixture(session: Session) -> TestClient:
+def client_fixture(session: Session) -> Generator[TestClient, Any, Any]:
     """test client with mocked dependencies"""
     from unittest.mock import MagicMock
 
@@ -63,14 +63,24 @@ def client_fixture(session: Session) -> TestClient:
     # Mock ProjectDB client for API tests
     def get_projectdb_client_override():
         mock_projectdb = MagicMock()
+        mock_projectdb.get_research_drive_by_name = {
+            "allocated_gb": 4000.0,
+            "archived": 0,
+            "date": "2026-03-09",
+            "deleted": 0,
+            "free_gb": 4000.0,
+            "id": 6904394,
+            "name": "restst000000001-testing",
+            "num_files": 4,
+            "percentage_used": 0.0,
+            "used_gb": 0.0,
+        }
         mock_projectdb.get_research_drive_projects.return_value = [
             {
                 "project": {
                     "id": 123,
                     "title": "Test Project",
                     "description": "Test Description",
-                    "division": "Engineering",
-                    "codes": {"items": [{"code": "TEST-001"}]},
                 }
             }
         ]
@@ -78,17 +88,35 @@ def client_fixture(session: Session) -> TestClient:
             "id": 123,
             "title": "Test Project",
             "description": "Test Description",
-            "division": "Engineering",
+            "division": "CTRERSH",
             "end_date": "2024-11-04",
             "codes": {"items": [{"code": "TEST-001"}]},
+            "services": {
+                "research_drive": [
+                    {
+                        "allocated_gb": 4000.0,
+                        "archived": 0,
+                        "date": "2026-03-18",
+                        "deleted": 0,
+                        "first_day": "2023-04-13",
+                        "free_gb": 4000.0,
+                        "id": 6904394,
+                        "name": "restst000000001-testing",
+                        "num_files": 4,
+                        "percentage_used": 0.0,
+                        "project_code": "restst000000001",
+                        "used_gb": 0.0,
+                    }
+                ]
+            },
         }
         mock_projectdb.get_project_members.return_value = [
             {
                 "person": {
-                    "username": "user1",
                     "full_name": "User One",
                     "email": "user1@example.com",
                     "identities": {"items": [{"username": "user1"}]},
+                    "status": {"name": "Active"},
                 },
                 "role": {"role": "Principal Investigator"},
             }
@@ -193,7 +221,7 @@ def test_project_dict() -> Dict[str, Any]:
         "id": 123,
         "title": "Test Project",
         "description": "A test project",
-        "division": "Engineering",
+        "division": "CTRERSH",
         "start_date": datetime(2022, 1, 1),
         "end_date": datetime(2024, 11, 4),
         "codes": {"items": [{"code": "CODE-001"}, {"code": "CODE-002"}]},
@@ -209,6 +237,7 @@ def test_member_dict() -> Dict[str, Any]:
             "full_name": "John Doe",
             "email": "j.doe@example.com",
             "identities": {"items": [{"username": "jdoe123"}]},
+            "status": {"name": "Active"},
         },
         "role": {"role": "Principal Investigator"},
     }

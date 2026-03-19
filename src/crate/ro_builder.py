@@ -1,6 +1,5 @@
 # pylint: disable-all
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dateutil.relativedelta import relativedelta
@@ -241,7 +240,9 @@ class ROBuilder:
         )
         return self.crate.add(person_entity)
 
-    def add_research_drive_service(self, drive_data) -> ContextEntity:
+    def add_research_drive_service(
+        self, drive_data: dict[str, Any] | str
+    ) -> ContextEntity:
         """Add a research drive service reference to the crate.
 
         Args:

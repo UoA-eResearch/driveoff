@@ -20,7 +20,7 @@ def test_generate_crate_builder(
         "id": 123,
         "title": "Test Project",
         "description": "A test project",
-        "division": "Engineering",
+        "division": "CTRERSH",
         "start_date": datetime(2022, 1, 1),
         "end_date": datetime(2024, 11, 4),
         "codes": {"items": [{"code": "CODE-001"}, {"code": "CODE-002"}]},

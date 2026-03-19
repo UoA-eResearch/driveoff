@@ -90,7 +90,7 @@ def test_add_project(
     )
     assert ro_project["name"] == "Test Project"
     assert ro_project["description"] == "A test project"
-    assert ro_project["division"] == "Engineering"
+    assert ro_project["division"] == "CTRERSH"
     assert ro_project["startDate"] == datetime(2022, 1, 1)
     assert ro_project["endDate"] == datetime(2024, 11, 4)
     assert ro_project.get("id") is None
@@ -112,7 +112,7 @@ def test_add_project_with_expanded_projectdb_data(
         "id": 2210,
         "title": "Test Project with Real Members",
         "description": "Testing with actual ProjectDB expansion",
-        "division": "Engineering",
+        "division": "CTRERSH",
         "start_date": datetime(2022, 1, 1),
         "end_date": datetime(2024, 11, 4),
         "codes": {"items": [{"code": "TEST-001"}]},

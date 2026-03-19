@@ -4,16 +4,9 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, AsyncGenerator, Iterable
+from typing import Annotated, Any, AsyncGenerator, Iterable
 
-from fastapi import (
-    BackgroundTasks,
-    Depends,
-    FastAPI,
-    HTTPException,
-    Security,
-    status,
-)
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
 from pydantic.functional_validators import AfterValidator
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -25,12 +18,12 @@ from api.manifests import (
     create_manifests_directory,
     generate_manifest,
 )
-from api.projectdb import get_projectdb_client, init_projectdb, ProjectDBApi
+from api.projectdb import get_projectdb_client, init_projectdb
+from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from api.security import ApiKey, validate_api_key, validate_permissions
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader, zip_existing_crate
 from models.common import DataClassification
-from models.manifest import Manifest
 from models.submission import ArchiveSubmission
 
 # Ensure driveoff directory is created
@@ -58,7 +51,7 @@ ProjectDbDep = Annotated[ProjectDBApi, Depends(get_projectdb_client)]
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle method for the API
 
     This creates DB tables and initialises the ProjectDB client during
@@ -67,11 +60,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     create_db_and_tables()
     # initialise ProjectDB client for use in endpoints
     try:
-        init_projectdb(app)
-    except Exception:
+        init_projectdb(app_instance)
+    except (RuntimeError, ValueError) as e:
         # If the ProjectDB client cannot be initialised, allow app to start
         # but the dependency will raise if used.
-        pass
+        print(f"Warning: ProjectDB client initialization failed: {e}")
     yield
 
 
@@ -123,6 +116,7 @@ async def create_submission(
 
     # Fetch drive info from ProjectDB to validate it exists
     try:
+        # pylint: disable=fixme
         # TODO: Using mock data for now
         # ProjectDB API is currently being updated to add get_research_drive_by_name() method
         # Once available, this mock should be replaced with:
@@ -157,7 +151,7 @@ async def create_submission(
                 raise HTTPException(
                     status_code=404,
                     detail=f"Could not fetch projects for drive {request.drive_name}: {str(e)}",
-                )
+                ) from e
 
             if not drive_projects or len(drive_projects) == 0:
                 raise HTTPException(
@@ -167,7 +161,10 @@ async def create_submission(
             if len(drive_projects) > 1:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Multiple projects associated with drive {request.drive_name}. Please provide project_id to disambiguate.",
+                    detail=(
+                        f"Multiple projects associated with drive {request.drive_name}."
+                        "Please provide project_id to disambiguate.",
+                    ),
                 )
             project_id = drive_projects[0]["project"]["id"]
         else:
@@ -209,10 +206,16 @@ async def create_submission(
         )
 
         return {
-            "message": f"Archive submission created for {request.drive_name}. RO-Crate generation is in progress."
+            "message": (
+                f"Archive submission created for {request.drive_name}."
+                " RO-Crate generation is in progress."
+            )
         }
-    except HTTPException:
-        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while creating archive submission for {request.drive_name}.",
+        ) from e
 
 
 def get_resdrive_path(drive_name: str) -> Path:
@@ -228,16 +231,24 @@ def get_resdrive_path(drive_name: str) -> Path:
     return drive_path
 
 
-def build_crate_contents_async(
+def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-positional-arguments
     drive_name: str,
-    project_id: int,
-    members_list: list,
-    project_data: dict,
-    archive_metadata: dict,
+    members_list: list[dict[str, Any]],
+    project_data: dict[str, Any],
+    archive_metadata: dict[str, Any],
     drive_location: Path,
     output_location: Path,
 ) -> None:
-    """Generate RO-Crate with data from ProjectDB."""
+    """Generate RO-Crate with data from ProjectDB.
+
+    Args:
+        drive_name: Name of the research drive
+        members_list: List of project members from ProjectDB
+        project_data: Project data from ProjectDB
+        archive_metadata: Archive metadata dictionary with retention and classification
+        drive_location: Source drive location path
+        output_location: Output archive location path
+    """
     # Build RO-Crate
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
@@ -264,7 +275,10 @@ def build_crate_contents_async(
     ro_crate_loader.write_crate(ro_crate_location)
     bag_directory(
         drive_location,
-        bag_info={"project_id": str(project_id)},
+        bag_info={
+            "project_id": str(project_data.get("id", "")),
+            "drive_name": drive_name,
+        },
     )
     create_manifests_directory(
         drive_path=drive_location,
@@ -302,8 +316,14 @@ async def generate_ro_crate_async(
             )
             members_list = projectdb_client.get_project_members(
                 project_id,
-                expand=["person", "role"],
+                expand=[
+                    "person",
+                    "role",
+                    "person.identities",
+                    "person.status",
+                ],
             )
+            members_list = filter_member_identities(members_list)
 
             # Build archive metadata dict
             archive_metadata = {
@@ -326,7 +346,6 @@ async def generate_ro_crate_async(
             print(f"Building RO-Crate for {drive_name}...")
             build_crate_contents_async(
                 drive_name=drive_name,
-                project_id=project_id,
                 members_list=members_list,
                 project_data=project_data,
                 archive_metadata=archive_metadata,
@@ -359,7 +378,7 @@ async def get_submission(
     drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> dict:
+) -> dict[str, Any]:
     """Retrieve archive submission record for a research drive."""
     validate_permissions("GET", api_key)
 
@@ -388,3 +407,26 @@ async def get_submission(
         "manifest": submission.manifest.manifest if submission.manifest else None,
     }
     return result
+
+
+def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Filter out identities where the username is an email address."""
+    members = [
+        {
+            **member,
+            "person": {
+                **member.get("person", {}),
+                "identities": {
+                    "items": [
+                        item
+                        for item in member.get("person", {})
+                        .get("identities", {})
+                        .get("items", [])
+                        if not item.get("username", "").endswith("@auckland.ac.nz")
+                    ]
+                },
+            },
+        }
+        for member in members
+    ]
+    return members
