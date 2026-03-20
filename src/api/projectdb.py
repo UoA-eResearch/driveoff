@@ -1,11 +1,12 @@
+"""ProjectDB client initialization and dependency injection for FastAPI."""
+
 from __future__ import annotations
 
 import os
 from typing import Optional
 
-from fastapi import FastAPI, Request
-
 from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
+from fastapi import FastAPI, Request
 
 
 def init_projectdb(app: FastAPI, environment: Optional[str] = None) -> None:

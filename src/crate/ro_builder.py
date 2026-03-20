@@ -1,30 +1,18 @@
 # pylint: disable-all
-from pathlib import Path
-from typing import Tuple
-
+from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from models.submission import ArchiveSubmission
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.person import Person as RoPerson
 from rocrate.rocrate import ROCrate
 from rocrate.utils import is_url
-from sqlmodel import SQLModel
+from typing import Any, Dict, List, Optional, cast
 
-from models.member import Member
-from models.person import Person, ROCratePerson
-from models.project import Project, ROCrateProject
-from models.role import Role
-from models.services import ResearchDriveService, ROCrateResDriveService
-from models.submission import (
-    DriveOffboardSubmission,
-    ROCrateDeleteAction,
-    ROCrateDriveOffboardSubmission,
-)
 
 PROJECT_PREFIX = "project/"
 ROLE_PREFIX = "role/"
 MEMBER_PREFIX = "member/"
 RD_PREFIX = "research_drive_service/"
-DELETE_BUFFER = 1  # Add extra years to delete actions
 DELETE_PREFIX = "retention_period_for/"
 
 
@@ -43,116 +31,287 @@ class ROBuilder:
         self.crate = crate
 
     def add_project(
-        self, project: Project, project_submission: DriveOffboardSubmission
+        self,
+        project: Dict[str, Any],
+        members: List[Dict[str, Any]],
+        submission: ArchiveSubmission,
+        drive: dict[str, Any],
     ) -> ContextEntity:
+        """Add project to RO-Crate, fetching data from ProjectDB on-demand.
 
-        project_submissions = [
-            drive.submission for drive in project.research_drives if drive.submission
-        ]
+        Args:
+            project: Raw project dict from ProjectDB with keys: id, title, description, division, codes, etc.
+            members: List of member dicts from ProjectDB with keys: id, person, role, etc.
+            submission: ArchiveSubmission record for this crate generation
+            drive: Dict with drive properties from ProjectDB
+        """
+        # Extract project properties
+        project_id = project.get("id")
+        codes = project.get("codes", {})
 
-        if (
-            not project_submission.is_completed
-            or project_submission not in project_submissions
-        ):
-            raise ValueError(
-                "Project form has not been completed RO-Crate cannot be constructed"
-            )
+        # Root dataset entity represents the archive with archive metadata
+        project_properties = {
+            "@type": "Dataset",
+            "name": project.get("title", ""),
+            "description": project.get("description", ""),
+        }
 
-        submission_properties = ROCrateDriveOffboardSubmission(
-            project_submission
-        ).model_dump(exclude={"id", "isCompleted"}, by_alias=True, exclude_none=True)
+        # Add optional project metadata fields
+        if division := project.get("division"):
+            project_properties["division"] = division
+        if start_date := project.get("start_date"):
+            project_properties["startDate"] = start_date
+        if end_date := project.get("end_date"):
+            project_properties["endDate"] = end_date
+        if is_completed := project.get("is_completed"):
+            project_properties["isCompleted"] = is_completed
+        if updated_time := project.get("updated_time"):
+            project_properties["updatedTime"] = updated_time
 
-        crate_project = ROCrateProject(project)
-        project_properties = crate_project.model_dump(
-            exclude={"id", "codes"}, by_alias=True, exclude_none=True
-        )
-        project_id = f"{PROJECT_PREFIX}{crate_project.id}"
+        # Add project identifiers (codes)
+        if codes and codes.get("items"):
+            project_properties["identifier"] = [
+                code.get("code") for code in codes.get("items", []) if code.get("code")
+            ]
+
+        # Add archive metadata properties to the dataset
+        archive_properties = {
+            "@type": "ResearchProject",
+            "dataClassification": submission.data_classification,
+            "retentionPeriodYears": submission.retention_period_years,
+            "retentionPeriodJustification": submission.retention_period_justification,
+        }
+
+        project_properties.update(archive_properties)
+
         project_entity = ContextEntity(
             crate=self.crate,
-            identifier=project_id,
-            properties=project_properties | submission_properties,
+            identifier=f"{PROJECT_PREFIX}{project_id}",
+            properties=project_properties,
         )
-        # generate delete action from project_submission
-        project_entity.append_to("identifier", [code.code for code in project.codes])
-        # update project from form content models
-        project_people = [self.add_member(person) for person in project.members]
-        project_entity.append_to("member", project_people)
-        project_services = [
-            self.add_research_drive_service(drive) for drive in project.research_drives
+
+        # Add members to project (pass project_id for member ID generation)
+        project_people = [
+            self.add_member(member, project_id=project_id) for member in members
         ]
-        project_entity.append_to("services", project_services)
+        project_entity.append_to("member", project_people)
+
+        # Add research drive service reference
+        drive_entity = self.add_research_drive_service(drive)
+        project_entity.append_to("services", [drive_entity])
+
+        # Add delete action from retention period
         delete_action = self.add_delete_action(
-            submission=project_submission, project=project
+            project_end_date=project.get("end_date"),
+            retention_years=submission.retention_period_years,
+            drive=drive,
         )
-        project_entity.append_to("actions", delete_action)
-        return self.crate.add(project_entity)
+        project_entity.append_to("actions", [delete_action])
 
-    def add_member(self, member: Member) -> ContextEntity:
-        def construct_member_id(member: Member) -> str:
-            if member.role:
-                role_string = "".join(member.role.name.split())
-                return f"{MEMBER_PREFIX}{member.project_id}/{role_string}/{member.person.username}"
-            else:
-                return f"{MEMBER_PREFIX}{member.project_id}/{member.person.username}"
+        return cast(ContextEntity, self.crate.add(project_entity))
 
-        member_id = construct_member_id(member)
+    def _extract_username(self, person: Dict[str, Any]) -> str:
+        """Extract username from person dict, trying multiple sources.
+
+        Args:
+            person: Person dict from ProjectDB
+
+        Returns:
+            Username string, or "unknown" if not found
+        """
+        # Handle if person is empty or None
+        if not person:
+            return "unknown"
+
+        # Try direct username field first
+        if username := person.get("username"):
+            return str(username)
+
+        # Try identities.items[0].username
+        identities = person.get("identities", {})
+        if isinstance(identities, dict):
+            items = identities.get("items", [])
+            if items and len(items) > 0:
+                item = items[0]
+                if isinstance(item, dict) and "username" in item:
+                    if username := item.get("username"):
+                        return str(username)
+
+        # Try email username part (before @)
+        if email := person.get("email"):
+            username_part = str(email).split("@")[0]
+            if username_part:
+                return username_part
+
+        # Fallback
+        return "unknown"
+
+    def _extract_role(self, role_data: Any) -> str:
+        """Extract role name from role data, trying multiple sources.
+
+        Args:
+            role_data: Role data from ProjectDB - could be dict, string, or other
+
+        Returns:
+            Role name string, or "NoRole" if not found
+        """
+        if not role_data:
+            return "NoRole"
+
+        # If it's already a string, return it
+        if isinstance(role_data, str):
+            return role_data
+
+        # If it's a dict, try multiple keys
+        if isinstance(role_data, dict):
+            # Try common role field names
+            for key in ["role", "name", "roleName", "role_name"]:
+                if key in role_data:
+                    value = role_data.get(key)
+                    if isinstance(value, str):
+                        return value
+                    elif isinstance(value, dict):
+                        # Recursively try to extract from nested dict
+                        for nested_key in ["name", "role"]:
+                            if nested_key in value:
+                                nested_val = value.get(nested_key)
+                                if isinstance(nested_val, str):
+                                    return nested_val
+
+        # Fallback
+        return "NoRole"
+
+    def add_member(
+        self, member: Dict[str, Any], project_id: int | None = None
+    ) -> ContextEntity:
+        """Add a member to the crate from raw ProjectDB member dict.
+
+        Args:
+            member: Member dict with keys: id, person, role, etc.
+            project_id: Project ID to include in member identifier
+        """
+        # Extract person data and username
+        person_data = member.get("person", {})
+        username = self._extract_username(person_data)
+
+        # Extract role using flexible method
+        role_data = member.get("role", {})
+        role_name = self._extract_role(role_data)
+        role_string = "".join(str(role_name).split())
+        member_id = f"{MEMBER_PREFIX}{project_id}/{role_string}/{username}"
+
+        # Check if member already exists in crate
         if member_entity := self.crate.dereference(as_ro_id(member_id)):
             return member_entity
-        person_entity = self.add_person(member.person)
+
+        # Add person to crate
+        person_entity = self.add_person(person_data)
+
+        # Create member entity
         member_entity = ContextEntity(self.crate, identifier=member_id, properties=None)
-        member_entity["roleName"] = member.role.name if member.role else "No Role"
+        member_entity["roleName"] = role_name
         member_entity.append_to("member", person_entity)
         member_entity.properties()["@type"] = "OrganizationRole"
-        return self.crate.add(member_entity)
 
-    def add_person(self, person: Person) -> RoPerson:
-        """Add a person to the crate, if the person does not already exist"""
-        person_id = person.username
-        if person_entity := self.crate.dereference(as_ro_id(person_id)):
+        return cast(ContextEntity, self.crate.add(member_entity))
+
+    def add_person(self, person: Dict[str, Any]) -> RoPerson:
+        """Add a person to the crate from raw ProjectDB person dict.
+
+        Args:
+            person: Person dict with keys: id, email, full_name, username, identities, etc.
+        """
+        username = self._extract_username(person)
+
+        # Check if person already exists
+        if person_entity := self.crate.dereference(as_ro_id(username)):
             return person_entity
+
+        # Build person properties
+        person_properties = {
+            "name": person.get("full_name", ""),
+            "email": person.get("email", ""),
+        }
+
         person_entity = RoPerson(
             self.crate,
-            identifier=person_id,
-            properties=ROCratePerson(person).model_dump(
-                by_alias=True, exclude_none=True
-            ),
+            identifier=username,
+            properties=person_properties,
         )
-        return self.crate.add(person_entity)
+        return cast(RoPerson, self.crate.add(person_entity))
 
-    def add_research_drive_service(
-        self, rd_service: ResearchDriveService
-    ) -> ContextEntity:
-        crate_rd_service = ROCrateResDriveService(rd_service)
-        rd_id = f"{RD_PREFIX}{crate_rd_service.name}"
+    def add_research_drive_service(self, drive_data: dict[str, Any]) -> ContextEntity:
+        """Add a research drive service reference to the crate.
+
+        Args:
+            drive_data: Dict with drive properties from ProjectDB
+        """
+        # Build properties dict with all available drive attributes
+        drive_properties = {
+            "name": drive_data.get("name"),
+            "allocatedGb": drive_data.get("allocated_gb"),
+            "freeGb": drive_data.get("free_gb"),
+            "usedGb": drive_data.get("used_gb"),
+            "date": drive_data.get("date"),
+            "firstDay": drive_data.get("first_day"),
+            "percentageUsed": drive_data.get("percentage_used"),
+        }
+
+        rd_id = f"{RD_PREFIX}{drive_data.get('name')}"
         if rd_entity := self.crate.dereference(as_ro_id(rd_id)):
             return rd_entity
+
+        drive_properties["@type"] = "ResearchDriveService"
         rd_entity = ContextEntity(
             self.crate,
             identifier=rd_id,
-            properties=crate_rd_service.model_dump(
-                by_alias=True, exclude={"id"}, exclude_none=True
-            ),
+            properties=drive_properties,
         )
-        return self.crate.add(rd_entity)
+        return cast(ContextEntity, self.crate.add(rd_entity))
 
     def add_delete_action(
-        self, submission: DriveOffboardSubmission, project: Project
+        self,
+        project_end_date: Optional[str],
+        retention_years: int,
+        drive: dict[str, Any],
     ) -> ContextEntity:
-        if submission.drive is None:
-            raise (
-                ValueError(
-                    f"Submission{submission.id} does not refer to a research drive"
+        """Create a delete action based on project end date and retention period.
+
+        Args:
+            project_end_date: ISO format date string for project end date
+            retention_years: Years to retain data after project end date
+            drive: Dict with drive properties from ProjectDB
+        """
+        # Parse project end date if it's a string
+        if isinstance(project_end_date, str):
+            try:
+                end_date = datetime.fromisoformat(
+                    project_end_date.replace("Z", "+00:00")
                 )
-            )
-        drive = self.add_research_drive_service(submission.drive)
-        end_date = project.end_date + relativedelta(
-            years=+submission.retention_period_years
-        )
-        delete_action = ROCrateDeleteAction.model_validate({"end_time": end_date})
+            except Exception:
+                end_date = datetime.now()
+        else:
+            end_date = project_end_date or datetime.now()
+
+        # Calculate delete date
+        delete_date = end_date + relativedelta(years=retention_years)
+
+        # Create delete action entity with proper ID format
+        # ID should be: retention_period_for/#research_drive_service/{drive_name}
+        drive_ro_id = as_ro_id(f"{RD_PREFIX}{drive['name']}")
+        delete_id = f"{DELETE_PREFIX}{drive_ro_id}"
         delete_entity = ContextEntity(
             self.crate,
-            identifier=f"{DELETE_PREFIX}{drive.id}",
-            properties=delete_action.model_dump(by_alias=True, exclude_none=True),
+            identifier=delete_id,
+            properties={
+                "@type": "DeleteAction",
+                "actionStatus": "PotentialActionStatus",
+                "endTime": delete_date.strftime("%Y-%m-%d"),
+            },
         )
-        delete_entity.append_to("targetCollection", drive)
-        return self.crate.add(delete_entity)
+
+        # Link to drive service
+        drive_entity = self.add_research_drive_service(drive)
+        delete_entity.append_to("targetCollection", drive_entity)
+
+        return cast(ContextEntity, self.crate.add(delete_entity))
