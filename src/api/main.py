@@ -191,8 +191,16 @@ async def create_submission(
             archive_location=archive_location,
             is_completed=False,
         )
+
         session.add(submission)
         session.commit()
+        # we need the submission id to pass to the background task, so we refresh to get the generated id
+        session.refresh(submission)
+        if submission.id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create archive submission record.",
+            )
 
         # Schedule async RO-Crate generation
         print(
@@ -200,8 +208,8 @@ async def create_submission(
         )
         background_tasks.add_task(
             generate_ro_crate_async,
-            drive_name=request.drive_name,
-            project_id=project_id,
+            drive,
+            submission.id,
             projectdb_client=projectdb,
         )
 
@@ -232,20 +240,19 @@ def get_resdrive_path(drive_name: str) -> Path:
 
 
 def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-positional-arguments
-    drive_name: str,
+    drive: dict[str, Any],
+    submission: ArchiveSubmission,
     members_list: list[dict[str, Any]],
     project_data: dict[str, Any],
-    archive_metadata: dict[str, Any],
     drive_location: Path,
     output_location: Path,
 ) -> None:
     """Generate RO-Crate with data from ProjectDB.
 
     Args:
-        drive_name: Name of the research drive
+        submission: ArchiveSubmission record for this crate generation
         members_list: List of project members from ProjectDB
         project_data: Project data from ProjectDB
-        archive_metadata: Archive metadata dictionary with retention and classification
         drive_location: Source drive location path
         output_location: Output archive location path
     """
@@ -256,13 +263,11 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
 
     # Add project to crate with archive metadata
     project_entity = ro_crate_builder.add_project(
-        project_data,
-        members_list,
-        archive_metadata,
+        project_data, members_list, submission, drive
     )
 
     # Add drive service as main entity
-    drive_entity = ro_crate_builder.add_research_drive_service(drive_name)
+    drive_entity = ro_crate_builder.add_research_drive_service(drive)
 
     ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
     drive_entity.append_to("project", [project_entity])
@@ -277,38 +282,46 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
         drive_location,
         bag_info={
             "project_id": str(project_data.get("id", "")),
-            "drive_name": drive_name,
+            "drive_name": submission.drive_name,
         },
     )
     create_manifests_directory(
         drive_path=drive_location,
         output_location=output_location,
-        drive_name=str(drive_name),
+        drive_name=str(submission.drive_name),
     )
 
 
 async def generate_ro_crate_async(
-    drive_name: str,
-    project_id: int,
+    drive: dict[str, Any],
+    submission_id: int,
     projectdb_client: ProjectDBApi,
 ) -> None:
     """Async background task for generating RO-Crate and updating archive record.
 
     Fetches live project data from ProjectDB, generates crate, and updates
     the ArchiveSubmission record with completion status and manifest.
+
+    Args:
+    drive: Dictionary containing research drive information
+    submission_id: ID of the ArchiveSubmission record
+    projectdb_client: Client for interacting with ProjectDB
     """
+    drive_name = drive.get("name", None)
+    if drive_name is None:
+        print("Drive name is missing from drive data. Cannot generate RO-Crate.")
+        return
+
     # Create a new session for this background task
     with Session(engine) as session:
         try:
-            # Get archive submission to get metadata
-            stmt = select(ArchiveSubmission).where(
-                ArchiveSubmission.drive_name == drive_name
-            )
-            submission = session.exec(stmt).first()
-            if not submission:
-                raise ValueError(f"No archive submission found for {drive_name}")
+            submission = session.get(ArchiveSubmission, submission_id)
+            if submission is None:
+                print(f"ArchiveSubmission with id {submission_id} not found.")
+                return
 
             # Fetch project and member data from ProjectDB
+            project_id = submission.project_id
             print(f"Fetching project data from ProjectDB for project {project_id}...")
             project_data = projectdb_client.get_project(
                 pid=project_id,
@@ -325,19 +338,6 @@ async def generate_ro_crate_async(
             )
             members_list = filter_member_identities(members_list)
 
-            # Build archive metadata dict
-            archive_metadata = {
-                "drive_name": drive_name,
-                "retention_period_years": submission.retention_period_years,
-                "retention_period_justification": submission.retention_period_justification,
-                "data_classification": (
-                    submission.data_classification.value
-                    if hasattr(submission.data_classification, "value")
-                    else str(submission.data_classification)
-                ),
-                "archive_date": submission.archive_date,
-            }
-
             # Generate RO-Crate
             drive_path = get_resdrive_path(drive_name)
             drive_location = drive_path / "Vault"
@@ -345,10 +345,10 @@ async def generate_ro_crate_async(
 
             print(f"Building RO-Crate for {drive_name}...")
             build_crate_contents_async(
-                drive_name=drive_name,
+                drive=drive,
+                submission=submission,
                 members_list=members_list,
                 project_data=project_data,
-                archive_metadata=archive_metadata,
                 drive_location=drive_location,
                 output_location=output_location,
             )
@@ -411,22 +411,26 @@ async def get_submission(
 
 def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Filter out identities where the username is an email address."""
-    members = [
-        {
-            **member,
-            "person": {
-                **member.get("person", {}),
-                "identities": {
-                    "items": [
-                        item
-                        for item in member.get("person", {})
-                        .get("identities", {})
-                        .get("items", [])
-                        if not item.get("username", "").endswith("@auckland.ac.nz")
-                    ]
+    try:
+        members = [
+            {
+                **member,
+                "person": {
+                    **member.get("person", {}),
+                    "identities": {
+                        "items": [
+                            item
+                            for item in member.get("person", {})
+                            .get("identities", {})
+                            .get("items", [])
+                            if not item.get("username", "").endswith("@auckland.ac.nz")
+                        ]
+                    },
                 },
-            },
-        }
-        for member in members
-    ]
+            }
+            for member in members
+        ]
+    except Exception as e:
+        # Log error but don't fail the whole process - just return unfiltered members
+        print(f"Error filtering member identities: {e}")
     return members

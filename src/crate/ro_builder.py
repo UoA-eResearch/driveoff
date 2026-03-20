@@ -1,12 +1,13 @@
 # pylint: disable-all
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
-
 from dateutil.relativedelta import relativedelta
+from models.submission import ArchiveSubmission
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.person import Person as RoPerson
 from rocrate.rocrate import ROCrate
 from rocrate.utils import is_url
+from typing import Any, Dict, List, Optional, cast
+
 
 PROJECT_PREFIX = "project/"
 ROLE_PREFIX = "role/"
@@ -33,14 +34,16 @@ class ROBuilder:
         self,
         project: Dict[str, Any],
         members: List[Dict[str, Any]],
-        archive_metadata: Dict[str, Any],
+        submission: ArchiveSubmission,
+        drive: dict[str, Any],
     ) -> ContextEntity:
         """Add project to RO-Crate, fetching data from ProjectDB on-demand.
 
         Args:
             project: Raw project dict from ProjectDB with keys: id, title, description, division, codes, etc.
             members: List of member dicts from ProjectDB with keys: id, person, role, etc.
-            archive_metadata: Dict containing retention_period_years, data_classification, drive_name, etc.
+            submission: ArchiveSubmission record for this crate generation
+            drive: Dict with drive properties from ProjectDB
         """
         # Extract project properties
         project_id = project.get("id")
@@ -73,19 +76,18 @@ class ROBuilder:
 
         # Add archive metadata properties to the dataset
         archive_properties = {
-            "dataClassification": archive_metadata.get(
-                "data_classification", "Sensitive"
-            ),
-            "retentionPeriodYears": archive_metadata.get("retention_period_years", 0),
-            "retentionPeriodJustification": archive_metadata.get(
-                "retention_period_justification"
-            ),
+            "@type": "ResearchProject",
+            "dataClassification": submission.data_classification,
+            "retentionPeriodYears": submission.retention_period_years,
+            "retentionPeriodJustification": submission.retention_period_justification,
         }
+
+        project_properties.update(archive_properties)
 
         project_entity = ContextEntity(
             crate=self.crate,
             identifier=f"{PROJECT_PREFIX}{project_id}",
-            properties=project_properties | archive_properties,
+            properties=project_properties,
         )
 
         # Add members to project (pass project_id for member ID generation)
@@ -95,16 +97,14 @@ class ROBuilder:
         project_entity.append_to("member", project_people)
 
         # Add research drive service reference
-        drive_entity = self.add_research_drive_service(
-            archive_metadata.get("drive_name", "unknown")
-        )
+        drive_entity = self.add_research_drive_service(drive)
         project_entity.append_to("services", [drive_entity])
 
         # Add delete action from retention period
         delete_action = self.add_delete_action(
             project_end_date=project.get("end_date"),
-            retention_years=archive_metadata.get("retention_period_years", 0),
-            drive_name=archive_metadata.get("drive_name", "unknown"),
+            retention_years=submission.retention_period_years,
+            drive=drive,
         )
         project_entity.append_to("actions", [delete_action])
 
@@ -240,38 +240,24 @@ class ROBuilder:
         )
         return cast(RoPerson, self.crate.add(person_entity))
 
-    def add_research_drive_service(
-        self, drive_data: dict[str, Any] | str
-    ) -> ContextEntity:
+    def add_research_drive_service(self, drive_data: dict[str, Any]) -> ContextEntity:
         """Add a research drive service reference to the crate.
 
         Args:
-            drive_data: Either a string (drive name) or dict with drive properties from ProjectDB
+            drive_data: Dict with drive properties from ProjectDB
         """
-        # Handle both string (legacy) and dict (full data) inputs
-        if isinstance(drive_data, str):
-            drive_name = drive_data
-            drive_properties = {"name": drive_name}
-        else:
-            drive_name = drive_data.get("name", "unknown")
-            # Build properties dict with all available drive attributes
-            drive_properties = {
-                "name": drive_name,
-            }
-            # Add optional drive properties if available
-            for key in [
-                "allocatedGb",
-                "freeGb",
-                "usedGb",
-                "date",
-                "firstDay",
-                "lastDay",
-                "percentageUsed",
-            ]:
-                if key in drive_data:
-                    drive_properties[key] = drive_data[key]
+        # Build properties dict with all available drive attributes
+        drive_properties = {
+            "name": drive_data.get("name"),
+            "allocatedGb": drive_data.get("allocated_gb"),
+            "freeGb": drive_data.get("free_gb"),
+            "usedGb": drive_data.get("used_gb"),
+            "date": drive_data.get("date"),
+            "firstDay": drive_data.get("first_day"),
+            "percentageUsed": drive_data.get("percentage_used"),
+        }
 
-        rd_id = f"{RD_PREFIX}{drive_name}"
+        rd_id = f"{RD_PREFIX}{drive_data.get('name')}"
         if rd_entity := self.crate.dereference(as_ro_id(rd_id)):
             return rd_entity
 
@@ -287,14 +273,14 @@ class ROBuilder:
         self,
         project_end_date: Optional[str],
         retention_years: int,
-        drive_name: str,
+        drive: dict[str, Any],
     ) -> ContextEntity:
         """Create a delete action based on project end date and retention period.
 
         Args:
             project_end_date: ISO format date string for project end date
             retention_years: Years to retain data after project end date
-            drive_name: Name of the drive
+            drive: Dict with drive properties from ProjectDB
         """
         # Parse project end date if it's a string
         if isinstance(project_end_date, str):
@@ -312,7 +298,8 @@ class ROBuilder:
 
         # Create delete action entity with proper ID format
         # ID should be: retention_period_for/#research_drive_service/{drive_name}
-        delete_id = f"{DELETE_PREFIX}{as_ro_id(f'{RD_PREFIX}{drive_name}')}"
+        drive_ro_id = as_ro_id(f"{RD_PREFIX}{drive['name']}")
+        delete_id = f"{DELETE_PREFIX}{drive_ro_id}"
         delete_entity = ContextEntity(
             self.crate,
             identifier=delete_id,
@@ -324,7 +311,7 @@ class ROBuilder:
         )
 
         # Link to drive service
-        drive_entity = self.add_research_drive_service(drive_name)
+        drive_entity = self.add_research_drive_service(drive)
         delete_entity.append_to("targetCollection", drive_entity)
 
         return cast(ContextEntity, self.crate.add(delete_entity))
