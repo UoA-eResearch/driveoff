@@ -141,24 +141,31 @@ async def create_submission(
             )
 
         # Resolve project_id if not provided
-        if request.project_id is None:
-            try:
-                # Find associated project
-                drive_projects = projectdb.get_research_drive_projects(
-                    drive["id"], expand=["project"]
-                )
-            except Exception as e:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Could not fetch projects for drive {request.drive_name}: {str(e)}",
-                ) from e
+        project_id = None
+        try:
+            # Find associated project
+            drive_projects = projectdb.get_research_drive_projects(
+                drive["id"], expand=["project"]
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Could not fetch projects for drive {request.drive_name}: {str(e)}",
+            ) from e
 
-            if not drive_projects or len(drive_projects) == 0:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"No projects associated with drive {request.drive_name}",
-                )
-            if len(drive_projects) > 1:
+        if not drive_projects or len(drive_projects) == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No projects associated with drive {request.drive_name}",
+            )
+        if len(drive_projects) > 1:
+            # Choose correct project based on request parameter if provided, otherwise raise error to disambiguate
+            if request.project_id:
+                for dp in drive_projects:
+                    if dp["project"]["id"] == request.project_id:
+                        project_id = request.project_id
+                        break
+            else:
                 raise HTTPException(
                     status_code=400,
                     detail=(
@@ -166,9 +173,9 @@ async def create_submission(
                         "Please provide project_id to disambiguate.",
                     ),
                 )
-            project_id = drive_projects[0]["project"]["id"]
+
         else:
-            project_id = request.project_id
+            project_id = drive_projects[0]["project"]["id"]
 
         if project_id is None:
             raise HTTPException(
