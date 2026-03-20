@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { membersToString, getProjectMembers, getProjectOwners } from '@/models/helpers';
 import { formState, requestInfo } from '@/store';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 
@@ -10,8 +10,8 @@ document.title = DOCUMENT_TITLE;
 
 const error =ref("");
 const router = useRouter();
-const owners = membersToString(getProjectOwners(requestInfo.project.members ?? []));
-const members = membersToString(getProjectMembers(requestInfo.project.members ?? []));
+const owners = computed(() => membersToString(getProjectOwners(requestInfo.project.members ?? [])));
+const members = computed(() => membersToString(getProjectMembers(requestInfo.project.members ?? [])));
 
 function tryContinue() {
     if (formState.areProjectDetailsCorrect === null){
