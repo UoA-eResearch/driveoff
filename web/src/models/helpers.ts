@@ -2,7 +2,7 @@
  * Additional methods for Members.
  */
 
-import type { MemberPublic } from "@/client";
+import type { MemberResponse } from "@/client";
 
 
 /**
@@ -10,7 +10,7 @@ import type { MemberPublic } from "@/client";
  * @param members List of members to search through
  * @returns Members who are project owners.
  */
-export function getProjectOwners(members: MemberPublic[]): MemberPublic[] {
+export function getProjectOwners(members: MemberResponse[]): MemberResponse[] {
     return members.filter(member =>
         member.role.name === "Project Owner"
     );
@@ -21,7 +21,7 @@ export function getProjectOwners(members: MemberPublic[]): MemberPublic[] {
  * @param members List of members to search through
  * @returns Members who are not project owners.
  */
-export function getProjectMembers(members: MemberPublic[]): MemberPublic[] {
+export function getProjectMembers(members: MemberResponse[]): MemberResponse[] {
     return members.filter(member =>
         member.role.name !== "Project Owner"
     );
@@ -32,7 +32,7 @@ export function getProjectMembers(members: MemberPublic[]): MemberPublic[] {
  * @param members Members to return names for.
  * @returns A string representing all member names.
  */
-export function membersToString(members: MemberPublic[]): string {
+export function membersToString(members: MemberResponse[]): string {
 
     return members.filter((_, idx, arr) =>
         // Filter for unique members

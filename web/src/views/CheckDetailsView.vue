@@ -10,8 +10,8 @@ document.title = DOCUMENT_TITLE;
 
 const error =ref("");
 const router = useRouter();
-const owners = membersToString(getProjectOwners(requestInfo.project.members));
-const members = membersToString(getProjectMembers(requestInfo.project.members));
+const owners = membersToString(getProjectOwners(requestInfo.project.members ?? []));
+const members = membersToString(getProjectMembers(requestInfo.project.members ?? []));
 
 function tryContinue() {
     if (formState.areProjectDetailsCorrect === null){
@@ -20,7 +20,9 @@ function tryContinue() {
     } else if (formState.areProjectDetailsCorrect) {
             router.push("/data-classification");
     } else {
-        router.push("/update-details");
+        // Project editing is not currently supported.
+        // If details are wrong, user should contact eResearch.
+        router.push("/unable-to-archive");
     }
 }
 </script>

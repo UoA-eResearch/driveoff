@@ -2,23 +2,23 @@
  * Functions for loading information about the archive request.
  */
 import { requestInfo } from "@/store";
-import { getDriveInfoApiV1ResdriveinfoGet } from "../client/sdk.gen";
-import type { ProjectWithDriveMember, ResearchDriveService } from "../client/types.gen";
+import { getDriveInfoApiV1DriveinfoGet } from "../client/sdk.gen";
+import type { DriveInfoResponse } from "../client/types.gen";
 
 /**
- * Retrieves project information based on project code in URL.
- * @returns Project information from server.
+ * Fetches drive and project info from the API using the drive name from the URL.
+ * @returns Combined drive and project info.
  * @throws Exception if server did not return data or received an error status code.
  */
-async function getProject(): Promise<ProjectWithDriveMember> {
+async function getDriveInfo(): Promise<DriveInfoResponse> {
     const params = new URLSearchParams(window.location.search);
-    const driveId = params.get("drive");
-    if (driveId === null) {
+    const driveName = params.get("drive");
+    if (driveName === null) {
         throw new Error("No drive name found in parameter.");
     }
-    const response = await getDriveInfoApiV1ResdriveinfoGet({
+    const response = await getDriveInfoApiV1DriveinfoGet({
         query: {
-            drive_id: driveId
+            drive_name: driveName
         }
     });
     if (response.error || !response.response.ok || response.data === undefined) {
@@ -28,31 +28,15 @@ async function getProject(): Promise<ProjectWithDriveMember> {
 }
 
 /**
- * Retrieves drive information from server.
- * @returns Drive information from server.
- * @throws Exception if server did not return data.
- */
-async function getDrive(): Promise<ResearchDriveService> {
-    const project = await getProject();
-    if (!project) {
-        throw new Error("Project is not loaded.");
-    }
-    if (!project.research_drives || project.research_drives.length === 0) {
-        throw new Error("Project does not have a research drive.");
-    }
-    return project.research_drives[0] as ResearchDriveService;
-}
-
-/**
  * Retrieves archive information from server and stores it in the requestInfo store.
-* @returns True if request was loaded successfully, false if not.
+ * @returns True if request was loaded successfully, false if not.
  */
 export async function loadRequestInfo(): Promise<boolean> {
-    // Pre-populate archive request info.
     try {
         requestInfo.isLoading = true;
-        requestInfo.project = await getProject();
-        requestInfo.drive = await getDrive();
+        const driveInfo = await getDriveInfo();
+        requestInfo.project = driveInfo.project;
+        requestInfo.drive = driveInfo.drive;
         requestInfo.isLoading = false;
         return true;
     } catch (e) {

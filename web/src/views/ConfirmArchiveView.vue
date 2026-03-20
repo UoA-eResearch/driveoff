@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { appendDriveInfoApiV1SubmissionPost } from '@/client';
+import { createSubmissionApiV1SubmissionPost } from '@/client';
 import { getProjectMembers, getProjectOwners, membersToString } from '@/models/helpers';
 import { formState, requestInfo } from '@/store';
 import { useRouter } from 'vue-router';
@@ -8,15 +8,11 @@ const DOCUMENT_TITLE = "Check your answers - Archive your research drive";
 document.title = DOCUMENT_TITLE;
 
 const router = useRouter();
-const projectOwners = membersToString(getProjectOwners(requestInfo.project.members));
-const projectMembers = membersToString(getProjectMembers(requestInfo.project.members));
+const projectOwners = membersToString(getProjectOwners(requestInfo.project.members ?? []));
+const projectMembers = membersToString(getProjectMembers(requestInfo.project.members ?? []));
 
-// Display changed title and description if available, original if not.
-const projectTitle = formState.projectChanges.title || requestInfo.project.title;
-const projectDescription = formState.projectChanges.description || requestInfo.project.description;
-
-// If the user has stated the details aren't correct, the Change links should go to the Update page. 
-const projectInfoChangeLink = formState.areProjectDetailsCorrect ? "/check-details" : "/update-details"; 
+const projectTitle = requestInfo.project.title;
+const projectDescription = requestInfo.project.description;
 
 async function submit(){
     const dataClassification = formState.dataClassification;
@@ -26,16 +22,12 @@ async function submit(){
         // This should not happen.
         return;
     }
-    const submission = {
-        dataClassification,
-        retentionPeriodYears: retentionPeriod,
-        isCompleted: true,
-        driveName: requestInfo.drive.name,
-        projectChanges: formState.projectChanges
-
-    }
-    const req = await appendDriveInfoApiV1SubmissionPost({
-        body: submission
+    const req = await createSubmissionApiV1SubmissionPost({
+        body: {
+            drive_name: requestInfo.drive.name,
+            retention_period_years: retentionPeriod,
+            data_classification: dataClassification,
+        }
     });
     if (req.response.ok) {
         router.push("/finish");
@@ -68,7 +60,7 @@ async function submit(){
         <td>Project name</td>
         <td>{{ projectTitle }}</td>
         <td>
-          <RouterLink :to="projectInfoChangeLink">
+          <RouterLink to="/check-details">
             Change
           </RouterLink>
         </td>
@@ -77,7 +69,7 @@ async function submit(){
         <td>Project description</td>
         <td> {{ projectDescription }}</td>
         <td>
-          <RouterLink :to="projectInfoChangeLink">
+          <RouterLink to="/check-details">
             Change
           </RouterLink>
         </td>
