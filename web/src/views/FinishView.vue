@@ -20,6 +20,7 @@ formState.hasFinishedForm = true;
   <h3>Accessing files after your research drive is archived</h3>
   <p>
     You can request an archive copy of your research drive. See <a
+      class="btn-link"
       target="_blank"
       href="https://research-hub.auckland.ac.nz"
     >ResearchHub</a> for more information.

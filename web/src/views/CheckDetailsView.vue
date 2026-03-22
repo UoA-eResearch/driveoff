@@ -107,10 +107,9 @@ function tryContinue() {
 }
 td {
     padding: 0.5rem;
-    border-bottom: 1px solid gray;
-    /* background-color: lightgray; */
-    
+    border-bottom: 1px solid var(--brand-light);
 }
+
 td:first-child {
     font-family: "Inter", sans-serif;
     font-weight: 700;

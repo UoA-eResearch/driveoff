@@ -39,7 +39,7 @@ function tryContinue() {
           {{ error }}
         </p>
         <p>
-          See <a
+          See <a class="btn-link"
             href="https://research-hub.auckland.ac.nz/article/research-data-classification"
             target="_blank"
           >Research data classification standard</a> for full guidance.

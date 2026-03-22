@@ -53,41 +53,27 @@ async function submit(){
     <colgroup>
       <col class="part-name-col">
       <col>
-      <col class="change-btn-col">
     </colgroup>
     <tbody>
       <tr>
         <td>Project name</td>
         <td>{{ projectTitle }}</td>
-        <td>
-          <RouterLink to="/check-details">
-            Change
-          </RouterLink>
-        </td>
       </tr>
       <tr>
         <td>Project description</td>
         <td> {{ projectDescription }}</td>
-        <td>
-          <RouterLink to="/check-details">
-            Change
-          </RouterLink>
-        </td>
       </tr>
       <tr>
         <td>Project owner</td>
         <td>{{ projectOwners }}</td>
-        <td><!--<a href="#" class="btn-link">Change</a>--></td>
       </tr>
       <tr>
         <td>Project members</td>
         <td>{{ projectMembers }}</td>
-        <td><!--<a href="#" class="btn-link">Change</a>--></td>
       </tr>
       <tr>
         <td>Department</td>
         <td>{{ requestInfo.project.division }}</td>
-        <td><!--<a href="#" class="btn-link">Change</a>--></td>
       </tr>
     </tbody>
   </table>
@@ -99,26 +85,15 @@ async function submit(){
     <colgroup>
       <col class="part-name-col">
       <col>
-      <col class="change-btn-col">
     </colgroup>
     <tbody>
       <tr>
         <td>Data classification</td>
         <td>{{ formState.dataClassification }}</td>
-        <td>
-          <RouterLink to="/data-classification">
-            Change
-          </RouterLink>
-        </td>
       </tr>
       <tr>
         <td>Retention period</td>
         <td>{{ formState.retentionPeriod }} years from today</td>
-        <td>
-          <RouterLink to="/retention-period">
-            Change
-          </RouterLink>
-        </td>
       </tr>
     </tbody>
   </table>
@@ -137,8 +112,7 @@ async function submit(){
 <style scoped>
 td {
     padding: 0.5rem;
-    border-bottom: 1px solid gray;
-    /* background-color: lightgray; */
+    border-bottom: 1px solid var(--brand-light);
     
 }
 td:first-child {
@@ -163,9 +137,5 @@ table {
 
 .part-name-col {
     width: 30%;
-}
-
-.change-btn-col {
-    width: 20%;
 }
 </style>

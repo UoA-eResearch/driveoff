@@ -38,6 +38,7 @@ function nextStep() {
           </h2>
           <p>
             The files in your research drive will be archived and moved to tape storage, a slower storage medium suitable for backup. This frees up space for other research projects. You can specify how long the files need to be retained for. You can get a copy of the archived research drive files. See <a
+              class="btn-link"
               href="https://research-hub.auckland.ac.nz"
               target="_blank"
             >ResearchHub</a> for more information.
@@ -45,13 +46,13 @@ function nextStep() {
           <h2 class="h2">
             If you need help
           </h2>
-          <p><a href="https://eresearch.auckland.ac.nz">Contact Centre for eResearch</a> for help with any questions while using this service.</p>
+          <p><a class="btn-link"href="https://eresearch.auckland.ac.nz">Contact Centre for eResearch</a> for help with any questions while using this service.</p>
         </section>
       </section>
       <section class="related-content">
         <h2>Related links</h2>
         <ul>
-          <li><a href="https://research-hub.auckland.ac.nz/managing-research-data/research-data-storage/research-drive">Information about Research Drive</a></li>
+          <li><a class="btn-link"href="https://research-hub.auckland.ac.nz/managing-research-data/research-data-storage/research-drive">Information about Research Drive</a></li>
         </ul>
       </section>
     </section>
@@ -67,28 +68,21 @@ function nextStep() {
   font-family: "Inter", sans-serif;
 }
 
-/* 
-.before-you-start {
-  margin-top: 2rem;
-} */
-
 .related-content {
   width: 500px;
-  background-color: #0080a7;
+  background-color: var(--brand-secondary);
   padding: 1.4rem 1.66rem;
   height: 100%;
-}
-
-.related-content * {
   color: white;
-  text-decoration: none;
 }
 
-/* @media (min-width: 1024px) {
-  .related-content {
-    width: 700px;
+.related-content a {
+  text-decoration: none;
+  color: white;
+  &:hover {
+    text-decoration: underline;
   }
-} */
+}
 
 .content {
   display: flex;
