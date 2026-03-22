@@ -22,7 +22,7 @@ function tryContinue() {
     } else {
         // Project editing is not currently supported.
         // If details are wrong, user should contact eResearch.
-        router.push("/unable-to-archive");
+        router.push("/project-details-incorrect");
     }
 }
 </script>

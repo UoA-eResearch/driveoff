@@ -50,6 +50,11 @@ const router = createRouter({
       component: () => import("../views/UnableToArchiveView.vue")
     },
     {
+      path: "/project-details-incorrect",
+      name: "project-details-incorrect",
+      component: () => import("../views/IncorrectProjectDetails.vue")
+    },
+    {
       path: "/service-error",
       name: "service-error",
       component: () => import("../views/ServiceErrorView.vue")
