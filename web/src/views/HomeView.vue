@@ -46,13 +46,13 @@ function nextStep() {
           <h2 class="h2">
             If you need help
           </h2>
-          <p><a class="btn-link"href="https://eresearch.auckland.ac.nz">Contact Centre for eResearch</a> for help with any questions while using this service.</p>
+          <p><a class="btn-link" href="https://eresearch.auckland.ac.nz" target="_blank">Contact Centre for eResearch</a> for help with any questions while using this service.</p>
         </section>
       </section>
       <section class="related-content">
         <h2>Related links</h2>
         <ul>
-          <li><a class="btn-link"href="https://research-hub.auckland.ac.nz/managing-research-data/research-data-storage/research-drive">Information about Research Drive</a></li>
+          <li><a class="btn-link" href="https://research-hub.auckland.ac.nz/managing-research-data/research-data-storage/research-drive" target="_blank">Information about Research Drive</a></li>
         </ul>
       </section>
     </section>
