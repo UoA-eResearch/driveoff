@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Iterable
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic.functional_validators import AfterValidator
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -165,6 +165,13 @@ class CreateSubmissionRequest(SQLModel):
     retention_period_justification: str | None = None
     data_classification: DataClassification = DataClassification.SENSITIVE
     project_id: int | None = None
+
+    @field_validator("retention_period_years")
+    @classmethod
+    def check_minimum_retention(cls, v: int) -> int:
+        if v < 6:
+            raise ValueError("Retention period must be at least 6 years.")
+        return v
 
 
 @app.get(ENDPOINT_PREFIX + "/driveinfo", response_model=DriveInfoResponse)
