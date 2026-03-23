@@ -9,6 +9,7 @@ interface FormStateStore {
     dataClassification: DataClassification | null;
     retentionPeriod: number | null;
     isRetentionPeriodCustom: boolean | null;
+    retentionPeriodJustification: string;
 }
 
 export const formState: FormStateStore = reactive({
@@ -18,7 +19,8 @@ export const formState: FormStateStore = reactive({
     areProjectDetailsCorrect: null,
     dataClassification: null,
     isRetentionPeriodCustom: null,
-    retentionPeriod: null
+    retentionPeriod: null,
+    retentionPeriodJustification: ""
 });
 
 interface ArchiveRequestInfoStore {

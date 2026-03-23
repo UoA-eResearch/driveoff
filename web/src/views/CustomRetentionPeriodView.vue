@@ -7,6 +7,7 @@ const DOCUMENT_TITLE = "How long do your files need to be retained for - Archive
 document.title = DOCUMENT_TITLE;
 const error = ref("");
 const customPeriod = ref(formState.retentionPeriod);
+const customPeriodJustification = ref("");
 const router = useRouter();
 
 function tryContinue(){
@@ -19,6 +20,7 @@ function tryContinue(){
     } else {
         error.value = "";
         formState.retentionPeriod = customPeriod.value;
+        formState.retentionPeriodJustification = customPeriodJustification.value;
         router.push("/confirm")
     }
     if (error.value !== "") {
@@ -56,6 +58,16 @@ function tryContinue(){
             type="number"
           >
         </div>
+        <div class="form-group">
+          <label for="custom-period-justification">Justification</label>
+          <textarea
+            id="custom-period-justification"
+            v-model="customPeriodJustification"
+          ></textarea>
+          <p class="helper-text">Provide a justification for the retention period you have selected. 
+            For example, "Research data involving children must be retained until participants are 
+            16 years old, plus 10 years."</p>
+        </div>
       </form>
     </section>
     <section class="forward-btn">
@@ -70,5 +82,9 @@ function tryContinue(){
 <style lang="css" scoped>
 #custom-period {
     width: 4rem;
+}
+.helper-text {
+    font-size: 0.9rem;
+    font-style: italic;
 }
 </style>

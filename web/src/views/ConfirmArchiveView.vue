@@ -26,6 +26,7 @@ async function submit(){
         body: {
             drive_name: requestInfo.drive.name,
             retention_period_years: retentionPeriod,
+            retention_period_justification: formState.retentionPeriodJustification,
             data_classification: dataClassification,
         }
     });
@@ -94,6 +95,10 @@ async function submit(){
       <tr>
         <td>Retention period</td>
         <td>{{ formState.retentionPeriod }} years from today</td>
+      </tr>
+      <tr>
+        <td>Retention period justification</td>
+        <td>{{ formState.retentionPeriodJustification }}</td>
       </tr>
     </tbody>
   </table>
