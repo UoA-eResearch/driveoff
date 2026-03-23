@@ -4,16 +4,13 @@
 
 import type { MemberResponse } from "@/client";
 
-
 /**
  * Given a list of members, filter for project owners.
  * @param members List of members to search through
  * @returns Members who are project owners.
  */
 export function getProjectOwners(members: MemberResponse[]): MemberResponse[] {
-    return members.filter(member =>
-        member.role.name === "Project Owner"
-    );
+  return members.filter((member) => member.role.name === "Project Owner");
 }
 
 /**
@@ -22,9 +19,7 @@ export function getProjectOwners(members: MemberResponse[]): MemberResponse[] {
  * @returns Members who are not project owners.
  */
 export function getProjectMembers(members: MemberResponse[]): MemberResponse[] {
-    return members.filter(member =>
-        member.role.name !== "Project Owner"
-    );
+  return members.filter((member) => member.role.name !== "Project Owner");
 }
 
 /**
@@ -33,11 +28,12 @@ export function getProjectMembers(members: MemberResponse[]): MemberResponse[] {
  * @returns A string representing all member names.
  */
 export function membersToString(members: MemberResponse[]): string {
-
-    return members.filter((_, idx, arr) =>
+  return members
+    .filter(
+      (_, idx, arr) =>
         // Filter for unique members
-        arr.findIndex(member => member.person.email) === idx
-    ).map(member =>
-        member.person.full_name
-    ).join(", ");
+        arr.findIndex((member) => member.person.email) === idx
+    )
+    .map((member) => member.person.full_name)
+    .join(", ");
 }

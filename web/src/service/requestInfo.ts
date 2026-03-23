@@ -11,20 +11,20 @@ import type { DriveInfoResponse } from "../client/types.gen";
  * @throws Exception if server did not return data or received an error status code.
  */
 async function getDriveInfo(): Promise<DriveInfoResponse> {
-    const params = new URLSearchParams(window.location.search);
-    const driveName = params.get("drive");
-    if (driveName === null) {
-        throw new Error("No drive name found in parameter.");
+  const params = new URLSearchParams(window.location.search);
+  const driveName = params.get("drive");
+  if (driveName === null) {
+    throw new Error("No drive name found in parameter.");
+  }
+  const response = await getDriveInfoApiV1DriveinfoGet({
+    query: {
+      drive_name: driveName
     }
-    const response = await getDriveInfoApiV1DriveinfoGet({
-        query: {
-            drive_name: driveName
-        }
-    });
-    if (response.error || !response.response.ok || response.data === undefined) {
-        throw response.error;
-    }
-    return response.data;
+  });
+  if (response.error || !response.response.ok || response.data === undefined) {
+    throw response.error;
+  }
+  return response.data;
 }
 
 /**
@@ -32,18 +32,18 @@ async function getDriveInfo(): Promise<DriveInfoResponse> {
  * @returns True if request was loaded successfully, false if not.
  */
 export async function loadRequestInfo(): Promise<boolean> {
-    try {
-        requestInfo.isLoading = true;
-        const driveInfo = await getDriveInfo();
-        requestInfo.project = driveInfo.project;
-        requestInfo.drive = driveInfo.drive;
-        requestInfo.isLoading = false;
-        return true;
-    } catch (e) {
-        requestInfo.isLoading = false;
-        requestInfo.error = e;
-        console.error("Could not retrieve request information. Bad invite link?");
-        console.error(e);
-        return false;
-    }
+  try {
+    requestInfo.isLoading = true;
+    const driveInfo = await getDriveInfo();
+    requestInfo.project = driveInfo.project;
+    requestInfo.drive = driveInfo.drive;
+    requestInfo.isLoading = false;
+    return true;
+  } catch (e) {
+    requestInfo.isLoading = false;
+    requestInfo.error = e;
+    console.error("Could not retrieve request information. Bad invite link?");
+    console.error(e);
+    return false;
+  }
 }
