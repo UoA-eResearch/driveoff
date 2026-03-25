@@ -200,19 +200,6 @@ def test_ro_builder(test_ro_crate: ROCrate) -> ROBuilder:
 
 
 @pytest.fixture()
-def project_members_expanded() -> List[Dict[str, Any]]:
-    """Load actual ProjectDB API response with expanded person and role data"""
-    project_members_file = (
-        Path(__file__).parent.parent / "project_members_expanded.json"
-    )
-    if project_members_file.exists():
-        with open(project_members_file) as f:
-            return json.load(f)
-    # Fallback if file doesn't exist - empty list
-    return []
-
-
-@pytest.fixture()
 def test_project_dict() -> Dict[str, Any]:
     """Reusable test project data matching ProjectDB structure"""
     from datetime import datetime
@@ -244,14 +231,38 @@ def test_member_dict() -> Dict[str, Any]:
 
 
 @pytest.fixture()
-def test_archive_metadata() -> Dict[str, Any]:
-    """Reusable archive metadata for tests"""
+def test_drive_dict() -> Dict[str, Any]:
+    """Reusable drive data matching ProjectDB structure"""
     return {
-        "drive_name": "restst000000001-testing",
-        "retention_period_years": 7,
-        "retention_period_justification": "Standard retention",
-        "data_classification": "Sensitive",
+        "allocated_gb": 4000.0,
+        "archived": 0,
+        "date": "2026-03-09",
+        "deleted": 0,
+        "free_gb": 4000.0,
+        "id": 6904394,
+        "name": "restst000000001-testing",
+        "num_files": 4,
+        "percentage_used": 0.0,
+        "used_gb": 0.0,
     }
+
+
+@pytest.fixture()
+def test_submission() -> ArchiveSubmission:
+    """Reusable ArchiveSubmission for builder tests"""
+    return ArchiveSubmission(
+        drive_id=6904394,
+        project_id=123,
+        drive_name="restst000000001-testing",
+        retention_period_years=7,
+        retention_period_justification="Standard retention",
+        data_classification=DataClassification.SENSITIVE,
+        archive_date=datetime(2024, 10, 13),
+        archive_location="/archive/path",
+        manifest_id=None,
+        is_completed=False,
+        created_timestamp=datetime(2024, 10, 13),
+    )
 
 
 class ROCRATEHelpers:

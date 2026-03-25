@@ -7,6 +7,8 @@ from pathlib import Path
 from conftest import ROCRATEHelpers
 
 from crate.ro_builder import ROBuilder
+from models.common import DataClassification
+from models.submission import ArchiveSubmission
 
 METADATA_FILE_NAME = "ro-crate-metadata.json"
 BAG_DIR_NAME = "data"
@@ -36,22 +38,39 @@ def test_generate_crate_builder(
             "role": {"role": "Principal Investigator"},
         }
     ]
-    archive_metadata = {
-        "drive_name": "test-drive",
-        "retention_period_years": 7,
-        "retention_period_justification": "Standard retention",
-        "data_classification": "Sensitive",
+    drive_data = {
+        "name": "test-drive",
+        "allocated_gb": 100.0,
+        "free_gb": 50.0,
+        "used_gb": 50.0,
+        "date": "2026-03-09",
+        "percentage_used": 50.0,
     }
+
+    submission = ArchiveSubmission(
+        drive_id=1,
+        project_id=123,
+        drive_name="test-drive",
+        retention_period_years=7,
+        retention_period_justification="Standard retention",
+        data_classification=DataClassification.SENSITIVE,
+        archive_date=datetime(2024, 10, 13),
+        archive_location="/archive/path",
+        manifest_id=None,
+        is_completed=False,
+        created_timestamp=datetime(2024, 10, 13),
+    )
 
     ro_project = test_ro_builder.add_project(
         project=project_dict,
         members=members_list,
-        archive_metadata=archive_metadata,
+        submission=submission,
+        drive=drive_data,
     )
 
     # Verify project was added to crate
     assert ro_project["name"] == "Test Project"
-    assert ro_project.type == "Dataset"
+    assert ro_project.type == "ResearchProject"
     assert ro_project.get("retentionPeriodYears") == 7
 
     # Verify entities are in crate
@@ -73,11 +92,25 @@ def test_crate_metadata_present(test_ro_builder: ROBuilder) -> None:
             "codes": {"items": [{"code": "CODE-001"}]},
         },
         members=[],
-        archive_metadata={
-            "drive_name": "test",
-            "retention_period_years": 7,
-            "retention_period_justification": "test",
-            "data_classification": "Sensitive",
+        submission=ArchiveSubmission(
+            drive_id=1,
+            project_id=1,
+            drive_name="test",
+            retention_period_years=7,
+            retention_period_justification="test",
+            data_classification=DataClassification.SENSITIVE,
+            archive_date=datetime.now(),
+            archive_location="/archive/path",
+            manifest_id=None,
+            is_completed=False,
+        ),
+        drive={
+            "name": "test",
+            "allocated_gb": 100.0,
+            "free_gb": 50.0,
+            "used_gb": 50.0,
+            "date": "2026-03-09",
+            "percentage_used": 50.0,
         },
     )
 
