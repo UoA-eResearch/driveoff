@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Iterable
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
+from pydantic import BaseModel, field_validator
 from pydantic.functional_validators import AfterValidator
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -89,6 +90,73 @@ def validate_resdrive_name(drive_name: str) -> str:
 ResearchDriveName = Annotated[str, AfterValidator(validate_resdrive_name)]
 
 
+# ── Read-only response models for drive info endpoint ──
+
+
+class RoleResponse(BaseModel):
+    """Project role."""
+
+    id: int | None = None
+    name: str
+
+
+class PersonResponse(BaseModel):
+    """Person summary for display."""
+
+    id: int | None = None
+    email: str | None = None
+    full_name: str
+    username: str | None = None
+
+
+class MemberResponse(BaseModel):
+    """Project member with role."""
+
+    role: RoleResponse
+    person: PersonResponse
+
+
+class CodeResponse(BaseModel):
+    """Project code."""
+
+    id: int | None = None
+    code: str
+
+
+class DriveResponse(BaseModel):
+    """Research drive storage info."""
+
+    id: int | None = None
+    name: str
+    allocated_gb: float
+    used_gb: float
+    free_gb: float
+    percentage_used: float
+    date: str
+    first_day: str | None = None
+    last_day: str | None = None
+
+
+class ProjectResponse(BaseModel):
+    """Project summary for display."""
+
+    id: int
+    title: str
+    description: str
+    division: str
+    start_date: str
+    end_date: str
+    codes: list[CodeResponse] = []
+    members: list[MemberResponse] = []
+
+
+class DriveInfoResponse(BaseModel):
+    """Combined drive + project info returned by the driveinfo endpoint."""
+
+    drive: DriveResponse
+    project: ProjectResponse
+
+
 class CreateSubmissionRequest(SQLModel):
     """Request body for creating an archive submission."""
 
@@ -97,6 +165,159 @@ class CreateSubmissionRequest(SQLModel):
     retention_period_justification: str | None = None
     data_classification: DataClassification = DataClassification.SENSITIVE
     project_id: int | None = None
+
+    @field_validator("retention_period_years")
+    @classmethod
+    def check_minimum_retention(cls, v: int) -> int:
+        if v < 6:
+            raise ValueError("Retention period must be at least 6 years.")
+        return v
+
+
+@app.get(ENDPOINT_PREFIX + "/driveinfo", response_model=DriveInfoResponse)
+async def get_drive_info(
+    drive_name: ResearchDriveName,
+    projectdb: ProjectDbDep,
+    api_key: ApiKey = Security(validate_api_key),
+) -> DriveInfoResponse:
+    """Retrieve drive and project info from ProjectDB for display.
+
+    Looks up the drive by name, resolves the associated project,
+    and returns combined info including members and codes.
+    """
+    validate_permissions("GET", api_key)
+
+    # Look up drive in ProjectDB
+    # TODO: Replace mock with projectdb.get_research_drive_by_name() when available
+    drive_data = {
+        "allocated_gb": 4000.0,
+        "archived": 0,
+        "date": "2026-03-09",
+        "deleted": 0,
+        "free_gb": 4000.0,
+        "id": 6904394,
+        "name": drive_name,
+        "num_files": 4,
+        "percentage_used": 0.0,
+        "used_gb": 0.0,
+    }
+
+    if not drive_data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Research Drive {drive_name} not found in ProjectDB.",
+        )
+
+    # Resolve project from drive
+    try:
+        drive_projects = projectdb.get_research_drive_projects(
+            drive_data["id"], expand=["project"]
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not fetch projects for drive {drive_name}: {str(e)}",
+        ) from e
+
+    if not drive_projects or len(drive_projects) == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No projects associated with drive {drive_name}",
+        )
+
+    # Use the first project (single-project drives are the common case)
+    project_ref = drive_projects[0]["project"]
+    project_id = project_ref["id"]
+
+    # Fetch full project data with codes and services
+    try:
+        project_data = projectdb.get_project(
+            pid=project_id,
+            expand=["codes", "status", "services"],
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not fetch project {project_id}: {str(e)}",
+        ) from e
+
+    # Fetch members
+    try:
+        members_raw = projectdb.get_project_members(
+            project_id,
+            expand=["person", "role", "person.identities", "person.status"],
+        )
+        members_raw = filter_member_identities(members_raw)
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not fetch members for project {project_id}: {str(e)}",
+        ) from e
+
+    # Build drive response, preferring service-level data (has first_day/last_day)
+    drive_service = None
+    for rd in project_data.get("services", {}).get("research_drive", []):
+        if rd.get("name") == drive_name:
+            drive_service = rd
+            break
+
+    drive_resp = DriveResponse(
+        id=drive_data.get("id"),
+        name=drive_name,
+        allocated_gb=drive_data["allocated_gb"],
+        used_gb=drive_data["used_gb"],
+        free_gb=drive_data["free_gb"],
+        percentage_used=drive_data["percentage_used"],
+        date=drive_data["date"],
+        first_day=drive_service.get("first_day") if drive_service else None,
+        last_day=drive_service.get("last_day") if drive_service else None,
+    )
+
+    # Build codes
+    codes_items = project_data.get("codes", {})
+    if isinstance(codes_items, dict):
+        codes_items = codes_items.get("items", [])
+    codes = [CodeResponse(id=c.get("id"), code=c["code"]) for c in codes_items]
+
+    # Build members
+    members = []
+    for m in members_raw:
+        person = m.get("person", {})
+        # Pick the non-email username from identities
+        username = None
+        for ident in person.get("identities", {}).get("items", []):
+            uname = ident.get("username", "")
+            if uname and "@" not in uname:
+                username = uname
+                break
+
+        members.append(
+            MemberResponse(
+                role=RoleResponse(
+                    id=m.get("role", {}).get("id"),
+                    name=m["role"]["name"],
+                ),
+                person=PersonResponse(
+                    id=person.get("id"),
+                    email=person.get("email"),
+                    full_name=person.get("full_name", ""),
+                    username=username,
+                ),
+            )
+        )
+
+    project_resp = ProjectResponse(
+        id=project_data["id"],
+        title=project_data.get("title", ""),
+        description=project_data.get("description", ""),
+        division=project_data.get("division", ""),
+        start_date=project_data.get("start_date", ""),
+        end_date=project_data.get("end_date", ""),
+        codes=codes,
+        members=members,
+    )
+
+    return DriveInfoResponse(drive=drive_resp, project=project_resp)
 
 
 @app.post(ENDPOINT_PREFIX + "/submission", status_code=status.HTTP_201_CREATED)

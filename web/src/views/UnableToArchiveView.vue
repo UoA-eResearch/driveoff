@@ -14,6 +14,6 @@ document.title = DOCUMENT_TITLE;
     <h2 class="h2">
       If you need help
     </h2>
-    <p>Contact <a href="https://eresearch.auckland.ac.nz">Centre for eResearch</a> if you have any questions.</p>
+    <p>Contact <a class="btn-link" href="https://eresearch.auckland.ac.nz">Centre for eResearch</a> if you have any questions.</p>
   </main>
 </template>

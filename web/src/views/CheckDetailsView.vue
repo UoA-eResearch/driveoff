@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { membersToString, getProjectMembers, getProjectOwners } from '@/models/helpers';
 import { formState, requestInfo } from '@/store';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 
@@ -10,8 +10,8 @@ document.title = DOCUMENT_TITLE;
 
 const error =ref("");
 const router = useRouter();
-const owners = membersToString(getProjectOwners(requestInfo.project.members));
-const members = membersToString(getProjectMembers(requestInfo.project.members));
+const owners = computed(() => membersToString(getProjectOwners(requestInfo.project.members ?? [])));
+const members = computed(() => membersToString(getProjectMembers(requestInfo.project.members ?? [])));
 
 function tryContinue() {
     if (formState.areProjectDetailsCorrect === null){
@@ -20,7 +20,9 @@ function tryContinue() {
     } else if (formState.areProjectDetailsCorrect) {
             router.push("/data-classification");
     } else {
-        router.push("/update-details");
+        // Project editing is not currently supported.
+        // If details are wrong, user should contact eResearch.
+        router.push("/project-details-incorrect");
     }
 }
 </script>
@@ -105,10 +107,9 @@ function tryContinue() {
 }
 td {
     padding: 0.5rem;
-    border-bottom: 1px solid gray;
-    /* background-color: lightgray; */
-    
+    border-bottom: 1px solid var(--brand-light);
 }
+
 td:first-child {
     font-family: "Inter", sans-serif;
     font-weight: 700;
