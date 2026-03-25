@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Iterable
 
+from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
 from pydantic import BaseModel, field_validator
 from pydantic.functional_validators import AfterValidator
@@ -20,7 +21,6 @@ from api.manifests import (
     generate_manifest,
 )
 from api.projectdb import get_projectdb_client, init_projectdb
-from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from api.security import ApiKey, validate_api_key, validate_permissions
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader, zip_existing_crate
@@ -169,6 +169,7 @@ class CreateSubmissionRequest(SQLModel):
     @field_validator("retention_period_years")
     @classmethod
     def check_minimum_retention(cls, v: int) -> int:
+        """Enforce a minimum retention period of 6 years."""
         if v < 6:
             raise ValueError("Retention period must be at least 6 years.")
         return v
@@ -188,7 +189,7 @@ async def get_drive_info(
     validate_permissions("GET", api_key)
 
     # Look up drive in ProjectDB
-    # TODO: Replace mock with projectdb.get_research_drive_by_name() when available
+    # TODO: Replace mock with projectdb.get_research_drive_by_name() when available pylint: disable=fixme
     drive_data = {
         "allocated_gb": 4000.0,
         "archived": 0,
@@ -226,8 +227,7 @@ async def get_drive_info(
         )
 
     # Use the first project (single-project drives are the common case)
-    project_ref = drive_projects[0]["project"]
-    project_id = project_ref["id"]
+    project_id = drive_projects[0]["project"]["id"]
 
     # Fetch full project data with codes and services
     try:
@@ -274,37 +274,10 @@ async def get_drive_info(
     )
 
     # Build codes
-    codes_items = project_data.get("codes", {})
-    if isinstance(codes_items, dict):
-        codes_items = codes_items.get("items", [])
-    codes = [CodeResponse(id=c.get("id"), code=c["code"]) for c in codes_items]
+    codes = _build_codes(project_data)
 
     # Build members
-    members = []
-    for m in members_raw:
-        person = m.get("person", {})
-        # Pick the non-email username from identities
-        username = None
-        for ident in person.get("identities", {}).get("items", []):
-            uname = ident.get("username", "")
-            if uname and "@" not in uname:
-                username = uname
-                break
-
-        members.append(
-            MemberResponse(
-                role=RoleResponse(
-                    id=m.get("role", {}).get("id"),
-                    name=m["role"]["name"],
-                ),
-                person=PersonResponse(
-                    id=person.get("id"),
-                    email=person.get("email"),
-                    full_name=person.get("full_name", ""),
-                    username=username,
-                ),
-            )
-        )
+    members = _build_members(members_raw)
 
     project_resp = ProjectResponse(
         id=project_data["id"],
@@ -380,7 +353,8 @@ async def create_submission(
                 detail=f"No projects associated with drive {request.drive_name}",
             )
         if len(drive_projects) > 1:
-            # Choose correct project based on request parameter if provided, otherwise raise error to disambiguate
+            # Choose correct project based on request parameter if provided,
+            # otherwise raise error to disambiguate
             if request.project_id:
                 for dp in drive_projects:
                     if dp["project"]["id"] == request.project_id:
@@ -422,7 +396,8 @@ async def create_submission(
 
         session.add(submission)
         session.commit()
-        # we need the submission id to pass to the background task, so we refresh to get the generated id
+        # we need the submission id to pass to the background task,
+        # so we refresh to get the generated id
         session.refresh(submission)
         if submission.id is None:
             raise HTTPException(
@@ -637,6 +612,43 @@ async def get_submission(
     return result
 
 
+def _build_codes(project_data: dict[str, Any]) -> list[CodeResponse]:
+    """Extract project codes from project data."""
+    codes_items = project_data.get("codes", {})
+    if isinstance(codes_items, dict):
+        codes_items = codes_items.get("items", [])
+    return [CodeResponse(id=c.get("id"), code=c["code"]) for c in codes_items]
+
+
+def _build_members(members_raw: list[dict[str, Any]]) -> list[MemberResponse]:
+    """Convert raw member dicts into MemberResponse objects."""
+    members = []
+    for m in members_raw:
+        person = m.get("person", {})
+        username = None
+        for ident in person.get("identities", {}).get("items", []):
+            uname = ident.get("username", "")
+            if uname and "@" not in uname:
+                username = uname
+                break
+
+        members.append(
+            MemberResponse(
+                role=RoleResponse(
+                    id=m.get("role", {}).get("id"),
+                    name=m["role"]["name"],
+                ),
+                person=PersonResponse(
+                    id=person.get("id"),
+                    email=person.get("email"),
+                    full_name=person.get("full_name", ""),
+                    username=username,
+                ),
+            )
+        )
+    return members
+
+
 def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Filter out identities where the username is an email address."""
     try:
@@ -658,7 +670,7 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
             }
             for member in members
         ]
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         # Log error but don't fail the whole process - just return unfiltered members
         print(f"Error filtering member identities: {e}")
     return members

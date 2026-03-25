@@ -1,13 +1,14 @@
 # pylint: disable-all
 from datetime import datetime
+from typing import Any, Dict, List, Optional, cast
+
 from dateutil.relativedelta import relativedelta
-from models.submission import ArchiveSubmission
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.person import Person as RoPerson
 from rocrate.rocrate import ROCrate
 from rocrate.utils import is_url
-from typing import Any, Dict, List, Optional, cast
 
+from models.submission import ArchiveSubmission
 
 PROJECT_PREFIX = "project/"
 ROLE_PREFIX = "role/"
@@ -86,7 +87,7 @@ class ROBuilder:
 
         project_entity = ContextEntity(
             crate=self.crate,
-            identifier=f"{PROJECT_PREFIX}{project_id}",
+            identifier=as_ro_id(f"{PROJECT_PREFIX}{project_id}"),
             properties=project_properties,
         )
 
@@ -198,10 +199,10 @@ class ROBuilder:
         role_data = member.get("role", {})
         role_name = self._extract_role(role_data)
         role_string = "".join(str(role_name).split())
-        member_id = f"{MEMBER_PREFIX}{project_id}/{role_string}/{username}"
+        member_id = as_ro_id(f"{MEMBER_PREFIX}{project_id}/{role_string}/{username}")
 
         # Check if member already exists in crate
-        if member_entity := self.crate.dereference(as_ro_id(member_id)):
+        if member_entity := self.crate.dereference(member_id):
             return member_entity
 
         # Add person to crate
@@ -222,9 +223,10 @@ class ROBuilder:
             person: Person dict with keys: id, email, full_name, username, identities, etc.
         """
         username = self._extract_username(person)
+        person_id = as_ro_id(username)
 
         # Check if person already exists
-        if person_entity := self.crate.dereference(as_ro_id(username)):
+        if person_entity := self.crate.dereference(person_id):
             return person_entity
 
         # Build person properties
@@ -235,7 +237,7 @@ class ROBuilder:
 
         person_entity = RoPerson(
             self.crate,
-            identifier=username,
+            identifier=person_id,
             properties=person_properties,
         )
         return cast(RoPerson, self.crate.add(person_entity))
@@ -257,8 +259,8 @@ class ROBuilder:
             "percentageUsed": drive_data.get("percentage_used"),
         }
 
-        rd_id = f"{RD_PREFIX}{drive_data.get('name')}"
-        if rd_entity := self.crate.dereference(as_ro_id(rd_id)):
+        rd_id = as_ro_id(f"{RD_PREFIX}{drive_data.get('name')}")
+        if rd_entity := self.crate.dereference(rd_id):
             return rd_entity
 
         drive_properties["@type"] = "ResearchDriveService"
