@@ -1,7 +1,8 @@
 """Archive submission model - minimal reference to ProjectDB records."""
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -35,7 +36,7 @@ class ArchiveSubmission(SQLModel, table=True):
 
     # Manifest relationship
     manifest_id: int | None = Field(default=None, foreign_key="manifest.id")
-    manifest: Optional[Manifest] = Relationship()
+    manifest: Manifest | None = Relationship()
 
     # Status and audit
     is_completed: bool = Field(default=False)

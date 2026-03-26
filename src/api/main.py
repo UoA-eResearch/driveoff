@@ -1,10 +1,13 @@
 """Definition of endpoints/routers for the webserver."""
 
+from __future__ import annotations
+
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterable
+from typing import Annotated, Any
 
 from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status

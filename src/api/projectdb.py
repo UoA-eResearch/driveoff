@@ -1,15 +1,12 @@
 """ProjectDB client initialization and dependency injection for FastAPI."""
 
-from __future__ import annotations
-
 import os
-from typing import Optional
 
 from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from fastapi import FastAPI, Request
 
 
-def init_projectdb(app: FastAPI, environment: Optional[str] = None) -> None:
+def init_projectdb(app: FastAPI, environment: str | None = None) -> None:
     """Initialize a ProjectDBApi client and attach it to the FastAPI app state.
 
     The environment can be provided or read from the `PROJECTDB_ENV`

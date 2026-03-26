@@ -6,8 +6,6 @@ dependency-free (uses stdlib) so it can be run without installing extra
 packages.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import os

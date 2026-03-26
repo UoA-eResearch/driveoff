@@ -1,6 +1,6 @@
 """Models for storing manifest data from archives."""
 
-from typing import Optional
+from __future__ import annotations
 
 from sqlmodel import Field, SQLModel
 
@@ -12,5 +12,5 @@ class Manifest(SQLModel, table=True):
     Referenced by ArchiveSubmission via manifest_id.
     """
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     manifest: str  # JSON or text listing of files

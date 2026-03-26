@@ -4,7 +4,8 @@ import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Generator, List
+from collections.abc import Generator
+from typing import Any
 
 import orjson
 import pytest
@@ -33,7 +34,7 @@ TEST_OUTPUT_NAME = "Archive"
 
 
 @pytest.fixture(name="session")
-def session_fixture() -> Generator[Session, Any, Any]:
+def session_fixture() -> Generator[Session, Any, None]:
     """scoped session for each unit test"""
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -46,7 +47,7 @@ def session_fixture() -> Generator[Session, Any, Any]:
 
 
 @pytest.fixture(name="client")
-def client_fixture(session: Session) -> Generator[TestClient, Any, Any]:
+def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
     """test client with mocked dependencies"""
     from unittest.mock import MagicMock
 
@@ -200,7 +201,7 @@ def test_ro_builder(test_ro_crate: ROCrate) -> ROBuilder:
 
 
 @pytest.fixture()
-def test_project_dict() -> Dict[str, Any]:
+def test_project_dict() -> dict[str, Any]:
     """Reusable test project data matching ProjectDB structure"""
     from datetime import datetime
 
@@ -216,7 +217,7 @@ def test_project_dict() -> Dict[str, Any]:
 
 
 @pytest.fixture()
-def test_member_dict() -> Dict[str, Any]:
+def test_member_dict() -> dict[str, Any]:
     """Reusable test member data matching ProjectDB structure"""
     return {
         "person": {
@@ -231,7 +232,7 @@ def test_member_dict() -> Dict[str, Any]:
 
 
 @pytest.fixture()
-def test_drive_dict() -> Dict[str, Any]:
+def test_drive_dict() -> dict[str, Any]:
     """Reusable drive data matching ProjectDB structure"""
     return {
         "allocated_gb": 4000.0,
@@ -278,7 +279,7 @@ class ROCRATEHelpers:
     METADATA_FILE_NAME = "ro-crate-metadata.json"
 
     @classmethod
-    def read_json_entities(cls, crate_base_path: Path) -> Dict[str, Any]:
+    def read_json_entities(cls, crate_base_path: Path) -> dict[str, Any]:
         """Read entities from RO-Crate json into a dictionary"""
         metadata_path = crate_base_path / cls.METADATA_FILE_NAME
         with open(metadata_path, "rt", encoding="utf8") as f:
@@ -288,9 +289,9 @@ class ROCRATEHelpers:
     @classmethod
     def check_crate(
         cls,
-        json_entities: Dict[str, Any],
+        json_entities: dict[str, Any],
         root_id: str = "./",
-        data_entity_ids: set[str] | List[str] | None = None,
+        data_entity_ids: set[str] | list[str] | None = None,
     ) -> None:
         """Validate key crate information conforms to standards"""
         assert root_id in json_entities
@@ -310,7 +311,7 @@ class ROCRATEHelpers:
 
     @classmethod
     def check_crate_contains(
-        cls, json_entities: Dict[str, Any], ro_crate_entities: List[RO_Entity]
+        cls, json_entities: dict[str, Any], ro_crate_entities: list[RO_Entity]
     ) -> None:
         """Check specific entities have been created within the RO-Crate json"""
         for entity in ro_crate_entities:
