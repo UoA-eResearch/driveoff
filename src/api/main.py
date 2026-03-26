@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Iterable
 
-from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -36,6 +35,7 @@ from models.response import (
 )
 from models.submission import ArchiveSubmission
 from service.projectdb import get_projectdb_client, init_projectdb
+from service.projectdb_client import ProjectDBClient
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -58,7 +58,7 @@ def get_session() -> Iterable[Session]:
 
 
 SessionDep = Annotated[Session, Depends(get_session)]
-ProjectDbDep = Annotated[ProjectDBApi, Depends(get_projectdb_client)]
+ProjectDbDep = Annotated[ProjectDBClient, Depends(get_projectdb_client)]
 
 
 @asynccontextmanager
@@ -101,25 +101,20 @@ async def get_drive_info(
     validate_permissions("GET", api_key)
 
     # Look up drive in ProjectDB
-    # TODO: Replace mock with projectdb.get_research_drive_by_name() when available pylint: disable=fixme
-    drive_data = {
-        "allocated_gb": 4000.0,
-        "archived": 0,
-        "date": "2026-03-09",
-        "deleted": 0,
-        "free_gb": 4000.0,
-        "id": 6904394,
-        "name": drive_name,
-        "num_files": 4,
-        "percentage_used": 0.0,
-        "used_gb": 0.0,
-    }
-
-    if not drive_data:
+    try:
+        drive_data = projectdb.get_research_drive_by_name(drive_name)
+        if not drive_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Research Drive {drive_name} not found in ProjectDB.",
+            )
+        if isinstance(drive_data, list):
+            drive_data = drive_data[0]
+    except Exception as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"Research Drive {drive_name} not found in ProjectDB.",
-        )
+            status_code=502,
+            detail=f"Could not fetch drive {drive_name} from ProjectDB: {str(e)}",
+        ) from e
 
     # Resolve project from drive
     try:
@@ -248,23 +243,15 @@ async def create_submission(
 
     # Fetch drive info from ProjectDB to validate it exists
     try:
-        # pylint: disable=fixme
-        # TODO: Using mock data for now
-        # ProjectDB API is currently being updated to add get_research_drive_by_name() method
-        # Once available, this mock should be replaced with:
-        #   drive = projectdb.get_research_drive_by_name(request.drive_name)
-        drive = {
-            "allocated_gb": 4000.0,
-            "archived": 0,
-            "date": "2026-03-09",
-            "deleted": 0,
-            "free_gb": 4000.0,
-            "id": 6904394,
-            "name": request.drive_name,
-            "num_files": 4,
-            "percentage_used": 0.0,
-            "used_gb": 0.0,
-        }
+        drive = projectdb.get_research_drive_by_name(request.drive_name)
+        if not drive:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Research Drive {request.drive_name} not found in ProjectDB.",
+            )
+        if isinstance(drive, list):
+            # There should only ever be one
+            drive = drive[0]
 
         if not drive:
             raise HTTPException(
@@ -448,7 +435,7 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
 async def generate_ro_crate_async(
     drive: dict[str, Any],
     submission_id: int,
-    projectdb_client: ProjectDBApi,
+    projectdb_client: ProjectDBClient,
 ) -> None:
     """Async background task for generating RO-Crate and updating archive record.
 

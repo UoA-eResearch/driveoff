@@ -2,26 +2,35 @@
 
 from __future__ import annotations
 
-import os
-from typing import Optional
-
-from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from fastapi import FastAPI, Request
 
+from config import get_settings
+from service.projectdb_client import ProjectDBClient
 
-def init_projectdb(app: FastAPI, environment: Optional[str] = None) -> None:
-    """Initialize a ProjectDBApi client and attach it to the FastAPI app state.
 
-    The environment can be provided or read from the `PROJECTDB_ENV`
-    environment variable (defaults to "test").
+def init_projectdb(app: FastAPI) -> None:
+    """Initialize a ProjectDBClient and attach it to the FastAPI app state.
+
+    Reads base_url and api_key from the application Settings (sourced from
+    the mode-specific .env files).
     """
-    env = environment or os.environ.get("PROJECTDB_ENV", "test")
-    client = ProjectDBApi.from_config(environment=env)
+    settings = get_settings()
+    print(
+        f"Initializing ProjectDB client with base URL: {settings.projectdb_base_url}"
+    )  # Debug logging
+    if not settings.projectdb_base_url or not settings.projectdb_api_key:
+        raise ValueError(
+            "PROJECTDB_BASE_URL and PROJECTDB_API_KEY must be set in the environment."
+        )
+    client = ProjectDBClient(
+        base_url=settings.projectdb_base_url,
+        api_key=settings.projectdb_api_key,
+    )
     app.state.projectdb = client
 
 
-def get_projectdb_client(request: Request) -> ProjectDBApi:
-    """FastAPI dependency to retrieve the initialized ProjectDBApi client.
+def get_projectdb_client(request: Request) -> ProjectDBClient:
+    """FastAPI dependency to retrieve the initialized ProjectDBClient.
 
     Endpoints can use ``Depends(get_projectdb_client)`` to receive the client.
     """
