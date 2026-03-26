@@ -39,7 +39,7 @@ loadRequestInfo().then((hasLoadedRequestInfo: boolean) => {
   </header>
 
   <div v-if="requestInfo.isLoading" class="loading-indicator">
-    <div>Loading drive information</div>
+    <div>Loading</div>
     <div class="spinner"></div>
   </div>
   <RouterView v-else />

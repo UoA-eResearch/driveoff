@@ -46,6 +46,18 @@ export type CreateSubmissionRequest = {
 };
 
 /**
+ * CreateSubmissionResponse
+ *
+ * Response returned after creating an archive submission.
+ */
+export type CreateSubmissionResponse = {
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
  * DataClassification
  *
  * Data classification labels defined in Research
@@ -72,7 +84,7 @@ export type DriveResponse = {
     /**
      * Id
      */
-    id?: number | null;
+    id: number;
     /**
      * Name
      */
@@ -105,6 +117,18 @@ export type DriveResponse = {
      * Last Day
      */
     last_day?: string | null;
+};
+
+/**
+ * ErrorResponse
+ *
+ * Error response returned by the API.
+ */
+export type ErrorResponse = {
+    /**
+     * Detail
+     */
+    detail: string;
 };
 
 /**
@@ -208,6 +232,55 @@ export type RoleResponse = {
 };
 
 /**
+ * SubmissionResponse
+ *
+ * Archive submission record returned by the submission endpoint.
+ */
+export type SubmissionResponse = {
+    /**
+     * Drive Id
+     */
+    drive_id: number;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Drive Name
+     */
+    drive_name: string;
+    /**
+     * Retention Period Years
+     */
+    retention_period_years: number;
+    /**
+     * Retention Period Justification
+     */
+    retention_period_justification: string | null;
+    data_classification: DataClassification;
+    /**
+     * Archive Date
+     */
+    archive_date: string;
+    /**
+     * Archive Location
+     */
+    archive_location: string;
+    /**
+     * Is Completed
+     */
+    is_completed: boolean;
+    /**
+     * Created Timestamp
+     */
+    created_timestamp: string;
+    /**
+     * Manifest
+     */
+    manifest: string | null;
+};
+
+/**
  * ValidationError
  */
 export type ValidationError = {
@@ -296,13 +369,9 @@ export type GetSubmissionApiV1SubmissionGetError = GetSubmissionApiV1SubmissionG
 
 export type GetSubmissionApiV1SubmissionGetResponses = {
     /**
-     * Response Get Submission Api V1 Submission Get
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: unknown;
-    };
+    200: SubmissionResponse;
 };
 
 export type GetSubmissionApiV1SubmissionGetResponse = GetSubmissionApiV1SubmissionGetResponses[keyof GetSubmissionApiV1SubmissionGetResponses];
@@ -321,6 +390,10 @@ export type CreateSubmissionApiV1SubmissionPostData = {
 
 export type CreateSubmissionApiV1SubmissionPostErrors = {
     /**
+     * Drive already archived
+     */
+    409: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -330,13 +403,9 @@ export type CreateSubmissionApiV1SubmissionPostError = CreateSubmissionApiV1Subm
 
 export type CreateSubmissionApiV1SubmissionPostResponses = {
     /**
-     * Response Create Submission Api V1 Submission Post
-     *
      * Successful Response
      */
-    201: {
-        [key: string]: string;
-    };
+    201: CreateSubmissionResponse;
 };
 
 export type CreateSubmissionApiV1SubmissionPostResponse = CreateSubmissionApiV1SubmissionPostResponses[keyof CreateSubmissionApiV1SubmissionPostResponses];

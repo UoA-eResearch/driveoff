@@ -55,6 +55,11 @@ const router = createRouter({
       component: () => import("../views/IncorrectProjectDetails.vue")
     },
     {
+      path: "/already-archived",
+      name: "already-archived",
+      component: () => import("../views/AlreadyArchivedView.vue")
+    },
+    {
       path: "/service-error",
       name: "service-error",
       component: () => import("../views/ServiceErrorView.vue")

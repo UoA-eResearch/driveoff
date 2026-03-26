@@ -30,10 +30,12 @@ async function submit(){
             data_classification: dataClassification,
         }
     });
-    if (req.response.ok) {
+    if (req.data) {
         router.push("/finish");
+    } else if (req.error && req.response.status === 409) {
+        router.push("/already-archived");
     } else {
-        router.push("/service-error")
+        router.push("/service-error");
     }
 }
 </script>
