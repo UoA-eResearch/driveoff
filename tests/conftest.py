@@ -17,7 +17,7 @@ from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
 from api.main import app, get_session
-from api.projectdb import get_projectdb_client
+from service.projectdb import get_projectdb_client
 from api.security import ApiKey, read_api_keys
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import PROFILE as ARCHIVE_PROFILE

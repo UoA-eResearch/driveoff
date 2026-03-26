@@ -1,6 +1,5 @@
 """Definition of endpoints/routers for the webserver."""
 
-import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -8,8 +7,6 @@ from typing import Annotated, Any, AsyncGenerator, Iterable
 
 from ceradmin_cli.api_client.eresearch_project import ProjectDBApi
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
-from pydantic import BaseModel, field_validator
-from pydantic.functional_validators import AfterValidator
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.cors import add_cors_middleware
@@ -20,12 +17,25 @@ from api.manifests import (
     create_manifests_directory,
     generate_manifest,
 )
-from api.projectdb import get_projectdb_client, init_projectdb
 from api.security import ApiKey, validate_api_key, validate_permissions
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader, zip_existing_crate
-from models.common import DataClassification
+from models.common import ResearchDriveName
+from models.request import CreateSubmissionRequest
+from models.response import (
+    CodeResponse,
+    CreateSubmissionResponse,
+    DriveInfoResponse,
+    DriveResponse,
+    ErrorResponse,
+    MemberResponse,
+    PersonResponse,
+    ProjectResponse,
+    RoleResponse,
+    SubmissionResponse,
+)
 from models.submission import ArchiveSubmission
+from service.projectdb import get_projectdb_client, init_projectdb
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -74,105 +84,7 @@ app = FastAPI(lifespan=lifespan)
 # Send CORS headers to enable frontend to contact API.
 add_cors_middleware(app)
 
-RESEARCH_DRIVE_REGEX = re.compile(r"res[a-z]{3}[0-9]{9}-[a-zA-Z0-9-_]+")
-
 ENDPOINT_PREFIX = "/api/v1"
-
-
-def validate_resdrive_name(drive_name: str) -> str:
-    """Check if the string is a valid Research Drive name."""
-    if RESEARCH_DRIVE_REGEX.match(drive_name) is None:
-        raise ValueError(f"'{drive_name}' is not a valid Research Drive name.")
-
-    return drive_name
-
-
-ResearchDriveName = Annotated[str, AfterValidator(validate_resdrive_name)]
-
-
-# ── Read-only response models for drive info endpoint ──
-
-
-class RoleResponse(BaseModel):
-    """Project role."""
-
-    id: int | None = None
-    name: str
-
-
-class PersonResponse(BaseModel):
-    """Person summary for display."""
-
-    id: int | None = None
-    email: str | None = None
-    full_name: str
-    username: str | None = None
-
-
-class MemberResponse(BaseModel):
-    """Project member with role."""
-
-    role: RoleResponse
-    person: PersonResponse
-
-
-class CodeResponse(BaseModel):
-    """Project code."""
-
-    id: int | None = None
-    code: str
-
-
-class DriveResponse(BaseModel):
-    """Research drive storage info."""
-
-    id: int | None = None
-    name: str
-    allocated_gb: float
-    used_gb: float
-    free_gb: float
-    percentage_used: float
-    date: str
-    first_day: str | None = None
-    last_day: str | None = None
-
-
-class ProjectResponse(BaseModel):
-    """Project summary for display."""
-
-    id: int
-    title: str
-    description: str
-    division: str
-    start_date: str
-    end_date: str
-    codes: list[CodeResponse] = []
-    members: list[MemberResponse] = []
-
-
-class DriveInfoResponse(BaseModel):
-    """Combined drive + project info returned by the driveinfo endpoint."""
-
-    drive: DriveResponse
-    project: ProjectResponse
-
-
-class CreateSubmissionRequest(SQLModel):
-    """Request body for creating an archive submission."""
-
-    drive_name: ResearchDriveName
-    retention_period_years: int
-    retention_period_justification: str | None = None
-    data_classification: DataClassification = DataClassification.SENSITIVE
-    project_id: int | None = None
-
-    @field_validator("retention_period_years")
-    @classmethod
-    def check_minimum_retention(cls, v: int) -> int:
-        """Enforce a minimum retention period of 6 years."""
-        if v < 6:
-            raise ValueError("Retention period must be at least 6 years.")
-        return v
 
 
 @app.get(ENDPOINT_PREFIX + "/driveinfo", response_model=DriveInfoResponse)
@@ -262,7 +174,7 @@ async def get_drive_info(
             break
 
     drive_resp = DriveResponse(
-        id=drive_data.get("id"),
+        id=drive_data["id"],
         name=drive_name,
         allocated_gb=drive_data["allocated_gb"],
         used_gb=drive_data["used_gb"],
@@ -293,20 +205,46 @@ async def get_drive_info(
     return DriveInfoResponse(drive=drive_resp, project=project_resp)
 
 
-@app.post(ENDPOINT_PREFIX + "/submission", status_code=status.HTTP_201_CREATED)
+@app.post(
+    ENDPOINT_PREFIX + "/submission",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CreateSubmissionResponse,
+    responses={409: {"model": ErrorResponse, "description": "Drive already archived"}},
+)
 async def create_submission(
     request: CreateSubmissionRequest,
     session: SessionDep,
     background_tasks: BackgroundTasks,
     projectdb: ProjectDbDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> dict[str, str]:
+) -> CreateSubmissionResponse:
     """Create a new archive submission for a research drive.
 
     Validates drive exists in ProjectDB, resolves project_id if needed,
     and schedules RO-Crate generation as a background task.
     """
     validate_permissions("POST", api_key)
+
+    # Check for existing completed submission for this drive
+    existing = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == request.drive_name,
+            ArchiveSubmission.is_completed == True,  # noqa: E712
+        )
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A completed archive submission already exists for drive {request.drive_name}.",
+        )
+
+    # Check for existing incomplete submission to update rather than duplicate
+    pending = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == request.drive_name,
+            ArchiveSubmission.is_completed == False,  # noqa: E712
+        )
+    ).first()
 
     # Fetch drive info from ProjectDB to validate it exists
     try:
@@ -378,21 +316,33 @@ async def create_submission(
                 detail="Could not determine project_id for archive",
             )
 
-        # Create archive submission record
+        # Update existing incomplete submission or create a new one
         archive_date = datetime.now()
         archive_location = str(Path.home() / "mnt" / request.drive_name / "Archive")
 
-        submission = ArchiveSubmission(
-            drive_id=drive["id"],
-            project_id=project_id,
-            drive_name=request.drive_name,
-            retention_period_years=request.retention_period_years,
-            retention_period_justification=request.retention_period_justification,
-            data_classification=request.data_classification,
-            archive_date=archive_date,
-            archive_location=archive_location,
-            is_completed=False,
-        )
+        if pending:
+            pending.drive_id = drive["id"]
+            pending.project_id = project_id
+            pending.retention_period_years = request.retention_period_years
+            pending.retention_period_justification = (
+                request.retention_period_justification
+            )
+            pending.data_classification = request.data_classification
+            pending.archive_date = archive_date
+            pending.archive_location = archive_location
+            submission = pending
+        else:
+            submission = ArchiveSubmission(
+                drive_id=drive["id"],
+                project_id=project_id,
+                drive_name=request.drive_name,
+                retention_period_years=request.retention_period_years,
+                retention_period_justification=request.retention_period_justification,
+                data_classification=request.data_classification,
+                archive_date=archive_date,
+                archive_location=archive_location,
+                is_completed=False,
+            )
 
         session.add(submission)
         session.commit()
@@ -416,12 +366,12 @@ async def create_submission(
             projectdb_client=projectdb,
         )
 
-        return {
-            "message": (
-                f"Archive submission created for {request.drive_name}."
+        return CreateSubmissionResponse(
+            message=(
+                f"Archive submission {'updated' if pending else 'created'} for {request.drive_name}."
                 " RO-Crate generation is in progress."
             )
-        }
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -576,12 +526,12 @@ async def generate_ro_crate_async(
             raise
 
 
-@app.get(ENDPOINT_PREFIX + "/submission")
+@app.get(ENDPOINT_PREFIX + "/submission", response_model=SubmissionResponse)
 async def get_submission(
     drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> dict[str, Any]:
+) -> SubmissionResponse:
     """Retrieve archive submission record for a research drive."""
     validate_permissions("GET", api_key)
 
@@ -594,22 +544,19 @@ async def get_submission(
             detail=f"No archive submission found for drive {drive_name}",
         )
 
-    # Return submission with full manifest if available
-    result = {
-        "id": submission.id,
-        "drive_id": submission.drive_id,
-        "project_id": submission.project_id,
-        "drive_name": submission.drive_name,
-        "retention_period_years": submission.retention_period_years,
-        "retention_period_justification": submission.retention_period_justification,
-        "data_classification": submission.data_classification,
-        "archive_date": submission.archive_date,
-        "archive_location": submission.archive_location,
-        "is_completed": submission.is_completed,
-        "created_timestamp": submission.created_timestamp,
-        "manifest": submission.manifest.manifest if submission.manifest else None,
-    }
-    return result
+    return SubmissionResponse(
+        drive_id=submission.drive_id,
+        project_id=submission.project_id,
+        drive_name=submission.drive_name,
+        retention_period_years=submission.retention_period_years,
+        retention_period_justification=submission.retention_period_justification,
+        data_classification=submission.data_classification,
+        archive_date=submission.archive_date,
+        archive_location=submission.archive_location,
+        is_completed=submission.is_completed,
+        created_timestamp=submission.created_timestamp,
+        manifest=submission.manifest.manifest if submission.manifest else None,
+    )
 
 
 def _build_codes(project_data: dict[str, Any]) -> list[CodeResponse]:
