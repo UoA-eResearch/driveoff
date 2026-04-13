@@ -7,7 +7,7 @@ from typing import Annotated
 from pydantic.functional_validators import AfterValidator
 
 # The set of default retention periods we are offering.
-DEFAULT_RETENTION_PERIODS = set([6, 10, 20, 26])
+DEFAULT_RETENTION_PERIODS = {6, 10, 20, 26}
 
 RESEARCH_DRIVE_REGEX = re.compile(r"res[a-z]{3}[0-9]{9}-[a-zA-Z0-9-_]+")
 

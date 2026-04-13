@@ -1,6 +1,6 @@
 # pylint: disable-all
 from datetime import datetime
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from dateutil.relativedelta import relativedelta
 from rocrate.model.contextentity import ContextEntity
@@ -33,8 +33,8 @@ class ROBuilder:
 
     def add_project(
         self,
-        project: Dict[str, Any],
-        members: List[Dict[str, Any]],
+        project: dict[str, Any],
+        members: list[dict[str, Any]],
         submission: ArchiveSubmission,
         drive: dict[str, Any],
     ) -> ContextEntity:
@@ -111,7 +111,7 @@ class ROBuilder:
 
         return cast(ContextEntity, self.crate.add(project_entity))
 
-    def _extract_username(self, person: Dict[str, Any]) -> str:
+    def _extract_username(self, person: dict[str, Any]) -> str:
         """Extract username from person dict, trying multiple sources.
 
         Args:
@@ -183,7 +183,7 @@ class ROBuilder:
         return "NoRole"
 
     def add_member(
-        self, member: Dict[str, Any], project_id: int | None = None
+        self, member: dict[str, Any], project_id: int | None = None
     ) -> ContextEntity:
         """Add a member to the crate from raw ProjectDB member dict.
 
@@ -216,7 +216,7 @@ class ROBuilder:
 
         return cast(ContextEntity, self.crate.add(member_entity))
 
-    def add_person(self, person: Dict[str, Any]) -> RoPerson:
+    def add_person(self, person: dict[str, Any]) -> RoPerson:
         """Add a person to the crate from raw ProjectDB person dict.
 
         Args:
@@ -273,7 +273,7 @@ class ROBuilder:
 
     def add_delete_action(
         self,
-        project_end_date: Optional[str],
+        project_end_date: str | None,
         retention_years: int,
         drive: dict[str, Any],
     ) -> ContextEntity:

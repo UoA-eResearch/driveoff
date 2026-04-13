@@ -4,13 +4,13 @@ import shutil
 import tarfile
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import orjson
 from bagit import Bag
 from rocrate.rocrate import ROCrate
 
-JsonType = Dict[str, Any]
+JsonType = dict[str, Any]
 
 
 class ARCHIVETYPE(str, Enum):

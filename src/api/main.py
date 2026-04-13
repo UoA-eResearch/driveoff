@@ -1,9 +1,12 @@
 """Definition of endpoints/routers for the webserver."""
 
+from __future__ import annotations
+
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterable
+from typing import Annotated, Any
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
 from sqlmodel import Session, SQLModel, create_engine, select

@@ -1,8 +1,11 @@
 """Archive submission model - minimal reference to ProjectDB records."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import orm
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.common import DataClassification
@@ -35,7 +38,9 @@ class ArchiveSubmission(SQLModel, table=True):
 
     # Manifest relationship
     manifest_id: int | None = Field(default=None, foreign_key="manifest.id")
-    manifest: Optional[Manifest] = Relationship()
+    manifest: Optional[Manifest] = Relationship(
+        sa_relationship=orm.relationship("Manifest")
+    )
 
     # Status and audit
     is_completed: bool = Field(default=False)
