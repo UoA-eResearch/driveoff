@@ -3,8 +3,8 @@
 import multiprocessing
 import os
 import shutil
-from pathlib import Path
 from collections.abc import Generator
+from pathlib import Path
 
 import bagit
 
