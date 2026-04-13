@@ -64,7 +64,7 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
     # Mock ProjectDB client for API tests
     def get_projectdb_client_override():
         mock_projectdb = MagicMock()
-        mock_projectdb.get_research_drive_by_name = {
+        mock_projectdb.get_research_drive_by_name.return_value = {
             "allocated_gb": 4000.0,
             "archived": 0,
             "date": "2026-03-09",
