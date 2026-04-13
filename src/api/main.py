@@ -227,8 +227,8 @@ async def create_submission(
     existing = session.exec(
         select(ArchiveSubmission).where(
             ArchiveSubmission.drive_name == request.drive_name,
-            ArchiveSubmission.is_completed
-            == True,  # pylint: disable=singleton-comparison
+            # pylint: disable=singleton-comparison
+            ArchiveSubmission.is_completed == True,
         )
     ).first()
     if existing:
@@ -244,8 +244,8 @@ async def create_submission(
     pending = session.exec(
         select(ArchiveSubmission).where(
             ArchiveSubmission.drive_name == request.drive_name,
-            ArchiveSubmission.is_completed
-            == False,  # pylint: disable=singleton-comparison
+            # pylint: disable=singleton-comparison
+            ArchiveSubmission.is_completed == False,
         )
     ).first()
 
