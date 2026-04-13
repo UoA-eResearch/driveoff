@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Iterable
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
+import smbclient
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.cors import add_cors_middleware
@@ -36,6 +37,7 @@ from models.response import (
 from models.submission import ArchiveSubmission
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
+from service.research_drive_service import init_research_drive_service
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -65,8 +67,8 @@ ProjectDbDep = Annotated[ProjectDBClient, Depends(get_projectdb_client)]
 async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle method for the API
 
-    This creates DB tables and initialises the ProjectDB client during
-    application startup so routes can depend on it.
+    This creates DB tables and initialises the ProjectDB client and
+    research drive service during application startup so routes can depend on them.
     """
     create_db_and_tables()
     # initialise ProjectDB client for use in endpoints
@@ -76,6 +78,16 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
         # If the ProjectDB client cannot be initialised, allow app to start
         # but the dependency will raise if used.
         print(f"Warning: ProjectDB client initialization failed: {e}")
+
+    # initialise research drive service (optional for now - only if SMB config provided)
+    try:
+        init_research_drive_service(app_instance)
+    except ValueError as e:
+        # If SMB config is incomplete, allow app to start with fake drive logic
+        print(f"Warning: Research drive service initialization skipped: {e}")
+    except Exception as e:
+        print(f"Warning: Research drive service initialization failed: {e}")
+
     yield
 
 
@@ -367,6 +379,24 @@ async def create_submission(
 
 
 def get_resdrive_path(drive_name: str) -> Path:
+    """Get a path for a research drive, and verify connectivity and access permission."""
+    drive_path = Path(f"//files.auckland.ac.nz/research/{drive_name}")
+    # use smbclient to check if the drive is accessible before proceeding, to avoid generating a crate and then failing when we try to read files.
+    try:
+        smbclient.open_file(
+            f"{drive_path}/test.txt", mode="r"
+        )  # TODO: need to properly instantiate the smbclient with service account credentials for this to work, and also need to decide on a better way to check connectivity than looking for a specific test file.
+    except Exception:
+        raise FileNotFoundError("Research Drive is not accessible or does not exist.")
+
+    if not drive_path.is_dir():
+        raise FileNotFoundError(
+            "Research Drive must be mounted in order to generate RO-Crate"
+        )
+    return drive_path
+
+
+def get_fake_resdrive_path(drive_name: str) -> Path:
     """Get a path for a research drive.
     Please update when service acc logic is finalized"""
     drive_path = Path.home() / "mnt" / drive_name
@@ -479,8 +509,11 @@ async def generate_ro_crate_async(
             members_list = filter_member_identities(members_list)
 
             # Generate RO-Crate
-            drive_path = get_resdrive_path(drive_name)
-            drive_location = drive_path / "Vault"
+            # TODO: For testing, we are using a fake ResDrive path with dummy data. Update to the real get_resdrive_path() when service account logic is finalized.
+            drive_path = get_fake_resdrive_path(drive_name)
+            drive_location = (
+                drive_path / "Vault"
+            )  # TODO: this is probably not correct (data is not necessarily in Vault subdirectory).
             output_location = drive_path / "Archive"
 
             print(f"Building RO-Crate for {drive_name}...")
