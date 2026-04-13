@@ -298,7 +298,7 @@ async def create_submission(
         ) from e
 
 
-def _validate_drive(projectdb: ProjectDBClient, drive_name: str) -> dict[str, Any]:
+def _validate_drive(projectdb: ProjectDBClient, drive_name: str) -> Any:
     """Fetch and validate drive from ProjectDB."""
     drive = projectdb.get_research_drive_by_name(drive_name)
     if not drive:
@@ -320,7 +320,7 @@ def _resolve_project_id(
     projectdb: ProjectDBClient,
     drive: dict[str, Any],
     request: CreateSubmissionRequest,
-) -> int:
+) -> Any:
     """Resolve the project_id for a drive from ProjectDB."""
     try:
         drive_projects = projectdb.get_research_drive_projects(

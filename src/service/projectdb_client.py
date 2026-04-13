@@ -47,7 +47,7 @@ class ProjectDBClient:
     # Public API — only the methods driveoff actually uses
     # ------------------------------------------------------------------
 
-    def get_research_drive_by_name(self, drive_name: str):
+    def get_research_drive_by_name(self, drive_name: str) -> Any:
         """GET /researchdrive/{drive_name}"""
         return self._get(f"/researchdrive/{drive_name}")
 

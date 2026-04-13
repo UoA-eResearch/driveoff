@@ -1,6 +1,7 @@
 """ProjectDB client initialization and dependency injection for FastAPI."""
 
 from __future__ import annotations
+from typing import Any
 
 from fastapi import FastAPI, Request
 
@@ -29,7 +30,7 @@ def init_projectdb(app: FastAPI) -> None:
     app.state.projectdb = client
 
 
-def get_projectdb_client(request: Request) -> ProjectDBClient:
+def get_projectdb_client(request: Request) -> Any:
     """FastAPI dependency to retrieve the initialized ProjectDBClient.
 
     Endpoints can use ``Depends(get_projectdb_client)`` to receive the client.
