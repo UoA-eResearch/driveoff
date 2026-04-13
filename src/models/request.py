@@ -1,5 +1,7 @@
 """Request models for the API."""
 
+from __future__ import annotations
+
 from pydantic import field_validator
 from sqlmodel import SQLModel
 
