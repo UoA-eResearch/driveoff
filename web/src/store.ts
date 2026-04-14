@@ -44,6 +44,7 @@ export const requestInfo: ArchiveRequestInfoStore = reactive({
     codes: []
   },
   drive: {
+    id: 0,
     allocated_gb: 0,
     date: "",
     free_gb: 0,

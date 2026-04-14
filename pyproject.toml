@@ -26,6 +26,7 @@ pytest = ">=8.3.3,<10.0.0"
 mypy = "^1.11.2"
 coverage = "^7.6.1"
 setuptools = "^78.1.1"
+poethepoet = "^0.31.1"
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.3.3,<10.0.0"
@@ -53,3 +54,24 @@ testpaths= ["tests"]
 
 [tool.pylint]
 extension-pkg-whitelist = ["orjson"]
+
+[tool.poe.tasks]
+isort-check = "python -m isort --check --diff --profile black src"
+black-check = "python -m black --check --diff src"
+pylint-check = "python -m pylint src/"
+mypy-check = "python -m mypy --install-types --non-interactive"
+pytest-check = "python -m pytest -v --cov=src/ tests/"
+check = [
+       "isort-check",
+       "black-check",
+       "pylint-check",
+       "mypy-check",
+       "pytest-check"
+       ]
+isort-fix = "python -m isort --profile black src"
+black-fix = "python -m black src"
+fix = [
+       "isort-fix",
+       "black-fix"
+       ]
+coverage-report = "python -m coverage report -m"

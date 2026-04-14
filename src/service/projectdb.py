@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
 
 from config import get_settings
 from service.projectdb_client import ProjectDBClient
+
+logger = logging.getLogger(__name__)
+
+
+def _log_event(level: int, event: str, **context: Any) -> None:
+    payload = {"event": event, **context}
+    logger.log(level, json.dumps(payload, default=str))
 
 
 def init_projectdb(app: FastAPI) -> None:
@@ -17,9 +26,11 @@ def init_projectdb(app: FastAPI) -> None:
     the mode-specific .env files).
     """
     settings = get_settings()
-    print(
-        f"Initializing ProjectDB client with base URL: {settings.projectdb_base_url}"
-    )  # Debug logging
+    _log_event(
+        logging.INFO,
+        "projectdb.init_start",
+        base_url=settings.projectdb_base_url,
+    )
     if not settings.projectdb_base_url or not settings.projectdb_api_key:
         raise ValueError(
             "PROJECTDB_BASE_URL and PROJECTDB_API_KEY must be set in the environment."

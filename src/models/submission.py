@@ -25,7 +25,7 @@ class ArchiveSubmission(SQLModel, table=True):
     # Locally stored references to ProjectDB records
     drive_id: int
     project_id: int
-    drive_name: str = Field(index=True)
+    drive_name: str = Field(index=True, unique=True)
 
     # Archiving metadata from submission form
     retention_period_years: int
@@ -44,4 +44,7 @@ class ArchiveSubmission(SQLModel, table=True):
 
     # Status and audit
     is_completed: bool = Field(default=False)
+    is_failed: bool = Field(default=False)
+    failure_reason: str | None = Field(default=None)
+    failed_timestamp: datetime | None = Field(default=None)
     created_timestamp: datetime = Field(default_factory=datetime.now)
