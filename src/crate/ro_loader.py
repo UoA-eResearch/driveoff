@@ -1,21 +1,21 @@
-"""Classes and functions for loading and archiving RO-Crates
-"""
+"""Classes and functions for loading and archiving RO-Crates"""
 
 import shutil
 import tarfile
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import orjson
 from bagit import Bag
 from rocrate.rocrate import ROCrate
 
-JsonType = Dict[str, Any]
+JsonType = dict[str, Any]
 
 
 class ARCHIVETYPE(str, Enum):
     "Enum for Archive types it is possible to write the RO-Crate as"
+
     ZIP = "zip"
     TAR = "tar"
     TAR_GZ = "tar.gz"
@@ -146,4 +146,5 @@ def zip_existing_crate(crate_destination: Path, crate_location: Path) -> None:
         raise ValueError("RO-Crate Source should be a valid BagIt")
     if not Path(crate_location / "data" / "ro-crate-metadata.json").is_file():
         raise FileExistsError("No RO-Crate metadata found in RO-Crate source")
+    print(f"Zipping RO-Crate from {crate_location} to {crate_destination}")
     shutil.make_archive(str(crate_destination), "zip", str(crate_location))

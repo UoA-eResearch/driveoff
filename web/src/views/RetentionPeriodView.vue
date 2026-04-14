@@ -10,18 +10,26 @@ const period = ref(initialValue);
 const error = ref("");
 const router = useRouter();
 
+enum RetentionPeriodJustification {
+    YEARS_6 = "All research data, retention period from completion of the activity.",
+    YEARS_10 = "Health data involving adults, retention period from the end of the project/trial.",
+    YEARS_20 = "Registered patents, retention period from the date of filing.",
+}
+
 function tryContinue() {
     if (period.value === null) {
         error.value = "Choose the right retention period for the files on your drive.";
     } else if (period.value === "custom") {
         formState.isRetentionPeriodCustom = true;
         formState.retentionPeriod = null;
+        formState.retentionPeriodJustification = "";
         error.value = "";
         router.push("/custom-retention-period");
     } else {
         // Period is one of the predefined retention periods.
         formState.isRetentionPeriodCustom = false;
         formState.retentionPeriod = period.value;
+        formState.retentionPeriodJustification = RetentionPeriodJustification["YEARS_" + period.value as keyof typeof RetentionPeriodJustification];
         error.value = "";
         router.push("/confirm");
     }
@@ -40,19 +48,17 @@ function tryContinue() {
             </div>
             <form novalidate class="option-list" @submit.prevent="tryContinue()">
                 <input id="rp-6y" v-model="period" name="confirm-drive" type="radio" value="6">
-                <label for="rp-6y">6 years from today</label>
+                <label for="rp-6y">6 years from today ({{ RetentionPeriodJustification.YEARS_6 }})</label>
                 <input id="rp-10y" v-model="period" name="confirm-drive" type="radio" value="10">
-                <label for="rp-10y">10 years from today</label>
+                <label for="rp-10y">10 years from today ({{ RetentionPeriodJustification.YEARS_10 }})</label>
                 <input id="rp-20y" v-model="period" name="confirm-drive" type="radio" value="20">
-                <label for="rp-20y">20 years from today</label>
-                <input id="rp-26y" v-model="period" name="confirm-drive" type="radio" value="26">
-                <label for="rp-26y">26 years from today</label>
+                <label for="rp-20y">20 years from today ({{ RetentionPeriodJustification.YEARS_20 }})</label>
                 <input id="rp-custom" v-model="period" name="confirm-drive" type="radio" value="custom">
                 <label for="rp-custom">Something else</label>
             </form>
         </section>
         <section class="forward-btn">
-            <a class="btn btn-primary" @click="tryContinue()">Continue</a>
+            <button class="btn btn-primary" @click="tryContinue()">Continue</button>
         </section>
     </main>
 </template>

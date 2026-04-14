@@ -1,7 +1,7 @@
-""""
+"""
 Functions for faking a mounted research drive on the local home directory
 
-Only for demonstration purposes, 
+Only for demonstration purposes,
 please replace once service accounts can mount a research drive
 """
 

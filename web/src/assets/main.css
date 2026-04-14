@@ -10,6 +10,15 @@
 /*UoA official font.*/
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 
+/* Brand colours */
+:root {
+  --brand-primary: #0c0c48; /* primary,hyperlink hover, focus */
+  --brand-secondary: #1f2bd4; /* secondary, hyperlinks */
+  --brand-accent: #00caef; /* accents */
+  --brand-light: #f2f2f2; /* light background */
+  --brand-dark: #4a4a4c; /* dark background */
+}
+
 body {
   padding: 0 1rem;
   margin: 0 auto;
@@ -17,7 +26,7 @@ body {
   font-family: "Inter", sans-serif;
   font-weight: 400;
   font-size: 18px;
-  color: rgb(74, 76, 76);
+  color: var(--brand-dark);
 }
 
 p {
@@ -29,8 +38,8 @@ p:last-of-type {
 }
 
 a {
-  color: rgb(0, 70, 127);
-  text-decoration: underline;
+  color: var(--brand-secondary);
+  text-decoration: none;
 }
 
 ul {
@@ -84,5 +93,9 @@ strong {
 }
 
 .box {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+input[type="radio"] {
+  accent-color: var(--brand-secondary)
 }

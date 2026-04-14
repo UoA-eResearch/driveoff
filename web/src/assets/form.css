@@ -20,7 +20,7 @@
 input[type=text],
 input[type=number],
 textarea {
-    border: 2px solid gray;
+    border: 2px solid var(--brand-light);
     padding: 0.35rem;
     margin-top: 0.5rem;
 }

@@ -82,10 +82,10 @@ function tryContinue() {
       </form>
     </section>
     <section class="forward-btn">
-      <a
+      <button
         class="btn btn-primary"
         @click.prevent="tryContinue()"
-      >Continue</a>
+      >Continue</button>
     </section>
   </main>
 </template>

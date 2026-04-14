@@ -1,5 +1,7 @@
 """Security features for the webserver."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Literal
 
