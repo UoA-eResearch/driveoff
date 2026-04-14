@@ -30,9 +30,9 @@ export function getProjectMembers(members: MemberResponse[]): MemberResponse[] {
 export function membersToString(members: MemberResponse[]): string {
   return members
     .filter(
-      (_, idx, arr) =>
+      (member, idx, arr) =>
         // Filter for unique members
-        arr.findIndex((member) => member.person.email) === idx
+        arr.findIndex((m) => m.person.email === member.person.email) === idx
     )
     .map((member) => member.person.full_name)
     .join(", ");
