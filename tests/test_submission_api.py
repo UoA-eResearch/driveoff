@@ -1,9 +1,9 @@
 """Tests for the archive submission API endpoints."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from models.manifest import Manifest
 from models.submission import ArchiveSubmission
@@ -28,7 +28,76 @@ def test_post_submission_can_create(
         assert response.status_code == 201
         data = response.json()
         assert "message" in data
+        assert "Archive submission created" in data["message"]
         assert "RO-Crate generation is in progress" in data["message"]
+
+
+def test_post_submission_updates_existing_single_row(
+    client: TestClient,
+    session: Session,
+) -> None:
+    """Repeated submission for the same drive updates one existing row."""
+    with patch("api.main.generate_ro_crate_async"):
+        create_response = client.post(
+            "/api/v1/submission",
+            json={
+                "drive_name": "restst000000001-testing",
+                "project_id": 123,
+                "retention_period_years": 7,
+                "retention_period_justification": "Initial reason",
+                "data_classification": "Sensitive",
+            },
+        )
+        assert create_response.status_code == 201
+
+        update_response = client.post(
+            "/api/v1/submission",
+            json={
+                "drive_name": "restst000000001-testing",
+                "project_id": 123,
+                "retention_period_years": 10,
+                "retention_period_justification": "Updated reason",
+                "data_classification": "Restricted",
+            },
+        )
+        assert update_response.status_code == 201
+        update_payload = update_response.json()
+        assert "Archive submission updated" in update_payload["message"]
+
+    rows = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == "restst000000001-testing"
+        )
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].retention_period_years == 10
+    assert rows[0].retention_period_justification == "Updated reason"
+    assert rows[0].data_classification.value == "Restricted"
+
+
+def test_post_submission_rejects_completed_drive(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """A drive that is already successfully archived cannot be resubmitted."""
+    submission.is_completed = True
+    session.add(submission)
+    session.commit()
+
+    with patch("api.main.generate_ro_crate_async"):
+        response = client.post(
+            "/api/v1/submission",
+            json={
+                "drive_name": "restst000000001-testing",
+                "project_id": 123,
+                "retention_period_years": 7,
+                "retention_period_justification": "Standard retention",
+                "data_classification": "Sensitive",
+            },
+        )
+    assert response.status_code == 409
+    assert "already been successfully archived" in response.json()["detail"]
 
 
 def test_get_submission_returns_archive_record(
@@ -81,8 +150,7 @@ def test_post_submission_validates_classification(
     client: TestClient,
 ) -> None:
     """Test that data classification validation works"""
-    with patch("api.main.get_projectdb_client") as mock_dep:
-        mock_dep.return_value = MagicMock()
+    with patch("api.main.generate_ro_crate_async"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -94,15 +162,14 @@ def test_post_submission_validates_classification(
             },
         )
         # Should fail validation
-        assert response.status_code in [400, 422]  # Validation error
+        assert response.status_code == 422
 
 
 def test_post_submission_requires_drive_name(
     client: TestClient,
 ) -> None:
     """Test that drive_name is required"""
-    with patch("api.main.get_projectdb_client") as mock_dep:
-        mock_dep.return_value = MagicMock()
+    with patch("api.main.generate_ro_crate_async"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -113,4 +180,4 @@ def test_post_submission_requires_drive_name(
             },
         )
         # Should fail validation - missing drive_name
-        assert response.status_code in [400, 422]  # Validation error
+        assert response.status_code == 422

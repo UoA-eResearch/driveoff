@@ -209,7 +209,6 @@ async def get_drive_info(
     ENDPOINT_PREFIX + "/submission",
     status_code=status.HTTP_201_CREATED,
     response_model=CreateSubmissionResponse,
-    responses={409: {"model": ErrorResponse, "description": "Drive already archived"}},
 )
 async def create_submission(
     request: CreateSubmissionRequest,
@@ -224,32 +223,19 @@ async def create_submission(
     and schedules RO-Crate generation as a background task.
     """
     validate_permissions("POST", api_key)
-
-    # Check for existing completed submission for this drive
-    existing = session.exec(
+    existing_submission = session.exec(
         select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == request.drive_name,
-            # pylint: disable=singleton-comparison
-            ArchiveSubmission.is_completed == True,
+            ArchiveSubmission.drive_name == request.drive_name
         )
     ).first()
-    if existing:
+
+    if existing_submission and existing_submission.is_completed:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "A completed archive submission already exists"
-                f" for drive {request.drive_name}."
+                f"Drive {request.drive_name} has already been successfully archived."
             ),
         )
-
-    # Check for existing incomplete submission to update rather than duplicate
-    pending = session.exec(
-        select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == request.drive_name,
-            # pylint: disable=singleton-comparison
-            ArchiveSubmission.is_completed == False,
-        )
-    ).first()
 
     try:
         drive = _validate_drive(projectdb, request.drive_name)
@@ -257,7 +243,7 @@ async def create_submission(
 
         submission = _upsert_submission(
             session,
-            pending,
+            existing_submission,
             drive,
             project_id,
             request,
@@ -282,7 +268,7 @@ async def create_submission(
             projectdb_client=projectdb,
         )
 
-        status_word = "updated" if pending else "created"
+        status_word = "updated" if existing_submission else "created"
         return CreateSubmissionResponse(
             message=(
                 f"Archive submission {status_word}"
@@ -367,7 +353,7 @@ def _resolve_project_id(
 
 def _upsert_submission(
     session: Session,
-    pending: ArchiveSubmission | None,
+    existing_submission: ArchiveSubmission | None,
     drive: dict[str, Any],
     project_id: int,
     request: CreateSubmissionRequest,
@@ -376,15 +362,20 @@ def _upsert_submission(
     archive_date = datetime.now()
     archive_location = str(Path.home() / "mnt" / request.drive_name / "Archive")
 
-    if pending:
-        pending.drive_id = drive["id"]
-        pending.project_id = project_id
-        pending.retention_period_years = request.retention_period_years
-        pending.retention_period_justification = request.retention_period_justification
-        pending.data_classification = request.data_classification
-        pending.archive_date = archive_date
-        pending.archive_location = archive_location
-        submission = pending
+    if existing_submission:
+        existing_submission.drive_id = drive["id"]
+        existing_submission.project_id = project_id
+        existing_submission.retention_period_years = request.retention_period_years
+        existing_submission.retention_period_justification = (
+            request.retention_period_justification
+        )
+        existing_submission.data_classification = request.data_classification
+        existing_submission.archive_date = archive_date
+        existing_submission.archive_location = archive_location
+        # Reset completion state when a submission is resubmitted.
+        existing_submission.is_completed = False
+        existing_submission.manifest_id = None
+        submission = existing_submission
     else:
         submission = ArchiveSubmission(
             drive_id=drive["id"],

@@ -25,7 +25,7 @@ class ArchiveSubmission(SQLModel, table=True):
     # Locally stored references to ProjectDB records
     drive_id: int
     project_id: int
-    drive_name: str = Field(index=True)
+    drive_name: str = Field(index=True, unique=True)
 
     # Archiving metadata from submission form
     retention_period_years: int
