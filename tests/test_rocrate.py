@@ -129,23 +129,19 @@ def test_zip_crate_structure(
     test_file.write_text("test content")
 
     # Simulate creating a bagit package
-    try:
-        # Create minimal bag structure
-        (data_dir / "data").mkdir(parents=True, exist_ok=True)
-        (data_dir / "data" / "test.txt").write_text("test")
-        (data_dir / "tagmanifest-sha256.txt").write_text("test")
+    # Create minimal bag structure
+    (data_dir / "data").mkdir(parents=True, exist_ok=True)
+    (data_dir / "data" / "test.txt").write_text("test")
+    (data_dir / "tagmanifest-sha256.txt").write_text("test")
 
-        # Try to zip it
-        zip_path = archive_dir / "test.zip"
-        shutil.make_archive(str(zip_path.with_suffix("")), "zip", data_dir)
+    # Try to zip it
+    zip_path = archive_dir / "test.zip"
+    shutil.make_archive(str(zip_path.with_suffix("")), "zip", data_dir)
 
-        # Verify zip was created
-        assert zip_path.exists()
+    # Verify zip was created
+    assert zip_path.exists()
 
-        # Extract and verify
-        extract_dir = archive_dir / "extracted"
-        shutil.unpack_archive(str(zip_path), str(extract_dir), "zip")
-        assert (extract_dir / "data" / "test.txt").exists()
-    except Exception as e:
-        # If bagit validation fails, that's ok for this test
-        pass
+    # Extract and verify
+    extract_dir = archive_dir / "extracted"
+    shutil.unpack_archive(str(zip_path), str(extract_dir), "zip")
+    assert (extract_dir / "data" / "test.txt").exists()
