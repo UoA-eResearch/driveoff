@@ -242,3 +242,21 @@ def test_post_submission_requires_drive_name(
         )
         # Should fail validation - missing drive_name
         assert response.status_code == 422
+
+
+def test_post_submission_accepts_drive_name_with_fullstop(
+    client: TestClient,
+) -> None:
+    """Drive names with dot in suffix are accepted by validation."""
+    with patch("api.main.generate_ro_crate_async"):
+        response = client.post(
+            "/api/v1/submission",
+            json={
+                "drive_name": "resmed202200024_adm.eresearch",
+                "project_id": 123,
+                "retention_period_years": 7,
+                "retention_period_justification": "Standard",
+                "data_classification": "Sensitive",
+            },
+        )
+        assert response.status_code == 201
