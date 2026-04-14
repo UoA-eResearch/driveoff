@@ -44,6 +44,7 @@ def session_fixture() -> Generator[Session, Any, None]:
         yield session
         session.rollback()
         session.close()
+    engine.dispose()
 
 
 @pytest.fixture(name="client")
@@ -127,8 +128,8 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[read_api_keys] = read_api_keys_override
     app.dependency_overrides[get_projectdb_client] = get_projectdb_client_override
-    client = TestClient(app, headers={"x-api-key": test_api_key})
-    yield client
+    with TestClient(app, headers={"x-api-key": test_api_key}) as client:
+        yield client
     app.dependency_overrides.clear()
 
 

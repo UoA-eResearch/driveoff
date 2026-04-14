@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
-import json
-import logging
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -97,6 +97,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
         # but the dependency will raise if used.
         _log_event(logging.WARNING, "projectdb.init_failed", error=str(e))
     yield
+    engine.dispose()
 
 
 app = FastAPI(lifespan=lifespan)
