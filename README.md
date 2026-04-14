@@ -59,5 +59,4 @@ poetry run poe pytest-check
 - Implement actual mapping to real research drives (service account / temporary credentials to access drive). Use smbprotocol or similar to process drive contents.
 - Integrate with ActiveScale to automatically transfer archived data to long-term storage.
 - Add authentication and authorization, e.g. through integration with UoA's Single Sign-On (SSO) system.
-- Improve test coverage.
 - Optimise for large drives, and/or large number of files, and/or potentially impose some limits on how much data can be archived through this tool, and implement checks for these limits.
