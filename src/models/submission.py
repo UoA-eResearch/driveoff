@@ -44,4 +44,7 @@ class ArchiveSubmission(SQLModel, table=True):
 
     # Status and audit
     is_completed: bool = Field(default=False)
+    is_failed: bool = Field(default=False)
+    failure_reason: str | None = Field(default=None)
+    failed_timestamp: datetime | None = Field(default=None)
     created_timestamp: datetime = Field(default_factory=datetime.now)

@@ -1,5 +1,7 @@
 """Classes and functions for loading and archiving RO-Crates"""
 
+import json
+import logging
 import shutil
 import tarfile
 from enum import Enum
@@ -22,6 +24,13 @@ class ARCHIVETYPE(str, Enum):
 
 
 PROFILE = "https://uoa-eresearch.github.io/Project-Archive-RoCrate-Profile/"
+
+logger = logging.getLogger(__name__)
+
+
+def _log_event(level: int, event: str, **context: Any) -> None:
+    payload = {"event": event, **context}
+    logger.log(level, json.dumps(payload, default=str))
 
 
 class ROLoader:
@@ -93,7 +102,7 @@ class ROLoader:
     def serialize_crate(self) -> JsonType:
         """Write the ro crate metadata to a json string and return it"""
         as_jsonld: JsonType = self.crate.metadata.generate()
-        print("serialized crate is", as_jsonld)
+        _log_event(logging.DEBUG, "crate.serialize", metadata_id=self.crate.metadata.id)
         return as_jsonld
 
     def archive_crate(
@@ -146,5 +155,10 @@ def zip_existing_crate(crate_destination: Path, crate_location: Path) -> None:
         raise ValueError("RO-Crate Source should be a valid BagIt")
     if not Path(crate_location / "data" / "ro-crate-metadata.json").is_file():
         raise FileExistsError("No RO-Crate metadata found in RO-Crate source")
-    print(f"Zipping RO-Crate from {crate_location} to {crate_destination}")
+    _log_event(
+        logging.INFO,
+        "crate.zip.start",
+        source=str(crate_location),
+        destination=str(crate_destination),
+    )
     shutil.make_archive(str(crate_destination), "zip", str(crate_location))

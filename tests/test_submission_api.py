@@ -182,6 +182,9 @@ def test_get_submission_returns_archive_record(
     assert data["data_classification"] == submission.data_classification.value
     assert data["archive_location"] == submission.archive_location
     assert data["is_completed"] is False
+    assert data["is_failed"] is False
+    assert data["failure_reason"] is None
+    assert data["failed_timestamp"] is None
     assert data["manifest"] == manifest.manifest
 
 

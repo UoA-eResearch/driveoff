@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
+import json
+import logging
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -40,6 +42,20 @@ from models.response import (
 from models.submission import ArchiveSubmission
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
+
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+logger = logging.getLogger(__name__)
+
+
+def _log_event(level: int, event: str, **context: Any) -> None:
+    payload = {"event": event, **context}
+    logger.log(level, json.dumps(payload, default=str))
+
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -79,7 +95,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     except (RuntimeError, ValueError) as e:
         # If the ProjectDB client cannot be initialised, allow app to start
         # but the dependency will raise if used.
-        print(f"Warning: ProjectDB client initialization failed: {e}")
+        _log_event(logging.WARNING, "projectdb.init_failed", error=str(e))
     yield
 
 
@@ -292,9 +308,11 @@ async def create_submission(
             )
 
         # Schedule async RO-Crate generation
-        print(
-            f"Scheduling background task to generate RO-Crate"
-            f" for drive {request.drive_name}"
+        _log_event(
+            logging.INFO,
+            "submission.background_task_scheduled",
+            drive_name=request.drive_name,
+            submission_id=submission.id,
         )
 
         background_tasks.add_task(
@@ -413,6 +431,9 @@ def _upsert_submission(
         existing_submission.archive_location = archive_location
         # Reset completion state when a submission is resubmitted.
         existing_submission.is_completed = False
+        existing_submission.is_failed = False
+        existing_submission.failure_reason = None
+        existing_submission.failed_timestamp = None
         existing_submission.manifest_id = None
         submission = existing_submission
     else:
@@ -489,7 +510,12 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
     if bagit_exists(ro_crate_location):
         ro_crate_location = ro_crate_location / "data"
 
-    print(f"Writing RO-Crate to {ro_crate_location}")
+    _log_event(
+        logging.INFO,
+        "crate.write.metadata",
+        ro_crate_location=str(ro_crate_location),
+        drive_name=submission.drive_name,
+    )
     ro_crate_loader.write_crate(ro_crate_location)
     bag_directory(
         drive_location,
@@ -522,20 +548,32 @@ async def generate_ro_crate_async(
     """
     drive_name = drive.get("name", None)
     if drive_name is None:
-        print("Drive name is missing from drive data. Cannot generate RO-Crate.")
+        _log_event(logging.ERROR, "crate.build.invalid_drive", drive=drive)
         return
 
     # Create a new session for this background task
     with Session(engine) as session:
+        submission: ArchiveSubmission | None = None
         try:
             submission = session.get(ArchiveSubmission, submission_id)
             if submission is None:
-                print(f"ArchiveSubmission with id {submission_id} not found.")
+                _log_event(
+                    logging.ERROR,
+                    "crate.build.submission_not_found",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                )
                 return
 
             # Fetch project and member data from ProjectDB
             project_id = submission.project_id
-            print(f"Fetching project data from ProjectDB for project {project_id}...")
+            _log_event(
+                logging.INFO,
+                "crate.build.projectdb_fetch_start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                project_id=project_id,
+            )
             project_data = projectdb_client.get_project(
                 pid=project_id,
                 expand=["codes", "status", "services", "properties"],
@@ -556,7 +594,13 @@ async def generate_ro_crate_async(
             drive_location = drive_path / "Vault"
             output_location = drive_path / "Archive"
 
-            print(f"Building RO-Crate for {drive_name}...")
+            _log_event(
+                logging.INFO,
+                "crate.build.start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                project_id=project_id,
+            )
             build_crate_contents_async(
                 drive=drive,
                 submission=submission,
@@ -577,13 +621,36 @@ async def generate_ro_crate_async(
             # Update archive submission with manifest and completion status
             submission.manifest_id = manifest.id
             submission.is_completed = True
+            submission.is_failed = False
+            submission.failure_reason = None
+            submission.failed_timestamp = None
             session.add(submission)
             session.commit()
 
-            print(f"RO-Crate generation completed for {drive_name}")
+            _log_event(
+                logging.INFO,
+                "crate.build.completed",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                project_id=project_id,
+                manifest_id=manifest.id,
+            )
         except Exception as e:
-            print(f"Error generating RO-Crate for {drive_name}: {e}")
-            raise
+            if submission is not None:
+                submission.is_completed = False
+                submission.is_failed = True
+                submission.failure_reason = str(e)
+                submission.failed_timestamp = datetime.now()
+                session.add(submission)
+                session.commit()
+            _log_event(
+                logging.ERROR,
+                "crate.build.failed",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                error=str(e),
+            )
+            logger.exception("Background crate generation failed")
 
 
 @app.get(
@@ -624,6 +691,9 @@ async def get_submission(
         archive_date=submission.archive_date,
         archive_location=submission.archive_location,
         is_completed=submission.is_completed,
+        is_failed=submission.is_failed,
+        failure_reason=submission.failure_reason,
+        failed_timestamp=submission.failed_timestamp,
         created_timestamp=submission.created_timestamp,
         manifest=submission.manifest.manifest if submission.manifest else None,
     )
@@ -689,5 +759,5 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
         ]
     except (TypeError, AttributeError) as e:
         # Log error but don't fail the whole process - just return unfiltered members
-        print(f"Error filtering member identities: {e}")
+        _log_event(logging.WARNING, "members.filter_failed", error=str(e))
     return members

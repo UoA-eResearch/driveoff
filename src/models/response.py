@@ -97,5 +97,8 @@ class SubmissionResponse(BaseModel):
     archive_date: datetime
     archive_location: str
     is_completed: bool
+    is_failed: bool
+    failure_reason: str | None
+    failed_timestamp: datetime | None
     created_timestamp: datetime
     manifest: str | None
