@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.common import DataClassification
 
@@ -62,8 +62,8 @@ class ProjectResponse(BaseModel):
     division: str
     start_date: str
     end_date: str
-    codes: list[CodeResponse] = []
-    members: list[MemberResponse] = []
+    codes: list[CodeResponse] = Field(default_factory=list)
+    members: list[MemberResponse] = Field(default_factory=list)
 
 
 class DriveInfoResponse(BaseModel):

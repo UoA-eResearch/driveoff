@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 
+import requests
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -123,10 +124,13 @@ async def get_drive_info(
             drive_data = drive_data[0]
     except HTTPException:
         raise
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Could not fetch drive {drive_name} from ProjectDB: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching drive"
+                f" {drive_name}: {str(e)}"
+            ),
         ) from e
 
     # Resolve project from drive
@@ -134,10 +138,13 @@ async def get_drive_info(
         drive_projects = projectdb.get_research_drive_projects(
             drive_data["id"], expand=["project"]
         )
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Could not fetch projects for drive {drive_name}: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching projects"
+                f" for drive {drive_name}: {str(e)}"
+            ),
         ) from e
 
     if not drive_projects or len(drive_projects) == 0:
@@ -155,10 +162,13 @@ async def get_drive_info(
             pid=project_id,
             expand=["codes", "status", "services"],
         )
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Could not fetch project {project_id}: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching project"
+                f" {project_id}: {str(e)}"
+            ),
         ) from e
 
     # Fetch members
@@ -168,10 +178,13 @@ async def get_drive_info(
             expand=["person", "role", "person.identities", "person.status"],
         )
         members_raw = filter_member_identities(members_raw)
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Could not fetch members for project {project_id}: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching members"
+                f" for project {project_id}: {str(e)}"
+            ),
         ) from e
 
     # Build drive response, preferring service-level data (has first_day/last_day)
@@ -339,7 +352,7 @@ def _resolve_project_id(
         drive_projects = projectdb.get_research_drive_projects(
             drive["id"], expand=["project"]
         )
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
@@ -674,7 +687,7 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
             }
             for member in members
         ]
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except (TypeError, AttributeError) as e:
         # Log error but don't fail the whole process - just return unfiltered members
         print(f"Error filtering member identities: {e}")
     return members

@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import requests
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
@@ -122,7 +123,7 @@ def test_post_submission_returns_502_when_projectdb_project_lookup_fails(
         def get_research_drive_projects(
             self, drive_id: int, expand=None
         ):  # noqa: ANN001
-            raise RuntimeError("upstream timeout")
+            raise requests.exceptions.Timeout("upstream timeout")
 
     original_projectdb_override = app.dependency_overrides.get(get_projectdb_client)
     app.dependency_overrides[get_projectdb_client] = lambda: BrokenProjectDbClient()
@@ -170,9 +171,18 @@ def test_get_submission_returns_archive_record(
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, dict)
-    assert "drive_id" in data
-    assert "project_id" in data
-    assert "manifest" in data
+    assert data["drive_id"] == submission.drive_id
+    assert data["project_id"] == submission.project_id
+    assert data["drive_name"] == submission.drive_name
+    assert data["retention_period_years"] == submission.retention_period_years
+    assert (
+        data["retention_period_justification"]
+        == submission.retention_period_justification
+    )
+    assert data["data_classification"] == submission.data_classification.value
+    assert data["archive_location"] == submission.archive_location
+    assert data["is_completed"] is False
+    assert data["manifest"] == manifest.manifest
 
 
 def test_post_submission_validates_retention_years(
