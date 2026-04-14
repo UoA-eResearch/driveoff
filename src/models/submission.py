@@ -22,7 +22,7 @@ class ArchiveSubmission(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
 
-    # ProjectDB references (not stored in local DB)
+    # Locally stored references to ProjectDB records
     drive_id: int
     project_id: int
     drive_name: str = Field(index=True)

@@ -14,7 +14,7 @@ RESEARCH_DRIVE_REGEX = re.compile(r"res[a-z]{3}[0-9]{9}-[a-zA-Z0-9-_]+")
 
 def validate_resdrive_name(drive_name: str) -> str:
     """Check if the string is a valid Research Drive name."""
-    if RESEARCH_DRIVE_REGEX.match(drive_name) is None:
+    if RESEARCH_DRIVE_REGEX.fullmatch(drive_name) is None:
         raise ValueError(f"'{drive_name}' is not a valid Research Drive name.")
 
     return drive_name

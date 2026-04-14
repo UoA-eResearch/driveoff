@@ -113,9 +113,11 @@ async def get_drive_info(
             )
         if isinstance(drive_data, list):
             drive_data = drive_data[0]
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
-            status_code=502,
+            status_code=500,
             detail=f"Could not fetch drive {drive_name} from ProjectDB: {str(e)}",
         ) from e
 
@@ -126,7 +128,7 @@ async def get_drive_info(
         )
     except Exception as e:
         raise HTTPException(
-            status_code=502,
+            status_code=500,
             detail=f"Could not fetch projects for drive {drive_name}: {str(e)}",
         ) from e
 
@@ -147,7 +149,7 @@ async def get_drive_info(
         )
     except Exception as e:
         raise HTTPException(
-            status_code=502,
+            status_code=500,
             detail=f"Could not fetch project {project_id}: {str(e)}",
         ) from e
 
@@ -160,7 +162,7 @@ async def get_drive_info(
         members_raw = filter_member_identities(members_raw)
     except Exception as e:
         raise HTTPException(
-            status_code=502,
+            status_code=500,
             detail=f"Could not fetch members for project {project_id}: {str(e)}",
         ) from e
 

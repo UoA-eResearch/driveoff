@@ -55,7 +55,7 @@ def test_add_member(test_ro_builder: ROBuilder) -> None:
     }
     member_dict = {
         "person": person_dict,
-        "role": {"role": "Principal Investigator"},
+        "role": {"name": "Principal Investigator"},
     }
     ro_member = test_ro_builder.add_member(member_dict)
     assert ro_member.get("roleName") == "Principal Investigator"
@@ -135,7 +135,7 @@ def test_add_project_with_multiple_members(
                 "identities": {"items": [{"username": "asmith"}]},
                 "status": {"name": "Active"},
             },
-            "role": {"role": "Principal Investigator"},
+            "role": {"name": "Principal Investigator"},
         },
         {
             "person": {
@@ -144,7 +144,7 @@ def test_add_project_with_multiple_members(
                 "identities": {"items": [{"username": "bjones"}]},
                 "status": {"name": "Active"},
             },
-            "role": {"role": "Researcher"},
+            "role": {"name": "Researcher"},
         },
         {
             "person": {
@@ -153,7 +153,7 @@ def test_add_project_with_multiple_members(
                 "identities": {"items": [{"username": "asmith"}]},
                 "status": {"name": "Active"},
             },
-            "role": {"role": "Data Custodian"},
+            "role": {"name": "Data Custodian"},
         },
     ]
 

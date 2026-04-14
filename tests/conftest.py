@@ -119,7 +119,7 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
                     "identities": {"items": [{"username": "user1"}]},
                     "status": {"name": "Active"},
                 },
-                "role": {"role": "Principal Investigator"},
+                "role": {"name": "Principal Investigator"},
             }
         ]
         return mock_projectdb
@@ -227,7 +227,7 @@ def test_member_dict() -> dict[str, Any]:
             "identities": {"items": [{"username": "jdoe123"}]},
             "status": {"name": "Active"},
         },
-        "role": {"role": "Principal Investigator"},
+        "role": {"name": "Principal Investigator"},
     }
 
 

@@ -28,7 +28,6 @@ class ProjectDBClient:
 
     def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
         """Perform a GET request and return parsed JSON."""
-        print(f"GET {endpoint} with params {params}")  # Debug logging
         response = requests.get(
             self.base_url + endpoint,
             headers=self.headers,

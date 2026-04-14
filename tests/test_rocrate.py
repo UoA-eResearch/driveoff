@@ -35,7 +35,7 @@ def test_generate_crate_builder(
                 "email": "j.doe@example.com",
                 "identities": {"items": [{"username": "jdoe"}]},
             },
-            "role": {"role": "Principal Investigator"},
+            "role": {"name": "Principal Investigator"},
         }
     ]
     drive_data = {
