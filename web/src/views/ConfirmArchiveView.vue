@@ -109,10 +109,10 @@ async function submit(){
   </h3>
   By sending this request you are confirming that the details are correct and you wish to archive this drive.
   <section class="forward-btn">
-    <a
+    <button
       class="btn btn-primary"
       @click="submit()"
-    >Submit</a>
+    >Submit</button>
   </section>
 </template>
 

@@ -58,7 +58,7 @@ function tryContinue() {
             </form>
         </section>
         <section class="forward-btn">
-            <a class="btn btn-primary" @click="tryContinue()">Continue</a>
+            <button class="btn btn-primary" @click="tryContinue()">Continue</button>
         </section>
     </main>
 </template>
