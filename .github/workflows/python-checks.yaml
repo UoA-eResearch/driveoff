@@ -30,29 +30,18 @@ jobs:
 
       - name: Install Dependencies
         run: poetry install
-        if: steps.cache.outputs.cache-hit != 'true'
 
       - name: isort - check import formatting
-        run: PYTHONPATH=src/ poetry run python -m isort --check --diff --profile black src
+        run: poetry run poe isort-check
 
       - name: Black - check code formatting
-        run: PYTHONPATH=src/ poetry run python -m black --check --diff src
+        run: poetry run poe black-check
 
       - name: pylint - static code analysis
-        run: PYTHONPATH=src/ poetry run python -m pylint src/
-
-      - name: mypy - load types
-        run: PYTHONPATH=src/ poetry run mypy --install-types --non-interactive
+        run: poetry run poe pylint-check
 
       - name: mypy - static type checking
-        # Takes configuration from pyproject.toml
-        run: PYTHONPATH=src/ poetry run python -m mypy --install-types
+        run: poetry run poe mypy-check
 
       - name: pytest - run the tests
-        run: PYTHONPATH=src/ poetry run python -m pytest -v --cov=src/ tests/
-
-      # - name: Run Coverage
-      # run: PYTHONPATH=src/ poetry run python -m coverage report -m;
-
-      # - name: Generate test coverage XML Report
-      # run: PYTHONPATH=src/ poetry run python -m coverage xml
+        run: poetry run poe pytest-check

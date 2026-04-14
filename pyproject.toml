@@ -74,3 +74,4 @@ fix = [
        "isort-fix",
        "black-fix"
        ]
+coverage-report = "python -m coverage report -m"
