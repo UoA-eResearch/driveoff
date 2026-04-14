@@ -45,8 +45,3 @@ class ArchiveSubmission(SQLModel, table=True):
     # Status and audit
     is_completed: bool = Field(default=False)
     created_timestamp: datetime = Field(default_factory=datetime.now)
-
-    # Index for efficient queries by drive and timestamp
-    __table_args__ = (
-        # This will be added as composite index in migration
-    )
