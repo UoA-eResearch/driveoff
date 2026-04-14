@@ -5,7 +5,6 @@ Usage examples are in the package README. This is intentionally small and
 dependency-free (uses stdlib) so it can be run without installing extra
 packages.
 """
-from __future__ import annotations
 
 import argparse
 import json

@@ -5,19 +5,56 @@ export type ClientOptions = {
 };
 
 /**
- * Code
+ * CodeResponse
  *
- * Model for project codes.
+ * Project code.
  */
-export type Code = {
+export type CodeResponse = {
     /**
      * Id
      */
-    id: number | null;
+    id?: number | null;
     /**
      * Code
      */
     code: string;
+};
+
+/**
+ * CreateSubmissionRequest
+ *
+ * Request body for creating an archive submission.
+ */
+export type CreateSubmissionRequest = {
+    /**
+     * Drive Name
+     */
+    drive_name: string;
+    /**
+     * Retention Period Years
+     */
+    retention_period_years: number;
+    /**
+     * Retention Period Justification
+     */
+    retention_period_justification?: string | null;
+    data_classification?: DataClassification;
+    /**
+     * Project Id
+     */
+    project_id?: number | null;
+};
+
+/**
+ * CreateSubmissionResponse
+ *
+ * Response returned after creating an archive submission.
+ */
+export type CreateSubmissionResponse = {
+    /**
+     * Message
+     */
+    message: string;
 };
 
 /**
@@ -27,6 +64,72 @@ export type Code = {
  * Data Management Policy.
  */
 export type DataClassification = 'Public' | 'Internal' | 'Sensitive' | 'Restricted';
+
+/**
+ * DriveInfoResponse
+ *
+ * Combined drive + project info returned by the driveinfo endpoint.
+ */
+export type DriveInfoResponse = {
+    drive: DriveResponse;
+    project: ProjectResponse;
+};
+
+/**
+ * DriveResponse
+ *
+ * Research drive storage info.
+ */
+export type DriveResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Allocated Gb
+     */
+    allocated_gb: number;
+    /**
+     * Used Gb
+     */
+    used_gb: number;
+    /**
+     * Free Gb
+     */
+    free_gb: number;
+    /**
+     * Percentage Used
+     */
+    percentage_used: number;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * First Day
+     */
+    first_day?: string | null;
+    /**
+     * Last Day
+     */
+    last_day?: string | null;
+};
+
+/**
+ * ErrorResponse
+ *
+ * Error response returned by the API.
+ */
+export type ErrorResponse = {
+    /**
+     * Detail
+     */
+    detail: string;
+};
 
 /**
  * HTTPValidationError
@@ -39,162 +142,21 @@ export type HttpValidationError = {
 };
 
 /**
- * InputDriveOffboardSubmission
+ * MemberResponse
  *
- * Submission data model for the POST request.
+ * Project member with role.
  */
-export type InputDriveOffboardSubmission = {
-    /**
-     * Retentionperiodyears
-     */
-    retentionPeriodYears: number;
-    /**
-     * Retentionperiodjustification
-     */
-    retentionPeriodJustification?: string | null;
-    dataClassification: DataClassification;
-    /**
-     * Iscompleted
-     */
-    isCompleted: boolean;
-    /**
-     * Drivename
-     */
-    driveName: string;
-    projectChanges?: ProjectChanges | null;
+export type MemberResponse = {
+    role: RoleResponse;
+    person: PersonResponse;
 };
 
 /**
- * InputIdentity
+ * PersonResponse
  *
- * Data class for the identity list in POST request.
+ * Person summary for display.
  */
-export type InputIdentity = {
-    /**
-     * Username
-     */
-    username: string;
-};
-
-/**
- * InputIdentityResultItems
- *
- * The set of result items from Project DB API.
- */
-export type InputIdentityResultItems = {
-    /**
-     * Items
-     */
-    items: Array<InputIdentity>;
-};
-
-/**
- * InputPerson
- *
- * Data class for a Person model in POST request.
- */
-export type InputPerson = {
-    /**
-     * Id
-     */
-    id?: number | null;
-    /**
-     * Person.Email
-     */
-    'person.email': string | null;
-    /**
-     * Person.Full Name
-     */
-    'person.full_name': string;
-    'person.identities': InputIdentityResultItems;
-    role: Role;
-};
-
-/**
- * InputProject
- *
- * Input project model for data received from POST
- */
-export type InputProject = {
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Description
-     */
-    description: string;
-    /**
-     * Division
-     */
-    division: string;
-    /**
-     * Start Date
-     */
-    start_date: string;
-    /**
-     * End Date
-     */
-    end_date: string;
-    /**
-     * Id
-     */
-    id?: number | null;
-    /**
-     * Members
-     */
-    members: Array<InputPerson>;
-    /**
-     * Codes
-     */
-    codes: Array<Code>;
-    services: InputServices;
-};
-
-/**
- * InputServices
- *
- * Input object describing relevant storage services.
- */
-export type InputServices = {
-    /**
-     * Research Drive
-     */
-    research_drive: Array<ResearchDriveService>;
-};
-
-/**
- * Manifest
- *
- * SQL model for storing simple file manifests
- */
-export type Manifest = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Manifest
-     */
-    manifest: string;
-};
-
-/**
- * MemberPublic
- *
- * Public model for project members.
- */
-export type MemberPublic = {
-    role: Role;
-    person: Person;
-};
-
-/**
- * Person
- *
- * Data class for a Person model in database.
- */
-export type Person = {
+export type PersonResponse = {
     /**
      * Id
      */
@@ -202,7 +164,7 @@ export type Person = {
     /**
      * Email
      */
-    email: string | null;
+    email?: string | null;
     /**
      * Full Name
      */
@@ -210,192 +172,55 @@ export type Person = {
     /**
      * Username
      */
-    username: string;
+    username?: string | null;
 };
 
 /**
- * Project
+ * ProjectResponse
  *
- * Project model for data stored in database
+ * Project summary for display.
  */
-export type Project = {
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Description
-     */
-    description: string;
-    /**
-     * Division
-     */
-    division: string;
-    /**
-     * Start Date
-     */
-    start_date: string;
-    /**
-     * End Date
-     */
-    end_date: string;
-    /**
-     * Id
-     */
-    id?: number | null;
-};
-
-/**
- * ProjectChanges
- *
- * A model for describing updates to a project.
- */
-export type ProjectChanges = {
-    /**
-     * Title
-     */
-    title?: string | null;
-    /**
-     * Description
-     */
-    description?: string | null;
-};
-
-/**
- * ProjectWithDriveMember
- *
- * Public model for project with drive and member information.
- */
-export type ProjectWithDriveMember = {
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Description
-     */
-    description: string;
-    /**
-     * Division
-     */
-    division: string;
-    /**
-     * Start Date
-     */
-    start_date: string;
-    /**
-     * End Date
-     */
-    end_date: string;
+export type ProjectResponse = {
     /**
      * Id
      */
     id: number;
     /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Division
+     */
+    division: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
      * Codes
      */
-    codes: Array<Code>;
-    /**
-     * Research Drives
-     */
-    research_drives: Array<ResearchDriveServicePublic>;
+    codes?: Array<CodeResponse>;
     /**
      * Members
      */
-    members: Array<MemberPublic>;
+    members?: Array<MemberResponse>;
 };
 
 /**
- * ResearchDriveService
+ * RoleResponse
  *
- * Object describing a research drive service.
+ * Project role.
  */
-export type ResearchDriveService = {
-    /**
-     * Allocated Gb
-     */
-    allocated_gb: number;
-    /**
-     * Date
-     */
-    date: string;
-    /**
-     * First Day
-     */
-    first_day: string;
-    /**
-     * Free Gb
-     */
-    free_gb: number;
-    /**
-     * Id
-     */
-    id?: number | null;
-    /**
-     * Last Day
-     */
-    last_day: string | null;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Percentage Used
-     */
-    percentage_used: number;
-    /**
-     * Used Gb
-     */
-    used_gb: number;
-};
-
-/**
- * ResearchDriveServicePublic
- *
- * Public model for Research Drive Service.
- */
-export type ResearchDriveServicePublic = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Allocated Gb
-     */
-    allocated_gb: number;
-    /**
-     * Free Gb
-     */
-    free_gb: number;
-    /**
-     * Used Gb
-     */
-    used_gb: number;
-    /**
-     * Percentage Used
-     */
-    percentage_used: number;
-    /**
-     * Date
-     */
-    date: string;
-    /**
-     * First Day
-     */
-    first_day: string;
-    /**
-     * Last Day
-     */
-    last_day: string | null;
-    manifest: Manifest;
-};
-
-/**
- * Role
- *
- * Project roles for people.
- */
-export type Role = {
+export type RoleResponse = {
     /**
      * Id
      */
@@ -404,6 +229,55 @@ export type Role = {
      * Name
      */
     name: string;
+};
+
+/**
+ * SubmissionResponse
+ *
+ * Archive submission record returned by the submission endpoint.
+ */
+export type SubmissionResponse = {
+    /**
+     * Drive Id
+     */
+    drive_id: number;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Drive Name
+     */
+    drive_name: string;
+    /**
+     * Retention Period Years
+     */
+    retention_period_years: number;
+    /**
+     * Retention Period Justification
+     */
+    retention_period_justification: string | null;
+    data_classification: DataClassification;
+    /**
+     * Archive Date
+     */
+    archive_date: string;
+    /**
+     * Archive Location
+     */
+    archive_location: string;
+    /**
+     * Is Completed
+     */
+    is_completed: boolean;
+    /**
+     * Created Timestamp
+     */
+    created_timestamp: string;
+    /**
+     * Manifest
+     */
+    manifest: string | null;
 };
 
 /**
@@ -422,74 +296,88 @@ export type ValidationError = {
      * Error Type
      */
     type: string;
+    /**
+     * Input
+     */
+    input?: unknown;
+    /**
+     * Context
+     */
+    ctx?: {
+        [key: string]: unknown;
+    };
 };
 
-export type GetDriveInfoApiV1ResdriveinfoGetData = {
+export type GetDriveInfoApiV1DriveinfoGetData = {
     body?: never;
     path?: never;
     query: {
         /**
-         * Drive Id
+         * Drive Name
          */
-        drive_id: string;
+        drive_name: string;
         /**
          * Path
          */
         path?: string;
     };
-    url: '/api/v1/resdriveinfo';
+    url: '/api/v1/driveinfo';
 };
 
-export type GetDriveInfoApiV1ResdriveinfoGetErrors = {
+export type GetDriveInfoApiV1DriveinfoGetErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetDriveInfoApiV1ResdriveinfoGetError = GetDriveInfoApiV1ResdriveinfoGetErrors[keyof GetDriveInfoApiV1ResdriveinfoGetErrors];
+export type GetDriveInfoApiV1DriveinfoGetError = GetDriveInfoApiV1DriveinfoGetErrors[keyof GetDriveInfoApiV1DriveinfoGetErrors];
 
-export type GetDriveInfoApiV1ResdriveinfoGetResponses = {
+export type GetDriveInfoApiV1DriveinfoGetResponses = {
     /**
      * Successful Response
      */
-    200: ProjectWithDriveMember;
+    200: DriveInfoResponse;
 };
 
-export type GetDriveInfoApiV1ResdriveinfoGetResponse = GetDriveInfoApiV1ResdriveinfoGetResponses[keyof GetDriveInfoApiV1ResdriveinfoGetResponses];
+export type GetDriveInfoApiV1DriveinfoGetResponse = GetDriveInfoApiV1DriveinfoGetResponses[keyof GetDriveInfoApiV1DriveinfoGetResponses];
 
-export type SetDriveInfoApiV1ResdriveinfoPostData = {
-    body: InputProject;
+export type GetSubmissionApiV1SubmissionGetData = {
+    body?: never;
     path?: never;
-    query?: {
+    query: {
+        /**
+         * Drive Name
+         */
+        drive_name: string;
         /**
          * Path
          */
         path?: string;
     };
-    url: '/api/v1/resdriveinfo';
+    url: '/api/v1/submission';
 };
 
-export type SetDriveInfoApiV1ResdriveinfoPostErrors = {
+export type GetSubmissionApiV1SubmissionGetErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type SetDriveInfoApiV1ResdriveinfoPostError = SetDriveInfoApiV1ResdriveinfoPostErrors[keyof SetDriveInfoApiV1ResdriveinfoPostErrors];
+export type GetSubmissionApiV1SubmissionGetError = GetSubmissionApiV1SubmissionGetErrors[keyof GetSubmissionApiV1SubmissionGetErrors];
 
-export type SetDriveInfoApiV1ResdriveinfoPostResponses = {
+export type GetSubmissionApiV1SubmissionGetResponses = {
     /**
      * Successful Response
      */
-    200: Project;
+    200: SubmissionResponse;
 };
 
-export type SetDriveInfoApiV1ResdriveinfoPostResponse = SetDriveInfoApiV1ResdriveinfoPostResponses[keyof SetDriveInfoApiV1ResdriveinfoPostResponses];
+export type GetSubmissionApiV1SubmissionGetResponse = GetSubmissionApiV1SubmissionGetResponses[keyof GetSubmissionApiV1SubmissionGetResponses];
 
-export type AppendDriveInfoApiV1SubmissionPostData = {
-    body: InputDriveOffboardSubmission;
+export type CreateSubmissionApiV1SubmissionPostData = {
+    body: CreateSubmissionRequest;
     path?: never;
     query?: {
         /**
@@ -500,62 +388,24 @@ export type AppendDriveInfoApiV1SubmissionPostData = {
     url: '/api/v1/submission';
 };
 
-export type AppendDriveInfoApiV1SubmissionPostErrors = {
+export type CreateSubmissionApiV1SubmissionPostErrors = {
+    /**
+     * Drive already archived
+     */
+    409: ErrorResponse;
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type AppendDriveInfoApiV1SubmissionPostError = AppendDriveInfoApiV1SubmissionPostErrors[keyof AppendDriveInfoApiV1SubmissionPostErrors];
+export type CreateSubmissionApiV1SubmissionPostError = CreateSubmissionApiV1SubmissionPostErrors[keyof CreateSubmissionApiV1SubmissionPostErrors];
 
-export type AppendDriveInfoApiV1SubmissionPostResponses = {
+export type CreateSubmissionApiV1SubmissionPostResponses = {
     /**
-     * Response Append Drive Info Api V1 Submission Post
-     *
      * Successful Response
      */
-    201: {
-        [key: string]: string;
-    };
+    201: CreateSubmissionResponse;
 };
 
-export type AppendDriveInfoApiV1SubmissionPostResponse = AppendDriveInfoApiV1SubmissionPostResponses[keyof AppendDriveInfoApiV1SubmissionPostResponses];
-
-export type GetDriveManifestApiV1ResdrivemanifestGetData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Drive Id
-         */
-        drive_id: string;
-        /**
-         * Path
-         */
-        path?: string;
-    };
-    url: '/api/v1/resdrivemanifest';
-};
-
-export type GetDriveManifestApiV1ResdrivemanifestGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetDriveManifestApiV1ResdrivemanifestGetError = GetDriveManifestApiV1ResdrivemanifestGetErrors[keyof GetDriveManifestApiV1ResdrivemanifestGetErrors];
-
-export type GetDriveManifestApiV1ResdrivemanifestGetResponses = {
-    /**
-     * Response Get Drive Manifest Api V1 Resdrivemanifest Get
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: string;
-    };
-};
-
-export type GetDriveManifestApiV1ResdrivemanifestGetResponse = GetDriveManifestApiV1ResdrivemanifestGetResponses[keyof GetDriveManifestApiV1ResdrivemanifestGetResponses];
+export type CreateSubmissionApiV1SubmissionPostResponse = CreateSubmissionApiV1SubmissionPostResponses[keyof CreateSubmissionApiV1SubmissionPostResponses];

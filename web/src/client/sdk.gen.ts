@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AppendDriveInfoApiV1SubmissionPostData, AppendDriveInfoApiV1SubmissionPostErrors, AppendDriveInfoApiV1SubmissionPostResponses, GetDriveInfoApiV1ResdriveinfoGetData, GetDriveInfoApiV1ResdriveinfoGetErrors, GetDriveInfoApiV1ResdriveinfoGetResponses, GetDriveManifestApiV1ResdrivemanifestGetData, GetDriveManifestApiV1ResdrivemanifestGetErrors, GetDriveManifestApiV1ResdrivemanifestGetResponses, SetDriveInfoApiV1ResdriveinfoPostData, SetDriveInfoApiV1ResdriveinfoPostErrors, SetDriveInfoApiV1ResdriveinfoPostResponses } from './types.gen';
+import type { CreateSubmissionApiV1SubmissionPostData, CreateSubmissionApiV1SubmissionPostErrors, CreateSubmissionApiV1SubmissionPostResponses, GetDriveInfoApiV1DriveinfoGetData, GetDriveInfoApiV1DriveinfoGetErrors, GetDriveInfoApiV1DriveinfoGetResponses, GetSubmissionApiV1SubmissionGetData, GetSubmissionApiV1SubmissionGetErrors, GetSubmissionApiV1SubmissionGetResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -21,43 +21,45 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 /**
  * Get Drive Info
  *
- * Retrieve information about the specified Research Drive.
+ * Retrieve drive and project info from ProjectDB for display.
+ *
+ * Looks up the drive by name, resolves the associated project,
+ * and returns combined info including members and codes.
  */
-export const getDriveInfoApiV1ResdriveinfoGet = <ThrowOnError extends boolean = false>(options: Options<GetDriveInfoApiV1ResdriveinfoGetData, ThrowOnError>) => (options.client ?? client).get<GetDriveInfoApiV1ResdriveinfoGetResponses, GetDriveInfoApiV1ResdriveinfoGetErrors, ThrowOnError>({
+export const getDriveInfoApiV1DriveinfoGet = <ThrowOnError extends boolean = false>(options: Options<GetDriveInfoApiV1DriveinfoGetData, ThrowOnError>) => (options.client ?? client).get<GetDriveInfoApiV1DriveinfoGetResponses, GetDriveInfoApiV1DriveinfoGetErrors, ThrowOnError>({
     security: [{
             in: 'query',
             name: 'api-key',
             type: 'apiKey'
         }, { name: 'x-api-key', type: 'apiKey' }],
-    url: '/api/v1/resdriveinfo',
+    url: '/api/v1/driveinfo',
     ...options
 });
 
 /**
- * Set Drive Info
+ * Get Submission
  *
- * Submit initial RO-Crate metadata. NOTE: this may also need to accept the manifest data.
+ * Retrieve archive submission record for a research drive.
  */
-export const setDriveInfoApiV1ResdriveinfoPost = <ThrowOnError extends boolean = false>(options: Options<SetDriveInfoApiV1ResdriveinfoPostData, ThrowOnError>) => (options.client ?? client).post<SetDriveInfoApiV1ResdriveinfoPostResponses, SetDriveInfoApiV1ResdriveinfoPostErrors, ThrowOnError>({
+export const getSubmissionApiV1SubmissionGet = <ThrowOnError extends boolean = false>(options: Options<GetSubmissionApiV1SubmissionGetData, ThrowOnError>) => (options.client ?? client).get<GetSubmissionApiV1SubmissionGetResponses, GetSubmissionApiV1SubmissionGetErrors, ThrowOnError>({
     security: [{
             in: 'query',
             name: 'api-key',
             type: 'apiKey'
         }, { name: 'x-api-key', type: 'apiKey' }],
-    url: '/api/v1/resdriveinfo',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
+    url: '/api/v1/submission',
+    ...options
 });
 
 /**
- * Append Drive Info
+ * Create Submission
  *
- * Handle requests to create new form submission.
+ * Create a new archive submission for a research drive.
+ *
+ * Validates drive exists in ProjectDB, resolves project_id if needed,
+ * and schedules RO-Crate generation as a background task.
  */
-export const appendDriveInfoApiV1SubmissionPost = <ThrowOnError extends boolean = false>(options: Options<AppendDriveInfoApiV1SubmissionPostData, ThrowOnError>) => (options.client ?? client).post<AppendDriveInfoApiV1SubmissionPostResponses, AppendDriveInfoApiV1SubmissionPostErrors, ThrowOnError>({
+export const createSubmissionApiV1SubmissionPost = <ThrowOnError extends boolean = false>(options: Options<CreateSubmissionApiV1SubmissionPostData, ThrowOnError>) => (options.client ?? client).post<CreateSubmissionApiV1SubmissionPostResponses, CreateSubmissionApiV1SubmissionPostErrors, ThrowOnError>({
     security: [{
             in: 'query',
             name: 'api-key',
@@ -69,19 +71,4 @@ export const appendDriveInfoApiV1SubmissionPost = <ThrowOnError extends boolean 
         'Content-Type': 'application/json',
         ...options.headers
     }
-});
-
-/**
- * Get Drive Manifest
- *
- * Retrieve a manifest from a research drive that has been loaded into the backend
- */
-export const getDriveManifestApiV1ResdrivemanifestGet = <ThrowOnError extends boolean = false>(options: Options<GetDriveManifestApiV1ResdrivemanifestGetData, ThrowOnError>) => (options.client ?? client).get<GetDriveManifestApiV1ResdrivemanifestGetResponses, GetDriveManifestApiV1ResdrivemanifestGetErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
-    url: '/api/v1/resdrivemanifest',
-    ...options
 });

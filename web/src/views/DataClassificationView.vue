@@ -40,6 +40,7 @@ function tryContinue() {
         </p>
         <p>
           See <a
+            class="btn-link"
             href="https://research-hub.auckland.ac.nz/article/research-data-classification"
             target="_blank"
           >Research data classification standard</a> for full guidance.
@@ -87,10 +88,10 @@ function tryContinue() {
       </form>
     </section>
     <section class="forward-btn">
-      <a
+      <button
         class="btn btn-primary"
         @click="tryContinue()"
-      >Continue</a>
+      >Continue</button>
     </section>
   </main>
 </template>

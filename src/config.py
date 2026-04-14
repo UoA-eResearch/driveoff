@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     """
 
     cors_allow_host: list[str] = []
+    projectdb_base_url: str = ""
+    projectdb_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 

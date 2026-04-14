@@ -19,3 +19,15 @@ For both web frontend and FastAPI backend, an explicitly set environment variabl
 Web frontend: Vite has been configured to read from `modes` directory - see `web/vite.config.ts`. Read more at the [Vite env variables page](https://vite.dev/guide/env-and-mode.html#env-variables-and-modes).
 
 FastAPI backend: See `src/config.py` and [pydantic-settings page](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+
+
+## Still To Do:
+- Once ProjectDB API has new endpoint deployed for getting drive by name, implement drive lookup in FastAPI backend. For now, drive information is mocked based on the drive name provided by the user.
+- Implement actual mapping to real research drives (service account / temporary credentials to access drive). Use smbprotocol or similar to process drive contents.
+- Integrate with ActiveScale to automatically transfer archived data to long-term storage.
+- Add authentication and authorization, e.g. through integration with UoA's Single Sign-On (SSO) system.
+- Improve test coverage.
+- Optimise for large drives, and/or large number of files, and/or potentially impose some limits on how much data can be archived through this tool, and implement checks for these limits.
+- Add more detailed error handling and user feedback in the frontend.
+- Improve logging and monitoring for the FastAPI backend, especially for the background archiving tasks.
