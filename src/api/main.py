@@ -90,7 +90,15 @@ add_cors_middleware(app)
 ENDPOINT_PREFIX = "/api/v1"
 
 
-@app.get(ENDPOINT_PREFIX + "/driveinfo", response_model=DriveInfoResponse)
+@app.get(
+    ENDPOINT_PREFIX + "/driveinfo",
+    response_model=DriveInfoResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {"model": ErrorResponse, "description": "Drive or project not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
 async def get_drive_info(
     drive_name: ResearchDriveName,
     projectdb: ProjectDbDep,
@@ -209,6 +217,21 @@ async def get_drive_info(
     ENDPOINT_PREFIX + "/submission",
     status_code=status.HTTP_201_CREATED,
     response_model=CreateSubmissionResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid submission request"},
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {"model": ErrorResponse, "description": "Drive or project not found"},
+        409: {
+            "model": ErrorResponse,
+            "description": "Drive has already been archived",
+        },
+        422: {"description": "Validation error"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+        502: {
+            "model": ErrorResponse,
+            "description": "ProjectDB upstream request failed",
+        },
+    },
 )
 async def create_submission(
     request: CreateSubmissionRequest,
@@ -318,8 +341,11 @@ def _resolve_project_id(
         )
     except Exception as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"Could not fetch projects for drive {request.drive_name}: {e}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching projects"
+                f" for drive {request.drive_name}: {e}"
+            ),
         ) from e
 
     if not drive_projects:
@@ -547,7 +573,17 @@ async def generate_ro_crate_async(
             raise
 
 
-@app.get(ENDPOINT_PREFIX + "/submission", response_model=SubmissionResponse)
+@app.get(
+    ENDPOINT_PREFIX + "/submission",
+    response_model=SubmissionResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {
+            "model": ErrorResponse,
+            "description": "No archive submission found for drive",
+        },
+    },
+)
 async def get_submission(
     drive_name: ResearchDriveName,
     session: SessionDep,

@@ -5,8 +5,10 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
+from api.main import app
 from models.manifest import Manifest
 from models.submission import ArchiveSubmission
+from service.projectdb import get_projectdb_client
 
 
 def test_post_submission_can_create(
@@ -100,6 +102,52 @@ def test_post_submission_rejects_completed_drive(
     assert "already been successfully archived" in response.json()["detail"]
 
 
+def test_post_submission_returns_502_when_projectdb_project_lookup_fails(
+    client: TestClient,
+) -> None:
+    """Upstream ProjectDB failures should surface as 502, not 404."""
+
+    class BrokenProjectDbClient:
+        def get_research_drive_by_name(self, drive_name: str) -> dict[str, object]:
+            return {
+                "allocated_gb": 4000.0,
+                "date": "2026-03-09",
+                "free_gb": 4000.0,
+                "id": 6904394,
+                "name": drive_name,
+                "percentage_used": 0.0,
+                "used_gb": 0.0,
+            }
+
+        def get_research_drive_projects(
+            self, drive_id: int, expand=None
+        ):  # noqa: ANN001
+            raise RuntimeError("upstream timeout")
+
+    original_projectdb_override = app.dependency_overrides.get(get_projectdb_client)
+    app.dependency_overrides[get_projectdb_client] = lambda: BrokenProjectDbClient()
+
+    try:
+        with patch("api.main.generate_ro_crate_async"):
+            response = client.post(
+                "/api/v1/submission",
+                json={
+                    "drive_name": "restst000000001-testing",
+                    "project_id": 123,
+                    "retention_period_years": 7,
+                    "retention_period_justification": "Standard retention",
+                    "data_classification": "Sensitive",
+                },
+            )
+        assert response.status_code == 502
+        assert "ProjectDB request failed" in response.json()["detail"]
+    finally:
+        if original_projectdb_override is None:
+            app.dependency_overrides.pop(get_projectdb_client, None)
+        else:
+            app.dependency_overrides[get_projectdb_client] = original_projectdb_override
+
+
 def test_get_submission_returns_archive_record(
     session: Session,
     client: TestClient,
@@ -143,7 +191,7 @@ def test_post_submission_validates_retention_years(
             },
         )
         # Should fail validation - invalid retention years
-        assert response.status_code in [400, 422]  # Validation error
+        assert response.status_code == 422
 
 
 def test_post_submission_validates_classification(
