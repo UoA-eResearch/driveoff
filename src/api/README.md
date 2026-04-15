@@ -12,9 +12,9 @@ A FastAPI-based REST API server for managing project offboarding and archival wo
 
 1. **Install dependencies** from the project root:
    ```bash
-   poetry install
+   poetry install --with dev,test
    ```
-   This installs the `driveoff` package and all required dependencies including FastAPI.
+   This installs the `driveoff` package and all required dependencies including FastAPI, and development/test dependencies.
 
 2. **Set up API keys** (see [API Key Setup](#api-key-setup) below)
 

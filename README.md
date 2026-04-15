@@ -19,3 +19,44 @@ For both web frontend and FastAPI backend, an explicitly set environment variabl
 Web frontend: Vite has been configured to read from `modes` directory - see `web/vite.config.ts`. Read more at the [Vite env variables page](https://vite.dev/guide/env-and-mode.html#env-variables-and-modes).
 
 FastAPI backend: See `src/config.py` and [pydantic-settings page](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+## Local Python Tasks
+This project defines local developer tasks in `pyproject.toml` using `poethepoet`.
+
+Install dependencies first:
+
+```bash
+poetry install
+```
+
+Run all CI-style checks locally:
+
+```bash
+poetry run poe check
+```
+
+Run auto-fix formatting tasks:
+
+```bash
+poetry run poe fix
+```
+
+Run an individual task:
+
+```bash
+poetry run poe isort-check
+poetry run poe black-check
+poetry run poe isort-fix
+poetry run poe black-fix
+poetry run poe pylint-check
+poetry run poe mypy-check
+poetry run poe pytest-check
+```
+
+
+
+## Still To Do:
+- Implement actual mapping to real research drives (service account / temporary credentials to access drive). Use smbprotocol or similar to process drive contents.
+- Integrate with ActiveScale to automatically transfer archived data to long-term storage.
+- Add authentication and authorization, e.g. through integration with UoA's Single Sign-On (SSO) system.
+- Optimise for large drives, and/or large number of files, and/or potentially impose some limits on how much data can be archived through this tool, and implement checks for these limits.

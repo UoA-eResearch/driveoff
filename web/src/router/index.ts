@@ -1,28 +1,23 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import { createRouter, createWebHistory } from "vue-router";
+import HomeView from "../views/HomeView.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/',
-      name: 'home',
+      path: "/",
+      name: "home",
       component: HomeView
     },
     {
-      path: '/summary',
-      name: 'summary',
-      component: () => import('../views/SummaryView.vue')
+      path: "/summary",
+      name: "summary",
+      component: () => import("../views/SummaryView.vue")
     },
     {
       path: "/check-details",
-      name: 'check-details',
+      name: "check-details",
       component: () => import("../views/CheckDetailsView.vue")
-    },
-    {
-      path: "/update-details",
-      name: 'update-details',
-      component: () => import("../views/UpdateDetailsView.vue")
     },
     {
       path: "/data-classification",
@@ -55,11 +50,21 @@ const router = createRouter({
       component: () => import("../views/UnableToArchiveView.vue")
     },
     {
+      path: "/project-details-incorrect",
+      name: "project-details-incorrect",
+      component: () => import("../views/IncorrectProjectDetails.vue")
+    },
+    {
+      path: "/already-archived",
+      name: "already-archived",
+      component: () => import("../views/AlreadyArchivedView.vue")
+    },
+    {
       path: "/service-error",
       name: "service-error",
       component: () => import("../views/ServiceErrorView.vue")
     }
   ]
-})
+});
 
-export default router
+export default router;

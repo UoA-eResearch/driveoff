@@ -3,8 +3,8 @@
 import multiprocessing
 import os
 import shutil
+from collections.abc import Generator
 from pathlib import Path
-from typing import Dict, Generator, Optional
 
 import bagit
 
@@ -36,7 +36,7 @@ def _encode_filename(s: str) -> str:
     return s
 
 
-def genertate_filelist(drive_path: Path) -> str:
+def generate_filelist(drive_path: Path) -> str:
     """Generate a list of all the files in a path separated by newlines.
     Sorts on filenames and dirnames to mirror bagit process.
     """
@@ -57,7 +57,7 @@ def generate_manifest(drive_path: Path) -> Manifest:
     """
     # mount drive based on ID
     # use service account to mount drive to mountpoint
-    manifest = genertate_filelist(drive_path)
+    manifest = generate_filelist(drive_path)
     return Manifest(manifest=manifest)
 
 
@@ -66,7 +66,7 @@ def bagit_exists(drive_path: Path) -> bool:
     return (drive_path / "bagit.txt").is_file() and (drive_path / "data").is_dir()
 
 
-def bag_directory(drive_path: Path, bag_info: Dict[str, str]) -> None:
+def bag_directory(drive_path: Path, bag_info: dict[str, str]) -> None:
     """Create a bagit bag from a given directory
 
     Args:
@@ -111,7 +111,7 @@ def get_manifests_in_bag(drive_path: Path) -> list[Path]:
 
 def create_manifests_directory(
     drive_path: Path,
-    output_location: Optional[Path] = None,
+    output_location: Path | None = None,
     drive_name: str = "",
 ) -> None:
     """Creates a directory containing relevant manifest files for an archived Crate.

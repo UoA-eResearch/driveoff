@@ -1,30 +1,26 @@
 """Classes and functions for loading and archiving RO-Crates"""
 
+import json
 import logging
 import shutil
-import tarfile
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import orjson
 from bagit import Bag
 from rocrate.rocrate import ROCrate
 
-logger = logging.getLogger(__name__)
-
-JsonType = Dict[str, Any]
-
-
-class ARCHIVETYPE(str, Enum):
-    "Enum for Archive types it is possible to write the RO-Crate as"
-
-    ZIP = "zip"
-    TAR = "tar"
-    TAR_GZ = "tar.gz"
+JsonType = dict[str, Any]
 
 
 PROFILE = "https://uoa-eresearch.github.io/Project-Archive-RoCrate-Profile/"
+
+logger = logging.getLogger(__name__)
+
+
+def _log_event(level: int, event: str, **context: Any) -> None:
+    payload = {"event": event, **context}
+    logger.log(level, json.dumps(payload, default=str))
 
 
 class ROLoader:
@@ -83,60 +79,6 @@ class ROLoader:
                 ).decode("utf-8")
             )
 
-    def deserialize_crate(self, input_json: JsonType) -> None:
-        """Read an RO-Crate from a json dictionary input
-
-        Args:
-            input_json (Path): the path to write the RO-Crate file to
-        """
-        if not isinstance(input_json, dict):
-            raise ValueError("cannot deseralize RO-Crate json file must be a dict")
-        self.crate = ROCrate(source=input_json)
-
-    def serialize_crate(self) -> JsonType:
-        """Write the ro crate metadata to a json string and return it"""
-        as_jsonld: JsonType = self.crate.metadata.generate()
-        logger.debug("serialized crate is %s", as_jsonld)
-        return as_jsonld
-
-    def archive_crate(
-        self, crate_destination: Path, archive_type: ARCHIVETYPE, crate_location: Path
-    ) -> None:
-        """Write the RO-Crate as a Zip, TAR or TarGZ output
-
-        Args:
-            crate_destination (Path): where the crate should be written to
-            archive_type (ARCHIVE_TYPE): the format of the archive TAR, TAR_GZ or ZIP
-            crate_location (Path): _description_
-        """
-        self.crate.source = crate_location
-        file_location = crate_destination.parent / (
-            f"{crate_destination.name}.{archive_type}"
-        )
-        match archive_type:
-            case ARCHIVETYPE.TAR_GZ:
-                with tarfile.open(
-                    file_location,
-                    mode="w:gz",
-                ) as out_tar:
-                    out_tar.add(
-                        crate_location,
-                        arcname=crate_location.name,
-                        recursive=True,
-                    )
-                out_tar.close()
-            case ARCHIVETYPE.TAR:
-                with tarfile.open(file_location, mode="w") as out_tar:
-                    out_tar.add(
-                        crate_location,
-                        arcname=crate_location.name,
-                        recursive=True,
-                    )
-                out_tar.close()
-            case ARCHIVETYPE.ZIP:
-                self.crate.source = crate_location
-                self.crate.write_zip(file_location)
-
 
 def zip_existing_crate(crate_destination: Path, crate_location: Path) -> None:
     """Move an existing RO-Crate into a Zip Archive"""
@@ -149,4 +91,10 @@ def zip_existing_crate(crate_destination: Path, crate_location: Path) -> None:
         raise ValueError("RO-Crate Source should be a valid BagIt")
     if not Path(crate_location / "data" / "ro-crate-metadata.json").is_file():
         raise FileExistsError("No RO-Crate metadata found in RO-Crate source")
+    _log_event(
+        logging.INFO,
+        "crate.zip.start",
+        source=str(crate_location),
+        destination=str(crate_destination),
+    )
     shutil.make_archive(str(crate_destination), "zip", str(crate_location))

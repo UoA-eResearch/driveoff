@@ -1,16 +1,16 @@
 <script setup lang="ts">
-const DOCUMENT_TITLE = "Unable to archive drive - Archive your research drive";
+const DOCUMENT_TITLE = "Already Archived - Archive your research drive";
 document.title = DOCUMENT_TITLE;
 </script>
 <template>
   <main>
     <div class="title-section">
       <h1 class="page-title">
-        Unable to archive drive
+        Already Archived
       </h1>
     </div>
-    <p>Based on your answer, this is not the drive you are looking to archive.</p>
-    <p>You may have received multiple invite links to archive your research drives. Please try another one.</p>
+    <p>It appears that this research drive has already been successfully archived.</p>
+    <p>Please check with your project team or the Centre for eResearch if you would like to access your archived data or if you believe this is an error.</p>
     <h2 class="h2">
       If you need help
     </h2>
