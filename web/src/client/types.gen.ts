@@ -271,6 +271,18 @@ export type SubmissionResponse = {
      */
     is_completed: boolean;
     /**
+     * Is Failed
+     */
+    is_failed: boolean;
+    /**
+     * Failure Reason
+     */
+    failure_reason: string | null;
+    /**
+     * Failed Timestamp
+     */
+    failed_timestamp: string | null;
+    /**
      * Created Timestamp
      */
     created_timestamp: string;
@@ -278,6 +290,14 @@ export type SubmissionResponse = {
      * Manifest
      */
     manifest: string | null;
+    /**
+     * Activescale File Key
+     */
+    activescale_file_key: string | null;
+    /**
+     * Archive Uploaded
+     */
+    archive_uploaded: boolean | null;
 };
 
 /**
@@ -326,9 +346,21 @@ export type GetDriveInfoApiV1DriveinfoGetData = {
 
 export type GetDriveInfoApiV1DriveinfoGetErrors = {
     /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Drive or project not found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type GetDriveInfoApiV1DriveinfoGetError = GetDriveInfoApiV1DriveinfoGetErrors[keyof GetDriveInfoApiV1DriveinfoGetErrors];
@@ -360,6 +392,14 @@ export type GetSubmissionApiV1SubmissionGetData = {
 
 export type GetSubmissionApiV1SubmissionGetErrors = {
     /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * No archive submission found for drive
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -390,13 +430,33 @@ export type CreateSubmissionApiV1SubmissionPostData = {
 
 export type CreateSubmissionApiV1SubmissionPostErrors = {
     /**
-     * Drive already archived
+     * Invalid submission request
+     */
+    400: ErrorResponse;
+    /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Drive or project not found
+     */
+    404: ErrorResponse;
+    /**
+     * Drive has already been archived
      */
     409: ErrorResponse;
     /**
-     * Validation Error
+     * Validation error
      */
-    422: HttpValidationError;
+    422: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+    /**
+     * ProjectDB upstream request failed
+     */
+    502: ErrorResponse;
 };
 
 export type CreateSubmissionApiV1SubmissionPostError = CreateSubmissionApiV1SubmissionPostErrors[keyof CreateSubmissionApiV1SubmissionPostErrors];

@@ -102,3 +102,5 @@ class SubmissionResponse(BaseModel):
     failed_timestamp: datetime | None
     created_timestamp: datetime
     manifest: str | None
+    activescale_file_key: str | None
+    archive_uploaded: bool | None

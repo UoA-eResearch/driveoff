@@ -767,6 +767,8 @@ async def get_submission(
         failed_timestamp=submission.failed_timestamp,
         created_timestamp=submission.created_timestamp,
         manifest=submission.manifest.manifest if submission.manifest else None,
+        activescale_file_key=submission.activescale_file_key,
+        archive_uploaded=submission.archive_uploaded,
     )
 
 
