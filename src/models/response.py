@@ -1,8 +1,10 @@
 """Read-only response models for the API."""
 
+from __future__ import annotations
+
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.common import DataClassification
 
@@ -60,8 +62,8 @@ class ProjectResponse(BaseModel):
     division: str
     start_date: str
     end_date: str
-    codes: list[CodeResponse] = []
-    members: list[MemberResponse] = []
+    codes: list[CodeResponse] = Field(default_factory=list)
+    members: list[MemberResponse] = Field(default_factory=list)
 
 
 class DriveInfoResponse(BaseModel):
@@ -95,5 +97,8 @@ class SubmissionResponse(BaseModel):
     archive_date: datetime
     archive_location: str
     is_completed: bool
+    is_failed: bool
+    failure_reason: str | None
+    failed_timestamp: datetime | None
     created_timestamp: datetime
     manifest: str | None

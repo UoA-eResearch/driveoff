@@ -28,7 +28,6 @@ class ProjectDBClient:
 
     def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
         """Perform a GET request and return parsed JSON."""
-        print(f"GET {endpoint} with params {params}")  # Debug logging
         response = requests.get(
             self.base_url + endpoint,
             headers=self.headers,
@@ -47,7 +46,7 @@ class ProjectDBClient:
     # Public API — only the methods driveoff actually uses
     # ------------------------------------------------------------------
 
-    def get_research_drive_by_name(self, drive_name: str):
+    def get_research_drive_by_name(self, drive_name: str) -> Any:
         """GET /researchdrive/{drive_name}"""
         return self._get(f"/researchdrive/{drive_name}")
 

@@ -3,8 +3,8 @@
 import multiprocessing
 import os
 import shutil
+from collections.abc import Generator
 from pathlib import Path
-from typing import Dict, Generator, Optional
 
 import bagit
 
@@ -66,7 +66,7 @@ def bagit_exists(drive_path: Path) -> bool:
     return (drive_path / "bagit.txt").is_file() and (drive_path / "data").is_dir()
 
 
-def bag_directory(drive_path: Path, bag_info: Dict[str, str]) -> None:
+def bag_directory(drive_path: Path, bag_info: dict[str, str]) -> None:
     """Create a bagit bag from a given directory
 
     Args:
@@ -111,7 +111,7 @@ def get_manifests_in_bag(drive_path: Path) -> list[Path]:
 
 def create_manifests_directory(
     drive_path: Path,
-    output_location: Optional[Path] = None,
+    output_location: Path | None = None,
     drive_name: str = "",
 ) -> None:
     """Creates a directory containing relevant manifest files for an archived Crate.

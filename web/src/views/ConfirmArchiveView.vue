@@ -14,6 +14,9 @@ const projectMembers = membersToString(getProjectMembers(requestInfo.project.mem
 const projectTitle = requestInfo.project.title;
 const projectDescription = requestInfo.project.description;
 
+const driveName = requestInfo.drive.name;
+const usedGB = requestInfo.drive.used_gb;
+
 async function submit(){
     const dataClassification = formState.dataClassification;
     const retentionPeriod = formState.retentionPeriod;
@@ -49,6 +52,26 @@ async function submit(){
       Check your answers before sending your request
     </h2>
   </div>
+  <h3 class="h2">
+    Drive details
+  </h3>
+  <table>
+    <colgroup>
+      <col class="part-name-col">
+      <col>
+    </colgroup>
+    <tbody>
+      <tr>
+        <td>Drive name</td>
+        <td>{{ driveName }}</td>
+      </tr>
+      <tr>
+        <td>Used space</td>
+        <td>{{ usedGB }} GB</td>
+      </tr>
+    </tbody>
+  </table>
+
   <h3 class="h2">
     Project details
   </h3>
@@ -109,10 +132,10 @@ async function submit(){
   </h3>
   By sending this request you are confirming that the details are correct and you wish to archive this drive.
   <section class="forward-btn">
-    <a
+    <button
       class="btn btn-primary"
       @click="submit()"
-    >Submit</a>
+    >Submit</button>
   </section>
 </template>
 

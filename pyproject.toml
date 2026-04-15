@@ -7,7 +7,7 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.14"
 fastapi = {extras = ["standard"], version = "^0.132.0"}
 sqlmodel = "^0.0.22"
 sqlalchemy = "^2.0.36"
@@ -15,8 +15,6 @@ bagit = "^1.8.1"
 pytest-cov = "^6.0.0"
 rocrate = "^0.14.2"
 orjson = "^3.10"
-factory-boy = "^3.3.1"
-mock = "^5.1.0"
 pydantic-settings = "^2.6.1"
 requests = "^2.31.0"
 smbprotocol = "^1.16.1"
@@ -25,15 +23,14 @@ smbprotocol = "^1.16.1"
 isort = "^5.13.2"
 black = "^26.3.1"
 pylint = "^3.3.1"
-pytest = "^8.3.3"
+pytest = ">=8.3.3,<10.0.0"
 mypy = "^1.11.2"
 coverage = "^7.6.1"
 setuptools = "^78.1.1"
-factory-boy = "^3.3.1"
+poethepoet = "^0.31.1"
 
 [tool.poetry.group.test.dependencies]
-pytest = "^8.3.3"
-factory-boy = "^3.3.1"
+pytest = ">=8.3.3,<10.0.0"
 rocrate = "^0.14.2"
 orjson = "^3.10"
 bagit = "^1.8.1"
@@ -58,3 +55,24 @@ testpaths= ["tests"]
 
 [tool.pylint]
 extension-pkg-whitelist = ["orjson"]
+
+[tool.poe.tasks]
+isort-check = "python -m isort --check --diff --profile black src"
+black-check = "python -m black --check --diff src"
+pylint-check = "python -m pylint src/"
+mypy-check = "python -m mypy --install-types --non-interactive"
+pytest-check = "python -m pytest -v --cov=src/ tests/"
+check = [
+       "isort-check",
+       "black-check",
+       "pylint-check",
+       "mypy-check",
+       "pytest-check"
+       ]
+isort-fix = "python -m isort --profile black src"
+black-fix = "python -m black src"
+fix = [
+       "isort-fix",
+       "black-fix"
+       ]
+coverage-report = "python -m coverage report -m"

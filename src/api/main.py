@@ -1,10 +1,16 @@
 """Definition of endpoints/routers for the webserver."""
 
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, AsyncGenerator, Iterable
+from typing import Annotated, Any
 
+import requests
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
 import smbclient
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -38,6 +44,20 @@ from models.submission import ArchiveSubmission
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
 from service.research_drive_service import init_research_drive_service
+
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+logger = logging.getLogger(__name__)
+
+
+def _log_event(level: int, event: str, **context: Any) -> None:
+    payload = {"event": event, **context}
+    logger.log(level, json.dumps(payload, default=str))
+
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -77,18 +97,15 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     except (RuntimeError, ValueError) as e:
         # If the ProjectDB client cannot be initialised, allow app to start
         # but the dependency will raise if used.
-        print(f"Warning: ProjectDB client initialization failed: {e}")
+        _log_event(logging.WARNING, "projectdb.init_failed", error=str(e))
 
     # initialise research drive service (optional for now - only if SMB config provided)
     try:
         init_research_drive_service(app_instance)
-    except ValueError as e:
-        # If SMB config is incomplete, allow app to start with fake drive logic
-        print(f"Warning: Research drive service initialization skipped: {e}")
     except Exception as e:
-        print(f"Warning: Research drive service initialization failed: {e}")
-
+        _log_event(logging.WARNING, "driveservice.init_failed", error=str(e))
     yield
+    engine.dispose()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -99,7 +116,15 @@ add_cors_middleware(app)
 ENDPOINT_PREFIX = "/api/v1"
 
 
-@app.get(ENDPOINT_PREFIX + "/driveinfo", response_model=DriveInfoResponse)
+@app.get(
+    ENDPOINT_PREFIX + "/driveinfo",
+    response_model=DriveInfoResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {"model": ErrorResponse, "description": "Drive or project not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
 async def get_drive_info(
     drive_name: ResearchDriveName,
     projectdb: ProjectDbDep,
@@ -122,10 +147,15 @@ async def get_drive_info(
             )
         if isinstance(drive_data, list):
             drive_data = drive_data[0]
-    except Exception as e:
+    except HTTPException:
+        raise
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=502,
-            detail=f"Could not fetch drive {drive_name} from ProjectDB: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching drive"
+                f" {drive_name}: {str(e)}"
+            ),
         ) from e
 
     # Resolve project from drive
@@ -133,10 +163,13 @@ async def get_drive_info(
         drive_projects = projectdb.get_research_drive_projects(
             drive_data["id"], expand=["project"]
         )
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=502,
-            detail=f"Could not fetch projects for drive {drive_name}: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching projects"
+                f" for drive {drive_name}: {str(e)}"
+            ),
         ) from e
 
     if not drive_projects or len(drive_projects) == 0:
@@ -154,10 +187,13 @@ async def get_drive_info(
             pid=project_id,
             expand=["codes", "status", "services"],
         )
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=502,
-            detail=f"Could not fetch project {project_id}: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching project"
+                f" {project_id}: {str(e)}"
+            ),
         ) from e
 
     # Fetch members
@@ -167,10 +203,13 @@ async def get_drive_info(
             expand=["person", "role", "person.identities", "person.status"],
         )
         members_raw = filter_member_identities(members_raw)
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=502,
-            detail=f"Could not fetch members for project {project_id}: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching members"
+                f" for project {project_id}: {str(e)}"
+            ),
         ) from e
 
     # Build drive response, preferring service-level data (has first_day/last_day)
@@ -216,7 +255,21 @@ async def get_drive_info(
     ENDPOINT_PREFIX + "/submission",
     status_code=status.HTTP_201_CREATED,
     response_model=CreateSubmissionResponse,
-    responses={409: {"model": ErrorResponse, "description": "Drive already archived"}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid submission request"},
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {"model": ErrorResponse, "description": "Drive or project not found"},
+        409: {
+            "model": ErrorResponse,
+            "description": "Drive has already been archived",
+        },
+        422: {"description": "Validation error"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+        502: {
+            "model": ErrorResponse,
+            "description": "ProjectDB upstream request failed",
+        },
+    },
 )
 async def create_submission(
     request: CreateSubmissionRequest,
@@ -231,133 +284,46 @@ async def create_submission(
     and schedules RO-Crate generation as a background task.
     """
     validate_permissions("POST", api_key)
-
-    # Check for existing completed submission for this drive
-    existing = session.exec(
+    existing_submission = session.exec(
         select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == request.drive_name,
-            ArchiveSubmission.is_completed == True,  # noqa: E712
+            ArchiveSubmission.drive_name == request.drive_name
         )
     ).first()
-    if existing:
+
+    if existing_submission and existing_submission.is_completed:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"A completed archive submission already exists for drive {request.drive_name}.",
+            detail=(
+                f"Drive {request.drive_name} has already been successfully archived."
+            ),
         )
 
-    # Check for existing incomplete submission to update rather than duplicate
-    pending = session.exec(
-        select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == request.drive_name,
-            ArchiveSubmission.is_completed == False,  # noqa: E712
-        )
-    ).first()
-
-    # Fetch drive info from ProjectDB to validate it exists
     try:
-        drive = projectdb.get_research_drive_by_name(request.drive_name)
-        if not drive:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Research Drive {request.drive_name} not found in ProjectDB.",
-            )
-        if isinstance(drive, list):
-            # There should only ever be one
-            drive = drive[0]
+        drive = _validate_drive(projectdb, request.drive_name)
+        project_id = _resolve_project_id(projectdb, drive, request)
 
-        if not drive:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Research Drive {request.drive_name} not found in ProjectDB.",
-            )
+        submission = _upsert_submission(
+            session,
+            existing_submission,
+            drive,
+            project_id,
+            request,
+        )
 
-        # Resolve project_id if not provided
-        project_id = None
-        try:
-            # Find associated project
-            drive_projects = projectdb.get_research_drive_projects(
-                drive["id"], expand=["project"]
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Could not fetch projects for drive {request.drive_name}: {str(e)}",
-            ) from e
-
-        if not drive_projects or len(drive_projects) == 0:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No projects associated with drive {request.drive_name}",
-            )
-        if len(drive_projects) > 1:
-            # Choose correct project based on request parameter if provided,
-            # otherwise raise error to disambiguate
-            if request.project_id:
-                for dp in drive_projects:
-                    if dp["project"]["id"] == request.project_id:
-                        project_id = request.project_id
-                        break
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Multiple projects associated with drive {request.drive_name}."
-                        "Please provide project_id to disambiguate.",
-                    ),
-                )
-
-        else:
-            project_id = drive_projects[0]["project"]["id"]
-
-        if project_id is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Could not determine project_id for archive",
-            )
-
-        # Update existing incomplete submission or create a new one
-        archive_date = datetime.now()
-        archive_location = str(Path.home() / "mnt" / request.drive_name / "Archive")
-
-        if pending:
-            pending.drive_id = drive["id"]
-            pending.project_id = project_id
-            pending.retention_period_years = request.retention_period_years
-            pending.retention_period_justification = (
-                request.retention_period_justification
-            )
-            pending.data_classification = request.data_classification
-            pending.archive_date = archive_date
-            pending.archive_location = archive_location
-            submission = pending
-        else:
-            submission = ArchiveSubmission(
-                drive_id=drive["id"],
-                project_id=project_id,
-                drive_name=request.drive_name,
-                retention_period_years=request.retention_period_years,
-                retention_period_justification=request.retention_period_justification,
-                data_classification=request.data_classification,
-                archive_date=archive_date,
-                archive_location=archive_location,
-                is_completed=False,
-            )
-
-        session.add(submission)
-        session.commit()
-        # we need the submission id to pass to the background task,
-        # so we refresh to get the generated id
-        session.refresh(submission)
         if submission.id is None:
             raise HTTPException(
                 status_code=500,
-                detail="Failed to create archive submission record.",
+                detail="Archive submission record is missing ID after creation.",
             )
 
         # Schedule async RO-Crate generation
-        print(
-            f"Scheduling background task to generate RO-Crate for drive {request.drive_name}"
+        _log_event(
+            logging.INFO,
+            "submission.background_task_scheduled",
+            drive_name=request.drive_name,
+            submission_id=submission.id,
         )
+
         background_tasks.add_task(
             generate_ro_crate_async,
             drive,
@@ -365,17 +331,142 @@ async def create_submission(
             projectdb_client=projectdb,
         )
 
+        status_word = "updated" if existing_submission else "created"
         return CreateSubmissionResponse(
             message=(
-                f"Archive submission {'updated' if pending else 'created'} for {request.drive_name}."
+                f"Archive submission {status_word}"
+                f" for {request.drive_name}."
                 " RO-Crate generation is in progress."
             )
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"An error occurred while creating archive submission for {request.drive_name}.",
+            detail=(
+                "An error occurred while creating archive submission"
+                f" for {request.drive_name}."
+            ),
         ) from e
+
+
+def _validate_drive(projectdb: ProjectDBClient, drive_name: str) -> Any:
+    """Fetch and validate drive from ProjectDB."""
+    drive = projectdb.get_research_drive_by_name(drive_name)
+    if not drive:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Research Drive {drive_name} not found in ProjectDB.",
+        )
+    if isinstance(drive, list):
+        drive = drive[0]
+    if not drive:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Research Drive {drive_name} not found in ProjectDB.",
+        )
+    return drive
+
+
+def _resolve_project_id(
+    projectdb: ProjectDBClient,
+    drive: dict[str, Any],
+    request: CreateSubmissionRequest,
+) -> Any:
+    """Resolve the project_id for a drive from ProjectDB."""
+    try:
+        drive_projects = projectdb.get_research_drive_projects(
+            drive["id"], expand=["project"]
+        )
+    except (requests.RequestException, ValueError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ProjectDB request failed while fetching projects"
+                f" for drive {request.drive_name}: {e}"
+            ),
+        ) from e
+
+    if not drive_projects:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No projects associated with drive {request.drive_name}",
+        )
+
+    if len(drive_projects) == 1:
+        return drive_projects[0]["project"]["id"]
+
+    # Multiple projects – need project_id from request to disambiguate
+    if request.project_id:
+        for dp in drive_projects:
+            if dp["project"]["id"] == request.project_id:
+                return request.project_id
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Multiple projects associated with drive {request.drive_name}. "
+                "Please provide project_id to disambiguate."
+            ),
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail="Could not determine project_id for archive",
+    )
+
+
+def _upsert_submission(
+    session: Session,
+    existing_submission: ArchiveSubmission | None,
+    drive: dict[str, Any],
+    project_id: int,
+    request: CreateSubmissionRequest,
+) -> ArchiveSubmission:
+    """Update an existing pending submission or create a new one."""
+    archive_date = datetime.now()
+    archive_location = str(Path.home() / "mnt" / request.drive_name / "Archive")
+
+    if existing_submission:
+        existing_submission.drive_id = drive["id"]
+        existing_submission.project_id = project_id
+        existing_submission.retention_period_years = request.retention_period_years
+        existing_submission.retention_period_justification = (
+            request.retention_period_justification
+        )
+        existing_submission.data_classification = request.data_classification
+        existing_submission.archive_date = archive_date
+        existing_submission.archive_location = archive_location
+        # Reset completion state when a submission is resubmitted.
+        existing_submission.is_completed = False
+        existing_submission.is_failed = False
+        existing_submission.failure_reason = None
+        existing_submission.failed_timestamp = None
+        existing_submission.manifest_id = None
+        submission = existing_submission
+    else:
+        submission = ArchiveSubmission(
+            drive_id=drive["id"],
+            project_id=project_id,
+            drive_name=request.drive_name,
+            retention_period_years=request.retention_period_years,
+            retention_period_justification=request.retention_period_justification,
+            data_classification=request.data_classification,
+            archive_date=archive_date,
+            archive_location=archive_location,
+            is_completed=False,
+        )
+
+    session.add(submission)
+    session.commit()
+    session.refresh(submission)
+    if submission.id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create archive submission record.",
+        )
+    return submission
 
 
 def get_resdrive_path(drive_name: str) -> Path:
@@ -446,7 +537,12 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
     if bagit_exists(ro_crate_location):
         ro_crate_location = ro_crate_location / "data"
 
-    print(f"Writing RO-Crate to {ro_crate_location}")
+    _log_event(
+        logging.INFO,
+        "crate.write.metadata",
+        ro_crate_location=str(ro_crate_location),
+        drive_name=submission.drive_name,
+    )
     ro_crate_loader.write_crate(ro_crate_location)
     bag_directory(
         drive_location,
@@ -479,20 +575,32 @@ async def generate_ro_crate_async(
     """
     drive_name = drive.get("name", None)
     if drive_name is None:
-        print("Drive name is missing from drive data. Cannot generate RO-Crate.")
+        _log_event(logging.ERROR, "crate.build.invalid_drive", drive=drive)
         return
 
     # Create a new session for this background task
     with Session(engine) as session:
+        submission: ArchiveSubmission | None = None
         try:
             submission = session.get(ArchiveSubmission, submission_id)
             if submission is None:
-                print(f"ArchiveSubmission with id {submission_id} not found.")
+                _log_event(
+                    logging.ERROR,
+                    "crate.build.submission_not_found",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                )
                 return
 
             # Fetch project and member data from ProjectDB
             project_id = submission.project_id
-            print(f"Fetching project data from ProjectDB for project {project_id}...")
+            _log_event(
+                logging.INFO,
+                "crate.build.projectdb_fetch_start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                project_id=project_id,
+            )
             project_data = projectdb_client.get_project(
                 pid=project_id,
                 expand=["codes", "status", "services", "properties"],
@@ -516,7 +624,13 @@ async def generate_ro_crate_async(
             )  # TODO: this is probably not correct (data is not necessarily in Vault subdirectory).
             output_location = drive_path / "Archive"
 
-            print(f"Building RO-Crate for {drive_name}...")
+            _log_event(
+                logging.INFO,
+                "crate.build.start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                project_id=project_id,
+            )
             build_crate_contents_async(
                 drive=drive,
                 submission=submission,
@@ -537,16 +651,49 @@ async def generate_ro_crate_async(
             # Update archive submission with manifest and completion status
             submission.manifest_id = manifest.id
             submission.is_completed = True
+            submission.is_failed = False
+            submission.failure_reason = None
+            submission.failed_timestamp = None
             session.add(submission)
             session.commit()
 
-            print(f"RO-Crate generation completed for {drive_name}")
+            _log_event(
+                logging.INFO,
+                "crate.build.completed",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                project_id=project_id,
+                manifest_id=manifest.id,
+            )
         except Exception as e:
-            print(f"Error generating RO-Crate for {drive_name}: {e}")
-            raise
+            if submission is not None:
+                submission.is_completed = False
+                submission.is_failed = True
+                submission.failure_reason = str(e)
+                submission.failed_timestamp = datetime.now()
+                session.add(submission)
+                session.commit()
+            _log_event(
+                logging.ERROR,
+                "crate.build.failed",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                error=str(e),
+            )
+            logger.exception("Background crate generation failed")
 
 
-@app.get(ENDPOINT_PREFIX + "/submission", response_model=SubmissionResponse)
+@app.get(
+    ENDPOINT_PREFIX + "/submission",
+    response_model=SubmissionResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {
+            "model": ErrorResponse,
+            "description": "No archive submission found for drive",
+        },
+    },
+)
 async def get_submission(
     drive_name: ResearchDriveName,
     session: SessionDep,
@@ -574,6 +721,9 @@ async def get_submission(
         archive_date=submission.archive_date,
         archive_location=submission.archive_location,
         is_completed=submission.is_completed,
+        is_failed=submission.is_failed,
+        failure_reason=submission.failure_reason,
+        failed_timestamp=submission.failed_timestamp,
         created_timestamp=submission.created_timestamp,
         manifest=submission.manifest.manifest if submission.manifest else None,
     )
@@ -637,7 +787,7 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
             }
             for member in members
         ]
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except (TypeError, AttributeError) as e:
         # Log error but don't fail the whole process - just return unfiltered members
-        print(f"Error filtering member identities: {e}")
+        _log_event(logging.WARNING, "members.filter_failed", error=str(e))
     return members

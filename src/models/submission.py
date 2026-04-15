@@ -1,8 +1,11 @@
 """Archive submission model - minimal reference to ProjectDB records."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import orm
 from sqlmodel import Field, Relationship, SQLModel
 
 from models.common import DataClassification
@@ -19,10 +22,10 @@ class ArchiveSubmission(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
 
-    # ProjectDB references (not stored in local DB)
+    # Locally stored references to ProjectDB records
     drive_id: int
     project_id: int
-    drive_name: str = Field(index=True)
+    drive_name: str = Field(index=True, unique=True)
 
     # Archiving metadata from submission form
     retention_period_years: int
@@ -35,13 +38,13 @@ class ArchiveSubmission(SQLModel, table=True):
 
     # Manifest relationship
     manifest_id: int | None = Field(default=None, foreign_key="manifest.id")
-    manifest: Optional[Manifest] = Relationship()
+    manifest: Optional[Manifest] = Relationship(
+        sa_relationship=orm.relationship("Manifest")
+    )
 
     # Status and audit
     is_completed: bool = Field(default=False)
+    is_failed: bool = Field(default=False)
+    failure_reason: str | None = Field(default=None)
+    failed_timestamp: datetime | None = Field(default=None)
     created_timestamp: datetime = Field(default_factory=datetime.now)
-
-    # Index for efficient queries by drive and timestamp
-    __table_args__ = (
-        # This will be added as composite index in migration
-    )

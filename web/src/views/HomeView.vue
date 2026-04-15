@@ -27,10 +27,10 @@ function nextStep() {
           <li>Confirm you want to archive the research drive. </li>
         </ul>
         <section class="forward-btn">
-          <a
+          <button
             class="btn btn-primary"
             @click="nextStep()"
-          >Start</a>
+          >Start</button>
         </section>
         <section class="more-info">
           <h2 class="h2">
