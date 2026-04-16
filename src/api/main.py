@@ -27,7 +27,6 @@ from api.manifests import (
     bag_directory,
     bagit_exists,
     create_manifests_directory,
-    generate_manifest,
 )
 from api.security import ApiKey, validate_api_key, validate_permissions
 from config import get_settings
@@ -88,7 +87,7 @@ DB_FILE_NAME = Path.home() / ".driveoff" / "database.db"
 DB_URL = f"sqlite:///{DB_FILE_NAME}"
 
 connect_args = {"check_same_thread": False}
-engine = create_engine(DB_URL, connect_args=connect_args, echo=True)
+engine = create_engine(DB_URL, connect_args=connect_args, echo=False)
 
 
 def create_db_and_tables() -> None:
@@ -162,7 +161,6 @@ def _reconcile_interrupted_jobs() -> None:
                 previous_stage=previous_stage,
             )
             submission.stage = JobStage.ABANDONED
-            submission.is_failed = True
             submission.failure_reason = (
                 f"Process restarted while job was in stage '{previous_stage.value}'."
                 " Retry this job to resume."
@@ -360,7 +358,7 @@ async def create_submission(
         )
     ).first()
 
-    if existing_submission and existing_submission.is_completed:
+    if existing_submission and existing_submission.stage == JobStage.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -609,9 +607,6 @@ def _upsert_submission(
     request: CreateSubmissionRequest,
 ) -> ArchiveSubmission:
     """Update an existing pending submission or create a new one."""
-    archive_date = datetime.now()
-    archive_location = str(Path.home() / "mnt" / request.drive_name / "Archive")
-
     if existing_submission:
         existing_submission.drive_id = drive["id"]
         existing_submission.project_id = project_id
@@ -620,14 +615,9 @@ def _upsert_submission(
             request.retention_period_justification
         )
         existing_submission.data_classification = request.data_classification
-        existing_submission.archive_date = archive_date
-        existing_submission.archive_location = archive_location
-        # Reset completion state when a submission is resubmitted.
-        existing_submission.is_completed = False
-        existing_submission.is_failed = False
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
-        existing_submission.manifest_id = None
+        existing_submission.activescale_file_key = None
         submission = existing_submission
     else:
         submission = ArchiveSubmission(
@@ -637,9 +627,6 @@ def _upsert_submission(
             retention_period_years=request.retention_period_years,
             retention_period_justification=request.retention_period_justification,
             data_classification=request.data_classification,
-            archive_date=archive_date,
-            archive_location=archive_location,
-            is_completed=False,
         )
 
     now = datetime.now()
@@ -791,11 +778,11 @@ async def generate_ro_crate_async(
 
     Fetches live project data from ProjectDB, generates crate,
     uploads the archive to ActiveScale for long-term storage, and updates
-    the ArchiveSubmission record with completion status and manifest.
+    the ArchiveSubmission record with stage and operational metadata.
 
     Implements persisted checkpoints so retries can skip completed steps:
     - queued→running: After loading submission from DB
-    - running→uploading: After crate build, zip, and manifest generation
+    - running→uploading: After crate build and zip generation
     - uploading→completed/failed: After upload attempt
 
     Args:
@@ -946,35 +933,6 @@ async def generate_ro_crate_async(
                     elapsed_ms=_elapsed_ms(started_at),
                 )
 
-            # Generate and store manifest (check if already stored)
-            manifest = generate_manifest(drive_location)
-            if submission.manifest_id is None:
-                session.add(manifest)
-                session.commit()
-                submission.manifest_id = manifest.id
-                _log_event(
-                    logging.INFO,
-                    "manifest.generated",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    manifest_id=manifest.id,
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
-            else:
-                _log_event(
-                    logging.INFO,
-                    "manifest.skipped",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    reason="manifest already generated",
-                    manifest_id=submission.manifest_id,
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
-
             # Transition: running → uploading
             previous_stage = submission.stage
             submission.stage = JobStage.UPLOADING
@@ -1010,6 +968,16 @@ async def generate_ro_crate_async(
                 }
 
                 # Check if object already exists on S3 and skip upload if so
+                _log_event(
+                    logging.INFO,
+                    "S3.object_exists.check_start",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    file_key=file_key,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
                 obj_exists, obj_metadata = object_exists(client, bucket_name, file_key)
                 if obj_exists:
                     _log_event(
@@ -1034,6 +1002,7 @@ async def generate_ro_crate_async(
                         file_key,
                         file_path=str(output_location / f"{drive_name}.zip"),
                         metadata=metadata,
+                        timeout=get_settings().activescale_upload_timeout,
                     )
                 upload_success = success
 
@@ -1066,12 +1035,9 @@ async def generate_ro_crate_async(
             now = datetime.now()
             if upload_success:
                 submission.stage = JobStage.COMPLETED
-                submission.is_completed = True
-                submission.is_failed = False
                 submission.failure_reason = None
                 submission.failed_timestamp = None
                 submission.activescale_file_key = file_key
-                submission.archive_uploaded = True
                 submission.completed_timestamp = now
                 submission.last_updated_timestamp = now
                 session.add(submission)
@@ -1096,12 +1062,9 @@ async def generate_ro_crate_async(
                 )
             else:
                 submission.stage = JobStage.FAILED
-                submission.is_completed = False
-                submission.is_failed = True
                 submission.failure_reason = "ActiveScale upload failed"
                 submission.failed_timestamp = now
                 submission.activescale_file_key = file_key
-                submission.archive_uploaded = False
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
@@ -1127,7 +1090,6 @@ async def generate_ro_crate_async(
                 submission_id=submission_id,
                 drive_name=drive_name,
                 project_id=project_id,
-                manifest_id=submission.manifest_id,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 cleanup_succeeded=submission.cleanup_succeeded,
@@ -1164,8 +1126,6 @@ async def generate_ro_crate_async(
                 submission.cleanup_error = cleanup_error
 
                 submission.stage = JobStage.FAILED
-                submission.is_completed = False
-                submission.is_failed = True
                 submission.failure_reason = processing_error
                 submission.failed_timestamp = now
                 submission.last_updated_timestamp = now
@@ -1224,16 +1184,16 @@ async def get_submission(
         retention_period_years=submission.retention_period_years,
         retention_period_justification=submission.retention_period_justification,
         data_classification=submission.data_classification,
-        archive_date=submission.archive_date,
-        archive_location=submission.archive_location,
-        is_completed=submission.is_completed,
-        is_failed=submission.is_failed,
+        stage=submission.stage,
         failure_reason=submission.failure_reason,
         failed_timestamp=submission.failed_timestamp,
-        created_timestamp=submission.created_timestamp,
-        manifest=submission.manifest.manifest if submission.manifest else None,
+        started_timestamp=submission.started_timestamp,
+        last_updated_timestamp=submission.last_updated_timestamp,
+        completed_timestamp=submission.completed_timestamp,
+        retry_count=submission.retry_count,
+        cleanup_succeeded=submission.cleanup_succeeded,
+        cleanup_error=submission.cleanup_error,
         activescale_file_key=submission.activescale_file_key,
-        archive_uploaded=submission.archive_uploaded,
     )
 
 

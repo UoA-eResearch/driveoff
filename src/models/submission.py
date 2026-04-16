@@ -4,13 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
-from sqlalchemy import orm
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 from models.common import DataClassification
-from models.manifest import Manifest
 
 
 class JobStage(str, Enum):
@@ -45,7 +42,7 @@ class ArchiveSubmission(SQLModel, table=True):
 
     This replaces the old DriveOffboardSubmission and removes all duplicate data
     storage. We only store IDs that reference ProjectDB records plus archive-specific
-    metadata (retention, classification, location).
+    metadata (retention, classification, and lifecycle state).
     """
 
     id: int | None = Field(default=None, primary_key=True)
@@ -60,33 +57,16 @@ class ArchiveSubmission(SQLModel, table=True):
     retention_period_justification: str | None = Field(default=None)
     data_classification: DataClassification
 
-    # Archive tracking
-    archive_date: datetime
-    archive_location: str  # Path to zipped RO-Crate (stored as string for SQLite)
-
     # ActiveScale upload metadata (optional, only populated after upload attempt)
     activescale_file_key: str | None = Field(
         default=None, description="S3/ActiveScale path where archive was uploaded"
     )
-    archive_uploaded: bool | None = Field(
-        default=None,
-        description="True if archive successfully uploaded, False if upload failed",
-    )
-
-    # Manifest relationship
-    manifest_id: int | None = Field(default=None, foreign_key="manifest.id")
-    manifest: Optional[Manifest] = Relationship(
-        sa_relationship=orm.relationship("Manifest")
-    )
 
     # Status and audit
-    is_completed: bool = Field(default=False)
-    is_failed: bool = Field(default=False)
     failure_reason: str | None = Field(default=None)
     failed_timestamp: datetime | None = Field(default=None)
-    created_timestamp: datetime = Field(default_factory=datetime.now)
 
-    # Lifecycle stage (authoritative status; is_completed/is_failed derived for compatibility)
+    # Lifecycle stage (authoritative status for the archive job)
     stage: JobStage = Field(default=JobStage.QUEUED)
 
     # Timestamps for operational visibility

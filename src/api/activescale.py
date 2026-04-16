@@ -24,13 +24,22 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-config = Config(
-    retries={"total_max_attempts": 3, "mode": "standard"},
-    signature_version="s3v4",
-    connect_timeout=30,
-    read_timeout=60,
-    max_pool_connections=10,
-)
+
+def _get_client_config() -> Config:
+    """Build botocore client config from runtime settings."""
+    settings = get_settings()
+    retry_attempts = max(settings.activescale_retry_attempts, 1)
+    connect_timeout = max(settings.activescale_connect_timeout, 1)
+    read_timeout = max(settings.activescale_read_timeout, 1)
+
+    return Config(
+        retries={"total_max_attempts": retry_attempts, "mode": "standard"},
+        signature_version="s3v4",
+        connect_timeout=connect_timeout,
+        read_timeout=read_timeout,
+        max_pool_connections=10,
+    )
+
 
 # THREAD SAFETY NOTES:
 # - Boto3 S3 clients are thread-safe for concurrent requests (urllib3 connection
@@ -110,7 +119,7 @@ def get_activescale_client(request: Request) -> S3Client:
     client = session.client(
         "s3",
         endpoint_url=f"https://{get_settings().activescale_hostname}",
-        config=config,
+        config=_get_client_config(),
     )
     return client
 
@@ -137,7 +146,7 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
         _activescale_session.client(
             "s3",
             endpoint_url=f"https://{get_settings().activescale_hostname}",
-            config=config,
+            config=_get_client_config(),
         ),
     )
     try:
