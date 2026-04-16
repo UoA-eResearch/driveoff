@@ -32,14 +32,14 @@ def test_post_submission_can_create(
         data = response.json()
         assert "message" in data
         assert "Archive submission created" in data["message"]
-        assert "RO-Crate generation is in progress" in data["message"]
+        assert "in progress" in data["message"]
 
 
-def test_post_submission_updates_existing_single_row(
+def test_post_submission_rejects_duplicate_active_job(
     client: TestClient,
     session: Session,
 ) -> None:
-    """Repeated submission for the same drive updates one existing row."""
+    """Duplicate submission for the same drive during active job is rejected with 409."""
     with patch("api.main.generate_ro_crate_async"):
         create_response = client.post(
             "/api/v1/submission",
@@ -53,7 +53,8 @@ def test_post_submission_updates_existing_single_row(
         )
         assert create_response.status_code == 201
 
-        update_response = client.post(
+        # Attempt duplicate submission while job is active (in QUEUED stage)
+        duplicate_response = client.post(
             "/api/v1/submission",
             json={
                 "drive_name": "restst000000001-testing",
@@ -63,19 +64,22 @@ def test_post_submission_updates_existing_single_row(
                 "data_classification": "Restricted",
             },
         )
-        assert update_response.status_code == 201
-        update_payload = update_response.json()
-        assert "Archive submission updated" in update_payload["message"]
+        assert duplicate_response.status_code == 409
+        detail = duplicate_response.json()["detail"]
+        assert "already has an active archive job" in detail
+        assert "stage" in detail
 
+    # Verify only the original submission row exists
     rows = session.exec(
         select(ArchiveSubmission).where(
             ArchiveSubmission.drive_name == "restst000000001-testing"
         )
     ).all()
     assert len(rows) == 1
-    assert rows[0].retention_period_years == 10
-    assert rows[0].retention_period_justification == "Updated reason"
-    assert rows[0].data_classification.value == "Restricted"
+    # Original values should be unchanged
+    assert rows[0].retention_period_years == 7
+    assert rows[0].retention_period_justification == "Initial reason"
+    assert rows[0].data_classification.value == "Sensitive"
 
 
 def test_post_submission_rejects_completed_drive(

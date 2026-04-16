@@ -45,7 +45,7 @@ from models.response import (
     RoleResponse,
     SubmissionResponse,
 )
-from models.submission import ArchiveSubmission
+from models.submission import ACTIVE_STAGES, ArchiveSubmission, JobStage
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
 
@@ -105,6 +105,8 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
 
     # initialize external services
     # initialise ProjectDB client for use in endpoints
+    _reconcile_interrupted_jobs()
+
     try:
         init_projectdb(app_instance)
     except (RuntimeError, ValueError) as e:
@@ -119,6 +121,49 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
         _log_event(logging.WARNING, "activescale.init_failed", error=str(e))
     yield
     engine.dispose()
+
+
+def _reconcile_interrupted_jobs() -> None:
+    """Mark any jobs that were active when the process last exited as abandoned.
+
+    FastAPI BackgroundTasks are volatile; if the process restarts while a job
+    is in an active stage (queued/running/uploading/cleanup) that work is lost.
+    We surface this to operators as 'abandoned' so they can trigger a manual retry.
+    """
+    with Session(engine) as session:
+        active_stage_values = [s.value for s in ACTIVE_STAGES]
+        interrupted = session.exec(
+            select(ArchiveSubmission).where(
+                ArchiveSubmission.stage.in_(active_stage_values)  # type: ignore[attr-defined]
+            )
+        ).all()
+        if not interrupted:
+            return
+        now = datetime.now()
+        for submission in interrupted:
+            previous_stage = submission.stage
+            _log_event(
+                logging.WARNING,
+                "submission.abandoned_on_startup",
+                submission_id=submission.id,
+                drive_name=submission.drive_name,
+                previous_stage=previous_stage,
+            )
+            submission.stage = JobStage.ABANDONED
+            submission.is_failed = True
+            submission.failure_reason = (
+                f"Process restarted while job was in stage '{previous_stage.value}'."
+                " Retry this job to resume."
+            )
+            submission.failed_timestamp = now
+            submission.last_updated_timestamp = now
+            session.add(submission)
+        session.commit()
+        _log_event(
+            logging.WARNING,
+            "startup.reconciliation_complete",
+            abandoned_count=len(interrupted),
+        )
 
 
 app = FastAPI(lifespan=lifespan)
@@ -311,6 +356,16 @@ async def create_submission(
             ),
         )
 
+    if existing_submission and existing_submission.stage in ACTIVE_STAGES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Drive {request.drive_name} already has an active archive job"
+                f" in stage '{existing_submission.stage.value}'."
+                " Wait for it to finish or use the retry endpoint if it has failed."
+            ),
+        )
+
     try:
         drive = _validate_drive(projectdb, request.drive_name)
         project_id = _resolve_project_id(projectdb, drive, request)
@@ -470,6 +525,14 @@ def _upsert_submission(
             archive_location=archive_location,
             is_completed=False,
         )
+
+    now = datetime.now()
+    submission.stage = JobStage.QUEUED
+    submission.started_timestamp = now
+    submission.last_updated_timestamp = now
+    submission.completed_timestamp = None
+    submission.cleanup_succeeded = None
+    submission.cleanup_error = None
 
     session.add(submission)
     session.commit()

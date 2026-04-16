@@ -138,19 +138,17 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
 
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[read_api_keys] = read_api_keys_override
+    app.dependency_overrides[get_projectdb_client] = get_projectdb_client_override
 
     with patch(
         "api.main.get_activescale_client_context", mock_activescale_client_context
     ):
         with patch("api.main.init_activescale"):
-            with patch("api.main.generate_ro_crate"):
+            with patch("api.main.generate_ro_crate_async"):
                 with patch("api.main.upload_file", return_value=True):
                     client = TestClient(app, headers={"x-api-key": test_api_key})
                     yield client
 
-    app.dependency_overrides[get_projectdb_client] = get_projectdb_client_override
-    with TestClient(app, headers={"x-api-key": test_api_key}) as client:
-        yield client
     app.dependency_overrides.clear()
 
 
