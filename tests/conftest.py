@@ -1,14 +1,13 @@
 # pylint: disable=missing-class-docstring,redefined-outer-name,too-few-public-methods,missing-module-docstring
-import json
 import shutil
+import json
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Generator
-from unittest.mock import patch
-from collections.abc import Generator
 from typing import Any
+from unittest.mock import patch
 
 import orjson
 import pytest
@@ -27,7 +26,6 @@ from crate.ro_builder import ROBuilder
 from crate.ro_loader import PROFILE as ARCHIVE_PROFILE
 from crate.ro_loader import ROLoader
 from models.common import DataClassification
-from models.manifest import Manifest
 from models.submission import ArchiveSubmission
 
 THIS_DIR = Path(__file__).absolute().parent
@@ -183,21 +181,7 @@ def submission() -> ArchiveSubmission:
         retention_period_years=7,
         retention_period_justification="Standard research data retention",
         data_classification=DataClassification.SENSITIVE,
-        archive_date=datetime(2024, 10, 13),
-        archive_location="/archive/path",
-        manifest_id=None,
-        is_completed=False,
-        created_timestamp=datetime(2024, 10, 13),
-    )
-
-
-@pytest.fixture
-def manifest() -> Manifest:
-    """minimal test Manifest"""
-    return Manifest(
-        manifest=json.dumps(
-            {"files": [{"name": "file.txt", "size": 1024, "hash": "abc123"}]}
-        )
+        started_timestamp=datetime(2024, 10, 13),
     )
 
 
@@ -278,11 +262,7 @@ def test_submission() -> ArchiveSubmission:
         retention_period_years=7,
         retention_period_justification="Standard retention",
         data_classification=DataClassification.SENSITIVE,
-        archive_date=datetime(2024, 10, 13),
-        archive_location="/archive/path",
-        manifest_id=None,
-        is_completed=False,
-        created_timestamp=datetime(2024, 10, 13),
+        started_timestamp=datetime(2024, 10, 13),
     )
 
 

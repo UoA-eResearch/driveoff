@@ -1,5 +1,6 @@
 """Tests for the archive submission API endpoints."""
 
+from datetime import datetime
 from unittest.mock import patch
 
 import requests
@@ -7,7 +8,6 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from api.main import app
-from models.manifest import Manifest
 from models.submission import ArchiveSubmission, JobStage
 from service.projectdb import get_projectdb_client
 
@@ -88,7 +88,7 @@ def test_post_submission_rejects_completed_drive(
     submission: ArchiveSubmission,
 ) -> None:
     """A drive that is already successfully archived cannot be resubmitted."""
-    submission.is_completed = True
+    submission.stage = JobStage.COMPLETED
     session.add(submission)
     session.commit()
 
@@ -157,15 +157,10 @@ def test_get_submission_returns_archive_record(
     session: Session,
     client: TestClient,
     submission: ArchiveSubmission,
-    manifest: Manifest,
 ) -> None:
     """Test retrieving an archive submission"""
-    # Add test data to session
-    manifest.id = 1
-    session.add(manifest)
-    session.flush()
-
-    submission.manifest_id = manifest.id
+    submission.stage = JobStage.QUEUED
+    submission.retry_count = 0
     session.add(submission)
     session.commit()
 
@@ -184,12 +179,12 @@ def test_get_submission_returns_archive_record(
         == submission.retention_period_justification
     )
     assert data["data_classification"] == submission.data_classification.value
-    assert data["archive_location"] == submission.archive_location
-    assert data["is_completed"] is False
-    assert data["is_failed"] is False
+    assert data["stage"] == submission.stage.value
     assert data["failure_reason"] is None
     assert data["failed_timestamp"] is None
-    assert data["manifest"] == manifest.manifest
+    assert data["retry_count"] == 0
+    assert data["cleanup_succeeded"] is None
+    assert data["cleanup_error"] is None
 
 
 def test_post_submission_validates_retention_years(
@@ -282,7 +277,7 @@ def test_retry_submission_rejects_active_stage(
 ) -> None:
     """Retry endpoint returns 409 for active-stage jobs."""
     submission.stage = JobStage.RUNNING
-    submission.last_updated_timestamp = submission.created_timestamp
+    submission.last_updated_timestamp = datetime.now()
     session.add(submission)
     session.commit()
 
@@ -298,7 +293,6 @@ def test_retry_submission_rejects_completed_stage(
 ) -> None:
     """Retry endpoint returns 409 for completed jobs."""
     submission.stage = JobStage.COMPLETED
-    submission.is_completed = True
     session.add(submission)
     session.commit()
 
@@ -314,7 +308,6 @@ def test_retry_submission_requeues_failed_job(
 ) -> None:
     """Retry endpoint should queue a failed job and increment retry_count."""
     submission.stage = JobStage.FAILED
-    submission.is_failed = True
     submission.failure_reason = "ActiveScale upload failed"
     submission.retry_count = 0
     session.add(submission)

@@ -142,6 +142,18 @@ export type HttpValidationError = {
 };
 
 /**
+ * JobStage
+ *
+ * Lifecycle stages for an archive job.
+ *
+ * State transitions:
+ * queued -> running -> uploading -> cleanup -> completed
+ * any non-terminal stage -> failed  (on unhandled exception)
+ * any non-terminal stage -> abandoned  (on API restart mid-job)
+ */
+export type JobStage = 'queued' | 'running' | 'uploading' | 'cleanup' | 'completed' | 'failed' | 'abandoned';
+
+/**
  * MemberResponse
  *
  * Project member with role.
@@ -258,22 +270,7 @@ export type SubmissionResponse = {
      */
     retention_period_justification: string | null;
     data_classification: DataClassification;
-    /**
-     * Archive Date
-     */
-    archive_date: string;
-    /**
-     * Archive Location
-     */
-    archive_location: string;
-    /**
-     * Is Completed
-     */
-    is_completed: boolean;
-    /**
-     * Is Failed
-     */
-    is_failed: boolean;
+    stage: JobStage;
     /**
      * Failure Reason
      */
@@ -283,21 +280,33 @@ export type SubmissionResponse = {
      */
     failed_timestamp: string | null;
     /**
-     * Created Timestamp
+     * Started Timestamp
      */
-    created_timestamp: string;
+    started_timestamp: string | null;
     /**
-     * Manifest
+     * Last Updated Timestamp
      */
-    manifest: string | null;
+    last_updated_timestamp: string | null;
+    /**
+     * Completed Timestamp
+     */
+    completed_timestamp: string | null;
+    /**
+     * Retry Count
+     */
+    retry_count: number;
+    /**
+     * Cleanup Succeeded
+     */
+    cleanup_succeeded: boolean | null;
+    /**
+     * Cleanup Error
+     */
+    cleanup_error: string | null;
     /**
      * Activescale File Key
      */
     activescale_file_key: string | null;
-    /**
-     * Archive Uploaded
-     */
-    archive_uploaded: boolean | null;
 };
 
 /**
@@ -469,3 +478,54 @@ export type CreateSubmissionApiV1SubmissionPostResponses = {
 };
 
 export type CreateSubmissionApiV1SubmissionPostResponse = CreateSubmissionApiV1SubmissionPostResponses[keyof CreateSubmissionApiV1SubmissionPostResponses];
+
+export type RetrySubmissionApiV1SubmissionDriveNameRetryPostData = {
+    body?: never;
+    path: {
+        /**
+         * Drive Name
+         */
+        drive_name: string;
+    };
+    query?: {
+        /**
+         * Path
+         */
+        path?: string;
+    };
+    url: '/api/v1/submission/{drive_name}/retry';
+};
+
+export type RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors = {
+    /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * No submission found for drive
+     */
+    404: ErrorResponse;
+    /**
+     * Job is active or already completed
+     */
+    409: ErrorResponse;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type RetrySubmissionApiV1SubmissionDriveNameRetryPostError = RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors[keyof RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors];
+
+export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CreateSubmissionResponse;
+};
+
+export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponse = RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses[keyof RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses];
