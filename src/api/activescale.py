@@ -15,7 +15,7 @@ from typing import Any, Generator, cast
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError, EndpointConnectionError
+from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
 from fastapi import FastAPI, Request
 from types_boto3_s3 import S3Client
 from types_boto3_s3.type_defs import TagTypeDef
@@ -121,7 +121,7 @@ def get_activescale_client(request: Request) -> S3Client:
         endpoint_url=f"https://{get_settings().activescale_hostname}",
         config=_get_client_config(),
     )
-    return client
+    return cast(S3Client, client)
 
 
 @contextmanager
@@ -160,7 +160,7 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
 # S3 interactions - generic for any S3-compatible service. Pass in initialised client.
 
 
-class ProgressTracker:
+class ProgressTracker:  # pylint: disable=too-few-public-methods
     """Tracks upload progress and logs periodic updates with stall detection."""
 
     def __init__(self, file_key: str, file_size: int, stall_timeout: int = 30):
@@ -277,7 +277,7 @@ def list_buckets(client: S3Client) -> list[str]:
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return []
-    except Exception as e:
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
         logger.error(
             "Unexpected error while listing buckets: %s: %s",
             type(e).__name__,
@@ -286,6 +286,7 @@ def list_buckets(client: S3Client) -> list[str]:
         return []
 
 
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments,too-many-locals
 def upload_file(
     client: S3Client,
     bucket_name: str,
@@ -362,7 +363,7 @@ def upload_file(
                     Callback=progress_tracker,
                 )
                 upload_result[0] = True
-            except Exception as e:  # pylint: disable=broad-except
+            except (ClientError, EndpointConnectionError, BotoCoreError, OSError) as e:
                 upload_exception[0] = e
 
         upload_thread = threading.Thread(target=perform_upload, daemon=False)
@@ -380,8 +381,9 @@ def upload_file(
             )
             return False
 
-        if upload_exception[0] is not None:
-            raise upload_exception[0]
+        upload_error = upload_exception[0]
+        if upload_error is not None:
+            raise upload_error
 
         if upload_result[0]:
             logger.info(
@@ -404,7 +406,7 @@ def upload_file(
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return False
-    except Exception as e:
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
         logger.error(
             "Unexpected error uploading '%s': %s: %s",
             file_key,
@@ -427,7 +429,7 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
     """
     try:
         response = client.get_object(Bucket=bucket_name, Key=file_key)
-        file_content = response["Body"].read()
+        file_content = cast(bytes, response["Body"].read())
         logger.info(
             "Successfully downloaded '%s' from bucket '%s'", file_key, bucket_name
         )
@@ -445,7 +447,7 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return None
-    except Exception as e:
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
         logger.error(
             "Unexpected error downloading '%s': %s: %s",
             file_key,
@@ -504,7 +506,7 @@ def object_exists(
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return False, None
-    except Exception as e:
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
         logger.error(
             "Unexpected error checking object '%s': %s: %s",
             file_key,
@@ -559,7 +561,7 @@ def create_bucket(
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return False
-    except Exception as e:
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
         logger.error(
             "Unexpected error creating bucket '%s': %s: %s",
             bucket_name,
@@ -597,7 +599,7 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return False
-    except Exception as e:
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
         logger.error(
             "Unexpected error setting policy for '%s': %s: %s",
             bucket_name,
@@ -642,7 +644,7 @@ def set_bucket_tags(
             "Could not connect to the S3 endpoint. Check network connectivity."
         )
         return False
-    except Exception as e:
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
         logger.error(
             "Unexpected error setting tags for '%s': %s: %s",
             bucket_name,

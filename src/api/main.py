@@ -1,5 +1,7 @@
 """Definition of endpoints/routers for the webserver."""
 
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import json
@@ -9,7 +11,7 @@ from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import requests
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
@@ -23,11 +25,7 @@ from api.activescale import (
 )
 from api.cors import add_cors_middleware
 from api.fake_resdrive import make_fake_resdrive
-from api.manifests import (
-    bag_directory,
-    bagit_exists,
-    create_manifests_directory,
-)
+from api.manifests import bag_directory, bagit_exists, create_manifests_directory
 from api.security import ApiKey, validate_api_key, validate_permissions
 from config import get_settings
 from crate.ro_builder import ROBuilder
@@ -143,10 +141,9 @@ def _reconcile_interrupted_jobs() -> None:
     """
     with Session(engine) as session:
         active_stage_values = [s.value for s in ACTIVE_STAGES]
+        stage_column = cast(Any, ArchiveSubmission.stage)
         interrupted = session.exec(
-            select(ArchiveSubmission).where(
-                ArchiveSubmission.stage.in_(active_stage_values)  # type: ignore[attr-defined]
-            )
+            select(ArchiveSubmission).where(stage_column.in_(active_stage_values))
         ).all()
         if not interrupted:
             return
@@ -215,8 +212,6 @@ async def get_drive_info(
             )
         if isinstance(drive_data, list):
             drive_data = drive_data[0]
-    except HTTPException:
-        raise
     except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -687,7 +682,7 @@ def _cleanup_job_artifacts(
                 removed_count += 1
         except FileNotFoundError:
             continue
-        except Exception as e:  # pragma: no cover - best effort cleanup
+        except OSError as e:  # pragma: no cover - best effort cleanup
             cleanup_errors.append(f"{path}: {e}")
 
     if cleanup_errors:
@@ -769,7 +764,7 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
     )
 
 
-async def generate_ro_crate_async(
+async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-statements
     drive: dict[str, Any],
     submission_id: int,
     projectdb_client: ProjectDBClient,
@@ -1095,7 +1090,7 @@ async def generate_ro_crate_async(
                 cleanup_succeeded=submission.cleanup_succeeded,
                 elapsed_ms=_elapsed_ms(started_at),
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             processing_error = str(e)
             if submission is not None:
                 now = datetime.now()
