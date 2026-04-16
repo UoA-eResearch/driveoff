@@ -27,6 +27,7 @@ mypy = "^1.11.2"
 coverage = "^7.6.1"
 setuptools = "^78.1.1"
 poethepoet = "^0.31.1"
+memory-profiler = "^0.61.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.3.3,<10.0.0"
@@ -75,3 +76,5 @@ fix = [
        "black-fix"
        ]
 coverage-report = "python -m coverage report -m"
+memory-profile = "python scripts/profile_memory.py --scenario all --quiet-logs"
+memory-profile-line = "python -m memory_profiler scripts/profile_memory.py --scenario all --quiet-logs"

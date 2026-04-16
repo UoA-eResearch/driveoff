@@ -53,3 +53,32 @@ poetry run poe mypy-check
 poetry run poe pytest-check
 ```
 
+### Memory profiling
+
+This repo includes a profiling helper at `scripts/profile_memory.py`.
+
+Run the default profiler task (all scenarios):
+
+```bash
+poetry run poe memory-profile
+```
+
+Run with line-by-line memory profiler output:
+
+```bash
+poetry run poe memory-profile-line
+```
+
+Run specific scenarios and options:
+
+```bash
+# add-project | build-crate | full-archive | all
+poetry run python scripts/profile_memory.py --scenario full-archive --members 1000
+
+# repeat runs for leak detection
+poetry run python scripts/profile_memory.py --scenario full-archive --members 5000 --repeat 10
+
+# reduce noisy INFO logs from bagit/api during profiling
+poetry run python scripts/profile_memory.py --scenario full-archive --members 5000 --repeat 10 --quiet-logs
+```
+
