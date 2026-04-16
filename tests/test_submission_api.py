@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from api.main import app
 from models.manifest import Manifest
-from models.submission import ArchiveSubmission
+from models.submission import ArchiveSubmission, JobStage
 from service.projectdb import get_projectdb_client
 
 
@@ -264,3 +264,73 @@ def test_post_submission_accepts_drive_name_with_fullstop(
             },
         )
         assert response.status_code == 201
+
+
+def test_retry_submission_returns_404_when_missing_submission(
+    client: TestClient,
+) -> None:
+    """Retry endpoint returns 404 when drive has no submission record."""
+    response = client.post("/api/v1/submission/restst000000999-testing/retry")
+    assert response.status_code == 404
+    assert "No archive submission found" in response.json()["detail"]
+
+
+def test_retry_submission_rejects_active_stage(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Retry endpoint returns 409 for active-stage jobs."""
+    submission.stage = JobStage.RUNNING
+    submission.last_updated_timestamp = submission.created_timestamp
+    session.add(submission)
+    session.commit()
+
+    response = client.post(f"/api/v1/submission/{submission.drive_name}/retry")
+    assert response.status_code == 409
+    assert "already has an active archive job" in response.json()["detail"]
+
+
+def test_retry_submission_rejects_completed_stage(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Retry endpoint returns 409 for completed jobs."""
+    submission.stage = JobStage.COMPLETED
+    submission.is_completed = True
+    session.add(submission)
+    session.commit()
+
+    response = client.post(f"/api/v1/submission/{submission.drive_name}/retry")
+    assert response.status_code == 409
+    assert "already been successfully archived" in response.json()["detail"]
+
+
+def test_retry_submission_requeues_failed_job(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Retry endpoint should queue a failed job and increment retry_count."""
+    submission.stage = JobStage.FAILED
+    submission.is_failed = True
+    submission.failure_reason = "ActiveScale upload failed"
+    submission.retry_count = 0
+    session.add(submission)
+    session.commit()
+
+    response = client.post(f"/api/v1/submission/{submission.drive_name}/retry")
+    assert response.status_code == 200
+    assert "queued for retry" in response.json()["message"]
+
+    refreshed = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == submission.drive_name
+        )
+    ).first()
+    assert refreshed is not None
+    assert refreshed.stage == JobStage.QUEUED
+    assert refreshed.failure_reason is None
+    assert refreshed.failed_timestamp is None
+    assert refreshed.retry_count == 1
