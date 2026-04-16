@@ -46,7 +46,12 @@ from models.response import (
     RoleResponse,
     SubmissionResponse,
 )
-from models.submission import ACTIVE_STAGES, ArchiveSubmission, JobStage
+from models.submission import (
+    ACTIVE_STAGES,
+    RETRYABLE_STAGES,
+    ArchiveSubmission,
+    JobStage,
+)
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
 
@@ -418,6 +423,110 @@ async def create_submission(
                 f" for {request.drive_name}."
             ),
         ) from e
+
+
+@app.post(
+    ENDPOINT_PREFIX + "/submission/{drive_name}/retry",
+    status_code=status.HTTP_200_OK,
+    response_model=CreateSubmissionResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {"model": ErrorResponse, "description": "No submission found for drive"},
+        409: {
+            "model": ErrorResponse,
+            "description": "Job is active or already completed",
+        },
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def retry_submission(
+    drive_name: ResearchDriveName,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    projectdb: ProjectDbDep,
+    api_key: ApiKey = Security(validate_api_key),
+) -> CreateSubmissionResponse:
+    """Retry a failed or abandoned archive job for a research drive."""
+    validate_permissions("POST", api_key)
+
+    submission = session.exec(
+        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == drive_name)
+    ).first()
+
+    if submission is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No archive submission found for drive {drive_name}.",
+        )
+
+    if submission.stage in ACTIVE_STAGES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Drive {drive_name} already has an active archive job"
+                f" in stage '{submission.stage.value}'."
+                " Wait for it to finish."
+            ),
+        )
+
+    if submission.stage == JobStage.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Drive {drive_name} has already been successfully archived.",
+        )
+
+    if submission.stage not in RETRYABLE_STAGES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Drive {drive_name} submission is in stage '{submission.stage.value}'"
+                " which cannot be retried."
+            ),
+        )
+
+    # Reset to QUEUED for the new attempt
+    now = datetime.now()
+    submission.stage = JobStage.QUEUED
+    submission.failure_reason = None
+    submission.failed_timestamp = None
+    submission.retry_count = (submission.retry_count or 0) + 1
+    submission.last_updated_timestamp = now
+    submission.completed_timestamp = None
+    submission.cleanup_succeeded = None
+    submission.cleanup_error = None
+    session.add(submission)
+    session.commit()
+    session.refresh(submission)
+
+    _log_event(
+        logging.INFO,
+        "submission.retry_scheduled",
+        drive_name=drive_name,
+        submission_id=submission.id,
+        retry_count=submission.retry_count,
+    )
+
+    if submission.id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Archive submission record is missing ID.",
+        )
+
+    drive = _validate_drive(projectdb, drive_name)
+    background_tasks.add_task(
+        generate_ro_crate_async,
+        drive,
+        submission.id,
+        projectdb_client=projectdb,
+    )
+
+    return CreateSubmissionResponse(
+        message=(
+            f"Archive job for {drive_name} queued for retry"
+            f" (attempt {submission.retry_count})."
+            " RO-Crate generation and upload to ActiveScale is in progress."
+        )
+    )
 
 
 def _validate_drive(projectdb: ProjectDBClient, drive_name: str) -> Any:
