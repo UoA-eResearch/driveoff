@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -67,6 +68,11 @@ logger = logging.getLogger(__name__)
 def _log_event(level: int, event: str, **context: Any) -> None:
     payload = {"event": event, **context}
     logger.log(level, json.dumps(payload, default=str))
+
+
+def _elapsed_ms(started_at: datetime) -> int:
+    """Compute elapsed milliseconds from a start timestamp."""
+    return int((datetime.now() - started_at).total_seconds() * 1000)
 
 
 # Configure logging with level from environment
@@ -668,6 +674,56 @@ def get_resdrive_path(drive_name: str) -> Path:
     return drive_path
 
 
+def _cleanup_job_artifacts(
+    drive_name: str, output_location: Path
+) -> tuple[bool, str | None]:
+    """Delete generated local archive artifacts for a submission.
+
+    This intentionally only removes generated artifacts in the archive output
+    area and does not remove source drive content under Vault.
+    """
+    generated_paths = [
+        output_location / f"{drive_name}.zip",
+        output_location / str(drive_name),
+        output_location / f"{drive_name}Vault_manifests",
+    ]
+
+    cleanup_errors: list[str] = []
+    removed_count = 0
+    for path in generated_paths:
+        try:
+            if path.is_file():
+                path.unlink()
+                removed_count += 1
+            elif path.is_dir():
+                shutil.rmtree(path)
+                removed_count += 1
+        except FileNotFoundError:
+            continue
+        except Exception as e:  # pragma: no cover - best effort cleanup
+            cleanup_errors.append(f"{path}: {e}")
+
+    if cleanup_errors:
+        _log_event(
+            logging.WARNING,
+            "submission.cleanup.failed",
+            drive_name=drive_name,
+            output_location=str(output_location),
+            removed_count=removed_count,
+            cleanup_error="; ".join(cleanup_errors),
+        )
+        return False, "; ".join(cleanup_errors)
+
+    _log_event(
+        logging.INFO,
+        "submission.cleanup.completed",
+        drive_name=drive_name,
+        output_location=str(output_location),
+        removed_count=removed_count,
+    )
+    return True, None
+
+
 def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-positional-arguments
     drive: dict[str, Any],
     submission: ArchiveSubmission,
@@ -748,13 +804,24 @@ async def generate_ro_crate_async(
         projectdb_client: Client for interacting with ProjectDB
     """
     drive_name = drive.get("name", None)
+    started_at = datetime.now()
     if drive_name is None:
-        _log_event(logging.ERROR, "crate.build.invalid_drive", drive=drive)
+        _log_event(
+            logging.ERROR,
+            "crate.build.invalid_drive",
+            drive=drive,
+            elapsed_ms=_elapsed_ms(started_at),
+        )
         return
 
     # Create a new session for this background task
     with Session(engine) as session:
         submission: ArchiveSubmission | None = None
+        output_location = Path.home() / "mnt" / str(drive_name) / "Archive"
+        file_key: str | None = None
+        project_id: int | None = None
+        processing_error: str | None = None
+        upload_success = False
         try:
             submission = session.get(ArchiveSubmission, submission_id)
             if submission is None:
@@ -763,10 +830,12 @@ async def generate_ro_crate_async(
                     "crate.build.submission_not_found",
                     submission_id=submission_id,
                     drive_name=drive_name,
+                    elapsed_ms=_elapsed_ms(started_at),
                 )
                 return
 
             # Transition: queued → running
+            previous_stage = submission.stage
             submission.stage = JobStage.RUNNING
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
@@ -777,8 +846,11 @@ async def generate_ro_crate_async(
                 "submission.stage_transition",
                 submission_id=submission_id,
                 drive_name=drive_name,
-                from_stage="queued",
-                to_stage="running",
+                from_stage=previous_stage.value,
+                to_stage=JobStage.RUNNING.value,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
             )
 
             # Fetch project and member data from ProjectDB
@@ -789,6 +861,9 @@ async def generate_ro_crate_async(
                 submission_id=submission_id,
                 drive_name=drive_name,
                 project_id=project_id,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
             )
             project_data = projectdb_client.get_project(
                 pid=project_id,
@@ -816,6 +891,9 @@ async def generate_ro_crate_async(
                 submission_id=submission_id,
                 drive_name=drive_name,
                 project_id=project_id,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
             )
 
             # Build crate contents (idempotent, safe to retry)
@@ -836,6 +914,9 @@ async def generate_ro_crate_async(
                     "crate.zip.start",
                     submission_id=submission_id,
                     drive_name=drive_name,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
                 )
                 zip_existing_crate(output_location / str(drive_name), drive_location)
                 _log_event(
@@ -848,6 +929,9 @@ async def generate_ro_crate_async(
                         if zip_path.exists()
                         else 0
                     ),
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
                 )
             else:
                 _log_event(
@@ -857,6 +941,9 @@ async def generate_ro_crate_async(
                     drive_name=drive_name,
                     reason="zip file already exists",
                     zip_size_mb=zip_path.stat().st_size / (1024 * 1024),
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
                 )
 
             # Generate and store manifest (check if already stored)
@@ -871,6 +958,9 @@ async def generate_ro_crate_async(
                     submission_id=submission_id,
                     drive_name=drive_name,
                     manifest_id=manifest.id,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
                 )
             else:
                 _log_event(
@@ -880,9 +970,13 @@ async def generate_ro_crate_async(
                     drive_name=drive_name,
                     reason="manifest already generated",
                     manifest_id=submission.manifest_id,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
                 )
 
             # Transition: running → uploading
+            previous_stage = submission.stage
             submission.stage = JobStage.UPLOADING
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
@@ -893,8 +987,11 @@ async def generate_ro_crate_async(
                 "submission.stage_transition",
                 submission_id=submission_id,
                 drive_name=drive_name,
-                from_stage="running",
-                to_stage="uploading",
+                from_stage=previous_stage.value,
+                to_stage=JobStage.UPLOADING.value,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
             )
 
             # Upload the archive to ActiveScale
@@ -925,6 +1022,9 @@ async def generate_ro_crate_async(
                         object_size_bytes=(
                             obj_metadata.get("content_length") if obj_metadata else None
                         ),
+                        stage=submission.stage.value,
+                        retry_count=submission.retry_count,
+                        elapsed_ms=_elapsed_ms(started_at),
                     )
                     success = True
                 else:
@@ -935,57 +1035,91 @@ async def generate_ro_crate_async(
                         file_path=str(output_location / f"{drive_name}.zip"),
                         metadata=metadata,
                     )
+                upload_success = success
 
-                # Update submission record with upload result
-                now = datetime.now()
-                if success:
-                    submission.stage = JobStage.COMPLETED
-                    submission.is_completed = True
-                    submission.is_failed = False
-                    submission.failure_reason = None
-                    submission.failed_timestamp = None
-                    submission.activescale_file_key = file_key
-                    submission.archive_uploaded = True
-                    submission.completed_timestamp = now
-                    submission.last_updated_timestamp = now
-                    session.add(submission)
-                    session.commit()
+            # Transition: uploading → cleanup
+            previous_stage = submission.stage
+            submission.stage = JobStage.CLEANUP
+            submission.last_updated_timestamp = datetime.now()
+            session.add(submission)
+            session.commit()
 
-                    logger.info(
-                        "Successfully uploaded RO-Crate archive for %s to "
-                        "ActiveScale at %s",
-                        drive_name,
-                        file_key,
-                    )
-                    _log_event(
-                        logging.INFO,
-                        "crate.upload.completed",
-                        submission_id=submission_id,
-                        drive_name=drive_name,
-                        file_key=file_key,
-                    )
-                else:
-                    submission.stage = JobStage.FAILED
-                    submission.is_completed = False
-                    submission.is_failed = True
-                    submission.failure_reason = "ActiveScale upload failed"
-                    submission.failed_timestamp = now
-                    submission.activescale_file_key = file_key
-                    submission.archive_uploaded = False
-                    submission.last_updated_timestamp = now
-                    session.add(submission)
-                    session.commit()
-                    logger.error(
-                        "Failed to upload RO-Crate archive for %s to ActiveScale",
-                        drive_name,
-                    )
-                    _log_event(
-                        logging.ERROR,
-                        "crate.upload.failed",
-                        submission_id=submission_id,
-                        drive_name=drive_name,
-                        file_key=file_key,
-                    )
+            _log_event(
+                logging.INFO,
+                "submission.stage_transition",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                from_stage=previous_stage.value,
+                to_stage=JobStage.CLEANUP.value,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+
+            cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(
+                str(drive_name), output_location
+            )
+            submission.cleanup_succeeded = cleanup_succeeded
+            submission.cleanup_error = cleanup_error
+
+            # Update submission record with upload result
+            now = datetime.now()
+            if upload_success:
+                submission.stage = JobStage.COMPLETED
+                submission.is_completed = True
+                submission.is_failed = False
+                submission.failure_reason = None
+                submission.failed_timestamp = None
+                submission.activescale_file_key = file_key
+                submission.archive_uploaded = True
+                submission.completed_timestamp = now
+                submission.last_updated_timestamp = now
+                session.add(submission)
+                session.commit()
+
+                logger.info(
+                    "Successfully uploaded RO-Crate archive for %s to "
+                    "ActiveScale at %s",
+                    drive_name,
+                    file_key,
+                )
+                _log_event(
+                    logging.INFO,
+                    "crate.upload.completed",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    file_key=file_key,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    cleanup_succeeded=submission.cleanup_succeeded,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+            else:
+                submission.stage = JobStage.FAILED
+                submission.is_completed = False
+                submission.is_failed = True
+                submission.failure_reason = "ActiveScale upload failed"
+                submission.failed_timestamp = now
+                submission.activescale_file_key = file_key
+                submission.archive_uploaded = False
+                submission.last_updated_timestamp = now
+                session.add(submission)
+                session.commit()
+                logger.error(
+                    "Failed to upload RO-Crate archive for %s to ActiveScale",
+                    drive_name,
+                )
+                _log_event(
+                    logging.ERROR,
+                    "crate.upload.failed",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    file_key=file_key,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    cleanup_succeeded=submission.cleanup_succeeded,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
 
             _log_event(
                 logging.INFO,
@@ -994,14 +1128,45 @@ async def generate_ro_crate_async(
                 drive_name=drive_name,
                 project_id=project_id,
                 manifest_id=submission.manifest_id,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                cleanup_succeeded=submission.cleanup_succeeded,
+                elapsed_ms=_elapsed_ms(started_at),
             )
         except Exception as e:
+            processing_error = str(e)
             if submission is not None:
                 now = datetime.now()
+
+                # Transition to cleanup before final failed state.
+                previous_stage = submission.stage
+                submission.stage = JobStage.CLEANUP
+                submission.last_updated_timestamp = now
+                session.add(submission)
+                session.commit()
+
+                _log_event(
+                    logging.WARNING,
+                    "submission.stage_transition",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    from_stage=previous_stage.value,
+                    to_stage=JobStage.CLEANUP.value,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+
+                cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(
+                    str(drive_name), output_location
+                )
+                submission.cleanup_succeeded = cleanup_succeeded
+                submission.cleanup_error = cleanup_error
+
                 submission.stage = JobStage.FAILED
                 submission.is_completed = False
                 submission.is_failed = True
-                submission.failure_reason = str(e)
+                submission.failure_reason = processing_error
                 submission.failed_timestamp = now
                 submission.last_updated_timestamp = now
                 session.add(submission)
@@ -1011,7 +1176,15 @@ async def generate_ro_crate_async(
                 "crate.build.failed",
                 submission_id=submission_id,
                 drive_name=drive_name,
-                error=str(e),
+                error=processing_error,
+                stage=(submission.stage.value if submission is not None else None),
+                retry_count=(
+                    submission.retry_count if submission is not None else None
+                ),
+                cleanup_succeeded=(
+                    submission.cleanup_succeeded if submission is not None else None
+                ),
+                elapsed_ms=_elapsed_ms(started_at),
             )
             logger.exception("Background crate generation failed")
 
