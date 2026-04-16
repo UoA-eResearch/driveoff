@@ -11,7 +11,7 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator, cast
+from typing import Any, Generator, cast
 
 import boto3
 from botocore.config import Config
@@ -444,6 +444,65 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
             str(e),
         )
         return None
+
+
+def object_exists(
+    client: S3Client, bucket_name: str, file_key: str
+) -> tuple[bool, dict[str, Any] | None]:
+    """Check if an object exists in an S3 bucket and return its metadata if it does.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket.
+        file_key (str): The key (path/filename) of the object to check.
+
+    Returns:
+        tuple[bool, dict | None]: (True, metadata_dict) if object exists, (False, None) otherwise.
+            Metadata includes: ContentLength, LastModified, ETag, Metadata (custom metadata dict).
+    """
+    try:
+        response = client.head_object(Bucket=bucket_name, Key=file_key)
+        metadata = {
+            "content_length": response.get("ContentLength"),
+            "last_modified": response.get("LastModified"),
+            "etag": response.get("ETag"),
+            "custom_metadata": response.get("Metadata", {}),
+        }
+        logger.info(
+            "Object '%s' exists in bucket '%s': %d bytes, last modified %s",
+            file_key,
+            bucket_name,
+            metadata.get("content_length", 0),
+            metadata.get("last_modified"),
+        )
+        return True, metadata
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        if error_code == "404":
+            logger.info(
+                "Object '%s' does not exist in bucket '%s'", file_key, bucket_name
+            )
+            return False, None
+        logger.error(
+            "ClientError checking if object '%s' exists: %s - %s",
+            file_key,
+            error_code,
+            e.response["Error"]["Message"],
+        )
+        return False, None
+    except EndpointConnectionError:
+        logger.error(
+            "Could not connect to the S3 endpoint. Check network connectivity."
+        )
+        return False, None
+    except Exception as e:
+        logger.error(
+            "Unexpected error checking object '%s': %s: %s",
+            file_key,
+            type(e).__name__,
+            str(e),
+        )
+        return False, None
 
 
 def create_bucket(

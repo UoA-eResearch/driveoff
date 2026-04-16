@@ -17,6 +17,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from api.activescale import (
     get_activescale_client_context,
     init_activescale,
+    object_exists,
     upload_file,
 )
 from api.cors import add_cors_middleware
@@ -627,10 +628,15 @@ async def generate_ro_crate_async(
     uploads the archive to ActiveScale for long-term storage, and updates
     the ArchiveSubmission record with completion status and manifest.
 
+    Implements persisted checkpoints so retries can skip completed steps:
+    - queued→running: After loading submission from DB
+    - running→uploading: After crate build, zip, and manifest generation
+    - uploading→completed/failed: After upload attempt
+
     Args:
-    drive: Dictionary containing research drive information
-    submission_id: ID of the ArchiveSubmission record
-    projectdb_client: Client for interacting with ProjectDB
+        drive: Dictionary containing research drive information
+        submission_id: ID of the ArchiveSubmission record
+        projectdb_client: Client for interacting with ProjectDB
     """
     drive_name = drive.get("name", None)
     if drive_name is None:
@@ -650,6 +656,21 @@ async def generate_ro_crate_async(
                     drive_name=drive_name,
                 )
                 return
+
+            # Transition: queued → running
+            submission.stage = JobStage.RUNNING
+            submission.last_updated_timestamp = datetime.now()
+            session.add(submission)
+            session.commit()
+
+            _log_event(
+                logging.INFO,
+                "submission.stage_transition",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                from_stage="queued",
+                to_stage="running",
+            )
 
             # Fetch project and member data from ProjectDB
             project_id = submission.project_id
@@ -687,6 +708,8 @@ async def generate_ro_crate_async(
                 drive_name=drive_name,
                 project_id=project_id,
             )
+
+            # Build crate contents (idempotent, safe to retry)
             build_crate_contents_async(
                 drive=drive,
                 submission=submission,
@@ -696,13 +719,74 @@ async def generate_ro_crate_async(
                 output_location=output_location,
             )
 
-            # Zip the generated crate
-            zip_existing_crate(output_location / str(drive_name), drive_location)
+            # Zip the generated crate (check if already exists and skip if so)
+            zip_path = output_location / f"{drive_name}.zip"
+            if not zip_path.exists():
+                _log_event(
+                    logging.INFO,
+                    "crate.zip.start",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                )
+                zip_existing_crate(output_location / str(drive_name), drive_location)
+                _log_event(
+                    logging.INFO,
+                    "crate.zip.completed",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    zip_size_mb=(
+                        zip_path.stat().st_size / (1024 * 1024)
+                        if zip_path.exists()
+                        else 0
+                    ),
+                )
+            else:
+                _log_event(
+                    logging.INFO,
+                    "crate.zip.skipped",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    reason="zip file already exists",
+                    zip_size_mb=zip_path.stat().st_size / (1024 * 1024),
+                )
 
-            # Generate and store manifest
+            # Generate and store manifest (check if already stored)
             manifest = generate_manifest(drive_location)
-            session.add(manifest)
+            if submission.manifest_id is None:
+                session.add(manifest)
+                session.commit()
+                submission.manifest_id = manifest.id
+                _log_event(
+                    logging.INFO,
+                    "manifest.generated",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    manifest_id=manifest.id,
+                )
+            else:
+                _log_event(
+                    logging.INFO,
+                    "manifest.skipped",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    reason="manifest already generated",
+                    manifest_id=submission.manifest_id,
+                )
+
+            # Transition: running → uploading
+            submission.stage = JobStage.UPLOADING
+            submission.last_updated_timestamp = datetime.now()
+            session.add(submission)
             session.commit()
+
+            _log_event(
+                logging.INFO,
+                "submission.stage_transition",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                from_stage="running",
+                to_stage="uploading",
+            )
 
             # Upload the archive to ActiveScale
             logger.info(
@@ -719,23 +803,42 @@ async def generate_ro_crate_async(
                     "archived-datetime": datetime.now().isoformat(),
                 }
 
-                success = upload_file(
-                    client,
-                    bucket_name,
-                    file_key,
-                    file_path=str(output_location / f"{drive_name}.zip"),
-                    metadata=metadata,
-                )
+                # Check if object already exists on S3 and skip upload if so
+                obj_exists, obj_metadata = object_exists(client, bucket_name, file_key)
+                if obj_exists:
+                    _log_event(
+                        logging.INFO,
+                        "S3.upload.skipped",
+                        submission_id=submission_id,
+                        drive_name=drive_name,
+                        file_key=file_key,
+                        reason="object already exists on S3",
+                        object_size_bytes=(
+                            obj_metadata.get("content_length") if obj_metadata else None
+                        ),
+                    )
+                    success = True
+                else:
+                    success = upload_file(
+                        client,
+                        bucket_name,
+                        file_key,
+                        file_path=str(output_location / f"{drive_name}.zip"),
+                        metadata=metadata,
+                    )
 
+                # Update submission record with upload result
+                now = datetime.now()
                 if success:
-                    # Update submission record with upload result
-                    submission.manifest_id = manifest.id
+                    submission.stage = JobStage.COMPLETED
                     submission.is_completed = True
                     submission.is_failed = False
                     submission.failure_reason = None
                     submission.failed_timestamp = None
                     submission.activescale_file_key = file_key
-                    submission.archive_uploaded = success
+                    submission.archive_uploaded = True
+                    submission.completed_timestamp = now
+                    submission.last_updated_timestamp = now
                     session.add(submission)
                     session.commit()
 
@@ -745,20 +848,34 @@ async def generate_ro_crate_async(
                         drive_name,
                         file_key,
                     )
+                    _log_event(
+                        logging.INFO,
+                        "crate.upload.completed",
+                        submission_id=submission_id,
+                        drive_name=drive_name,
+                        file_key=file_key,
+                    )
                 else:
-                    # Update submission record with upload result
-                    submission.manifest_id = manifest.id
+                    submission.stage = JobStage.FAILED
                     submission.is_completed = False
                     submission.is_failed = True
                     submission.failure_reason = "ActiveScale upload failed"
-                    submission.failed_timestamp = datetime.now()
+                    submission.failed_timestamp = now
                     submission.activescale_file_key = file_key
-                    submission.archive_uploaded = success
+                    submission.archive_uploaded = False
+                    submission.last_updated_timestamp = now
                     session.add(submission)
                     session.commit()
                     logger.error(
                         "Failed to upload RO-Crate archive for %s to ActiveScale",
                         drive_name,
+                    )
+                    _log_event(
+                        logging.ERROR,
+                        "crate.upload.failed",
+                        submission_id=submission_id,
+                        drive_name=drive_name,
+                        file_key=file_key,
                     )
 
             _log_event(
@@ -767,14 +884,17 @@ async def generate_ro_crate_async(
                 submission_id=submission_id,
                 drive_name=drive_name,
                 project_id=project_id,
-                manifest_id=manifest.id,
+                manifest_id=submission.manifest_id,
             )
         except Exception as e:
             if submission is not None:
+                now = datetime.now()
+                submission.stage = JobStage.FAILED
                 submission.is_completed = False
                 submission.is_failed = True
                 submission.failure_reason = str(e)
-                submission.failed_timestamp = datetime.now()
+                submission.failed_timestamp = now
+                submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
             _log_event(
