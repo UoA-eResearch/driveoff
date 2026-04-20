@@ -31,6 +31,42 @@ def _log_event(level: int, event: str, **context: Any) -> None:
     logger.log(level, json.dumps(payload, default=str))
 
 
+def _extract_client_error(error: ClientError) -> tuple[str, str]:
+    """Extract normalized code/message fields from botocore ClientError."""
+    error_payload = error.response.get("Error", {})
+    error_code = str(error_payload.get("Code", "Unknown"))
+    error_message = str(error_payload.get("Message", "Unknown client error"))
+    return error_code, error_message
+
+
+def _log_client_error(event: str, error: ClientError, **context: Any) -> None:
+    """Log a structured ClientError event with common fields."""
+    error_code, error_message = _extract_client_error(error)
+    _log_event(
+        logging.ERROR,
+        event,
+        error_code=error_code,
+        error_message=error_message,
+        **context,
+    )
+
+
+def _log_endpoint_connection_error(**context: Any) -> None:
+    """Log a structured endpoint connectivity failure."""
+    _log_event(logging.ERROR, "s3.endpoint.connection_error", **context)
+
+
+def _log_unexpected_error(event: str, error: Exception, **context: Any) -> None:
+    """Log a structured unexpected exception event."""
+    _log_event(
+        logging.ERROR,
+        event,
+        error_type=type(error).__name__,
+        error=str(error),
+        **context,
+    )
+
+
 def _get_client_config() -> Config:
     """Build botocore client config from runtime settings."""
     settings = get_settings()
@@ -240,7 +276,7 @@ def verify_connection(client: S3Client, bucket_name: str) -> bool:
         )
         return True
     except ClientError as e:
-        error_code = e.response["Error"]["Code"]
+        error_code, _ = _extract_client_error(e)
         if error_code == "404":
             _log_event(
                 logging.WARNING,
@@ -254,18 +290,13 @@ def verify_connection(client: S3Client, bucket_name: str) -> bool:
                 bucket_name=bucket_name,
             )
         else:
-            _log_event(
-                logging.ERROR,
+            _log_client_error(
                 "s3.bucket.head.client_error",
+                e,
                 bucket_name=bucket_name,
-                error_code=error_code,
-                error_message=e.response["Error"]["Message"],
             )
     except EndpointConnectionError:
-        _log_event(
-            logging.ERROR,
-            "s3.endpoint.connection_error",
-        )
+        _log_endpoint_connection_error()
     return False
 
 
@@ -283,23 +314,13 @@ def list_buckets(client: S3Client) -> list[str]:
         _log_event(logging.DEBUG, "s3.buckets.listed", bucket_count=len(buckets))
         return buckets
     except ClientError as e:
-        _log_event(
-            logging.ERROR,
-            "s3.buckets.list.client_error",
-            error_code=e.response["Error"]["Code"],
-            error_message=e.response["Error"]["Message"],
-        )
+        _log_client_error("s3.buckets.list.client_error", e)
         return []
     except EndpointConnectionError:
-        _log_event(logging.ERROR, "s3.endpoint.connection_error")
+        _log_endpoint_connection_error()
         return []
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_event(
-            logging.ERROR,
-            "s3.buckets.list.unexpected_error",
-            error_type=type(e).__name__,
-            error=str(e),
-        )
+        _log_unexpected_error("s3.buckets.list.unexpected_error", e)
         return []
 
 
@@ -416,25 +437,13 @@ def upload_file(
         return False
 
     except ClientError as e:
-        _log_event(
-            logging.ERROR,
-            "s3.upload.client_error",
-            file_key=file_key,
-            error_code=e.response["Error"]["Code"],
-            error_message=e.response["Error"]["Message"],
-        )
+        _log_client_error("s3.upload.client_error", e, file_key=file_key)
         return False
     except EndpointConnectionError:
-        _log_event(logging.ERROR, "s3.endpoint.connection_error")
+        _log_endpoint_connection_error(file_key=file_key)
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_event(
-            logging.ERROR,
-            "s3.upload.unexpected_error",
-            file_key=file_key,
-            error_type=type(e).__name__,
-            error=str(e),
-        )
+        _log_unexpected_error("s3.upload.unexpected_error", e, file_key=file_key)
         return False
 
 
@@ -460,25 +469,13 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
         )
         return file_content
     except ClientError as e:
-        _log_event(
-            logging.ERROR,
-            "s3.download.client_error",
-            file_key=file_key,
-            error_code=e.response["Error"]["Code"],
-            error_message=e.response["Error"]["Message"],
-        )
+        _log_client_error("s3.download.client_error", e, file_key=file_key)
         return None
     except EndpointConnectionError:
-        _log_event(logging.ERROR, "s3.endpoint.connection_error")
+        _log_endpoint_connection_error(file_key=file_key)
         return None
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_event(
-            logging.ERROR,
-            "s3.download.unexpected_error",
-            file_key=file_key,
-            error_type=type(e).__name__,
-            error=str(e),
-        )
+        _log_unexpected_error("s3.download.unexpected_error", e, file_key=file_key)
         return None
 
 
@@ -514,7 +511,7 @@ def object_exists(
         )
         return True, metadata
     except ClientError as e:
-        error_code = e.response["Error"]["Code"]
+        error_code, _ = _extract_client_error(e)
         if error_code == "404":
             _log_event(
                 logging.INFO,
@@ -523,25 +520,22 @@ def object_exists(
                 bucket_name=bucket_name,
             )
             return False, None
-        _log_event(
-            logging.ERROR,
+        _log_client_error(
             "s3.object.exists.client_error",
+            e,
             file_key=file_key,
             bucket_name=bucket_name,
-            error_code=error_code,
-            error_message=e.response["Error"]["Message"],
         )
         return False, None
     except EndpointConnectionError:
-        _log_event(logging.ERROR, "s3.endpoint.connection_error")
+        _log_endpoint_connection_error(file_key=file_key, bucket_name=bucket_name)
         return False, None
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_event(
-            logging.ERROR,
+        _log_unexpected_error(
             "s3.object.exists.unexpected_error",
+            e,
             file_key=file_key,
-            error_type=type(e).__name__,
-            error=str(e),
+            bucket_name=bucket_name,
         )
         return False, None
 
@@ -580,24 +574,14 @@ def create_bucket(
         )
         return True
     except ClientError as e:
-        _log_event(
-            logging.ERROR,
-            "s3.bucket.create.client_error",
-            bucket_name=bucket_name,
-            error_code=e.response["Error"]["Code"],
-            error_message=e.response["Error"]["Message"],
-        )
+        _log_client_error("s3.bucket.create.client_error", e, bucket_name=bucket_name)
         return False
     except EndpointConnectionError:
-        _log_event(logging.ERROR, "s3.endpoint.connection_error")
+        _log_endpoint_connection_error(bucket_name=bucket_name)
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_event(
-            logging.ERROR,
-            "s3.bucket.create.unexpected_error",
-            bucket_name=bucket_name,
-            error_type=type(e).__name__,
-            error=str(e),
+        _log_unexpected_error(
+            "s3.bucket.create.unexpected_error", e, bucket_name=bucket_name
         )
         return False
 
@@ -618,24 +602,20 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
         _log_event(logging.INFO, "s3.bucket.policy_set", bucket_name=bucket_name)
         return True
     except ClientError as e:
-        _log_event(
-            logging.ERROR,
+        _log_client_error(
             "s3.bucket.policy_set.client_error",
+            e,
             bucket_name=bucket_name,
-            error_code=e.response["Error"]["Code"],
-            error_message=e.response["Error"]["Message"],
         )
         return False
     except EndpointConnectionError:
-        _log_event(logging.ERROR, "s3.endpoint.connection_error")
+        _log_endpoint_connection_error(bucket_name=bucket_name)
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_event(
-            logging.ERROR,
+        _log_unexpected_error(
             "s3.bucket.policy_set.unexpected_error",
+            e,
             bucket_name=bucket_name,
-            error_type=type(e).__name__,
-            error=str(e),
         )
         return False
 
@@ -668,23 +648,13 @@ def set_bucket_tags(
         )
         return True
     except ClientError as e:
-        _log_event(
-            logging.ERROR,
-            "s3.bucket.tags_set.client_error",
-            bucket_name=bucket_name,
-            error_code=e.response["Error"]["Code"],
-            error_message=e.response["Error"]["Message"],
-        )
+        _log_client_error("s3.bucket.tags_set.client_error", e, bucket_name=bucket_name)
         return False
     except EndpointConnectionError:
-        _log_event(logging.ERROR, "s3.endpoint.connection_error")
+        _log_endpoint_connection_error(bucket_name=bucket_name)
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_event(
-            logging.ERROR,
-            "s3.bucket.tags_set.unexpected_error",
-            bucket_name=bucket_name,
-            error_type=type(e).__name__,
-            error=str(e),
+        _log_unexpected_error(
+            "s3.bucket.tags_set.unexpected_error", e, bucket_name=bucket_name
         )
         return False
