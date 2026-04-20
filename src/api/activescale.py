@@ -6,6 +6,7 @@ storage, including session management, file upload/download, and bucket operatio
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -23,6 +24,11 @@ from types_boto3_s3.type_defs import TagTypeDef
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _log_event(level: int, event: str, **context: Any) -> None:
+    payload = {"event": event, **context}
+    logger.log(level, json.dumps(payload, default=str))
 
 
 def _get_client_config() -> Config:
@@ -94,14 +100,14 @@ def init_activescale(app: FastAPI) -> None:
     background tasks.
     """
     global _activescale_session  # pylint: disable=global-statement
-    logger.info("Initializing ActiveScale session...")
+    _log_event(logging.INFO, "activescale.session.init_start")
     try:
         _activescale_session = _create_activescale_session()
         app.state.activescale_session = _activescale_session
     except ValueError:
         raise
     except Exception as e:
-        logger.error("Failed to initialize ActiveScale: %s", str(e))
+        _log_event(logging.ERROR, "activescale.session.init_failed", error=str(e))
         raise ValueError("Failed to initialize ActiveScale session.") from e
 
 
@@ -113,7 +119,7 @@ def get_activescale_client(request: Request) -> S3Client:
     """
     session = getattr(request.app.state, "activescale_session", None)
     if session is None:
-        logger.error("ActiveScale session not initialized on application state")
+        _log_event(logging.ERROR, "activescale.session.missing_on_app_state")
         raise RuntimeError("ActiveScale session not initialised on application state")
 
     client = session.client(
@@ -136,7 +142,7 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
             upload_file(client, bucket, key, content)
     """
     if _activescale_session is None:
-        logger.error("ActiveScale session not initialized globally")
+        _log_event(logging.ERROR, "activescale.session.missing_global")
         raise RuntimeError(
             "ActiveScale session not initialized. Call init_activescale first."
         )
@@ -197,12 +203,13 @@ class ProgressTracker:  # pylint: disable=too-few-public-methods
             )
             mb_transferred = self.bytes_transferred / (1024 * 1024)
             mb_total = self.file_size / (1024 * 1024)
-            logger.info(
-                "Upload progress for '%s': %.1f%% (%d MB / %d MB)",
-                self.file_key,
-                percent,
-                mb_transferred,
-                mb_total,
+            _log_event(
+                logging.INFO,
+                "s3.upload.progress",
+                file_key=self.file_key,
+                percent=round(percent, 1),
+                mb_transferred=round(mb_transferred, 1),
+                mb_total=round(mb_total, 1),
             )
             self.last_update_time = current_time
             self.last_update_bytes = self.bytes_transferred
@@ -211,11 +218,11 @@ class ProgressTracker:  # pylint: disable=too-few-public-methods
         # Detect stalls: no progress for stall_timeout seconds
         if bytes_since_update == 0 and time_since_update >= self.stall_timeout:
             if not self.stall_warned:
-                logger.warning(
-                    "Upload stall detected for '%s': no progress for %d seconds. "
-                    "Network may be experiencing issues.",
-                    self.file_key,
-                    self.stall_timeout,
+                _log_event(
+                    logging.WARNING,
+                    "s3.upload.stall_detected",
+                    file_key=self.file_key,
+                    stall_timeout_seconds=self.stall_timeout,
                 )
                 self.stall_warned = True
 
@@ -226,28 +233,38 @@ def verify_connection(client: S3Client, bucket_name: str) -> bool:
     # bucket_name = "research-archive-test"
     try:
         client.head_bucket(Bucket=bucket_name)
-        logger.info(
-            "ActiveScale connection successful. Bucket '%s' exists and is accessible.",
-            bucket_name,
+        _log_event(
+            logging.INFO,
+            "s3.connection.verified",
+            bucket_name=bucket_name,
         )
         return True
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         if error_code == "404":
-            logger.warning("Bucket '%s' does not exist.", bucket_name)
+            _log_event(
+                logging.WARNING,
+                "s3.bucket.not_found",
+                bucket_name=bucket_name,
+            )
         elif error_code == "403":
-            logger.warning(
-                "Access denied for bucket '%s'. Check IAM permissions.",
-                bucket_name,
+            _log_event(
+                logging.WARNING,
+                "s3.bucket.access_denied",
+                bucket_name=bucket_name,
             )
         else:
-            logger.error(
-                "ClientError accessing bucket: %s",
-                e.response["Error"]["Message"],
+            _log_event(
+                logging.ERROR,
+                "s3.bucket.head.client_error",
+                bucket_name=bucket_name,
+                error_code=error_code,
+                error_message=e.response["Error"]["Message"],
             )
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
+        _log_event(
+            logging.ERROR,
+            "s3.endpoint.connection_error",
         )
     return False
 
@@ -263,25 +280,25 @@ def list_buckets(client: S3Client) -> list[str]:
         buckets = [
             bucket["Name"] for bucket in response.get("Buckets", []) if "Name" in bucket
         ]
-        logger.debug("Successfully listed %d buckets", len(buckets))
+        _log_event(logging.DEBUG, "s3.buckets.listed", bucket_count=len(buckets))
         return buckets
     except ClientError as e:
-        logger.error(
-            "ClientError while listing buckets: %s - %s",
-            e.response["Error"]["Code"],
-            e.response["Error"]["Message"],
+        _log_event(
+            logging.ERROR,
+            "s3.buckets.list.client_error",
+            error_code=e.response["Error"]["Code"],
+            error_message=e.response["Error"]["Message"],
         )
         return []
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
-        )
+        _log_event(logging.ERROR, "s3.endpoint.connection_error")
         return []
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        logger.error(
-            "Unexpected error while listing buckets: %s: %s",
-            type(e).__name__,
-            str(e),
+        _log_event(
+            logging.ERROR,
+            "s3.buckets.list.unexpected_error",
+            error_type=type(e).__name__,
+            error=str(e),
         )
         return []
 
@@ -333,14 +350,14 @@ def upload_file(
         # Get file size for progress tracking
         file_size = Path(file_path).stat().st_size
 
-        logger.info(
-            "Uploading file from disk '%s' to '%s' in bucket '%s' using streaming "
-            "(size: %d MB, timeout: %d seconds)",
-            file_path,
-            file_key,
-            bucket_name,
-            file_size / (1024 * 1024),
-            timeout,
+        _log_event(
+            logging.INFO,
+            "s3.upload.start",
+            file_path=file_path,
+            file_key=file_key,
+            bucket_name=bucket_name,
+            size_mb=round(file_size / (1024 * 1024), 1),
+            timeout_seconds=timeout,
         )
 
         # Create progress tracker with stall detection
@@ -371,13 +388,15 @@ def upload_file(
         upload_thread.join(timeout=timeout)
 
         if upload_thread.is_alive():
-            logger.error(
-                "Upload operation for '%s' timed out after %d seconds. "
-                "The network may be experiencing issues. Transferred %d MB of %d MB.",
-                file_key,
-                timeout,
-                progress_tracker.bytes_transferred / (1024 * 1024),
-                file_size / (1024 * 1024),
+            _log_event(
+                logging.ERROR,
+                "s3.upload.timeout",
+                file_key=file_key,
+                timeout_seconds=timeout,
+                transferred_mb=round(
+                    progress_tracker.bytes_transferred / (1024 * 1024), 1
+                ),
+                total_mb=round(file_size / (1024 * 1024), 1),
             )
             return False
 
@@ -386,32 +405,35 @@ def upload_file(
             raise upload_error
 
         if upload_result[0]:
-            logger.info(
-                "Successfully uploaded '%s' to bucket '%s'", file_key, bucket_name
+            _log_event(
+                logging.INFO,
+                "s3.upload.completed",
+                file_key=file_key,
+                bucket_name=bucket_name,
             )
             return True
 
         return False
 
     except ClientError as e:
-        logger.error(
-            "ClientError uploading '%s': %s - %s",
-            file_key,
-            e.response["Error"]["Code"],
-            e.response["Error"]["Message"],
+        _log_event(
+            logging.ERROR,
+            "s3.upload.client_error",
+            file_key=file_key,
+            error_code=e.response["Error"]["Code"],
+            error_message=e.response["Error"]["Message"],
         )
         return False
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
-        )
+        _log_event(logging.ERROR, "s3.endpoint.connection_error")
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        logger.error(
-            "Unexpected error uploading '%s': %s: %s",
-            file_key,
-            type(e).__name__,
-            str(e),
+        _log_event(
+            logging.ERROR,
+            "s3.upload.unexpected_error",
+            file_key=file_key,
+            error_type=type(e).__name__,
+            error=str(e),
         )
         return False
 
@@ -430,29 +452,32 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
     try:
         response = client.get_object(Bucket=bucket_name, Key=file_key)
         file_content = cast(bytes, response["Body"].read())
-        logger.info(
-            "Successfully downloaded '%s' from bucket '%s'", file_key, bucket_name
+        _log_event(
+            logging.INFO,
+            "s3.download.completed",
+            file_key=file_key,
+            bucket_name=bucket_name,
         )
         return file_content
     except ClientError as e:
-        logger.error(
-            "ClientError downloading '%s': %s - %s",
-            file_key,
-            e.response["Error"]["Code"],
-            e.response["Error"]["Message"],
+        _log_event(
+            logging.ERROR,
+            "s3.download.client_error",
+            file_key=file_key,
+            error_code=e.response["Error"]["Code"],
+            error_message=e.response["Error"]["Message"],
         )
         return None
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
-        )
+        _log_event(logging.ERROR, "s3.endpoint.connection_error")
         return None
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        logger.error(
-            "Unexpected error downloading '%s': %s: %s",
-            file_key,
-            type(e).__name__,
-            str(e),
+        _log_event(
+            logging.ERROR,
+            "s3.download.unexpected_error",
+            file_key=file_key,
+            error_type=type(e).__name__,
+            error=str(e),
         )
         return None
 
@@ -479,39 +504,44 @@ def object_exists(
             "etag": response.get("ETag"),
             "custom_metadata": response.get("Metadata", {}),
         }
-        logger.info(
-            "Object '%s' exists in bucket '%s': %d bytes, last modified %s",
-            file_key,
-            bucket_name,
-            metadata.get("content_length", 0),
-            metadata.get("last_modified"),
+        _log_event(
+            logging.INFO,
+            "s3.object.exists",
+            file_key=file_key,
+            bucket_name=bucket_name,
+            content_length=metadata.get("content_length", 0),
+            last_modified=metadata.get("last_modified"),
         )
         return True, metadata
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         if error_code == "404":
-            logger.info(
-                "Object '%s' does not exist in bucket '%s'", file_key, bucket_name
+            _log_event(
+                logging.INFO,
+                "s3.object.not_found",
+                file_key=file_key,
+                bucket_name=bucket_name,
             )
             return False, None
-        logger.error(
-            "ClientError checking if object '%s' exists: %s - %s",
-            file_key,
-            error_code,
-            e.response["Error"]["Message"],
+        _log_event(
+            logging.ERROR,
+            "s3.object.exists.client_error",
+            file_key=file_key,
+            bucket_name=bucket_name,
+            error_code=error_code,
+            error_message=e.response["Error"]["Message"],
         )
         return False, None
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
-        )
+        _log_event(logging.ERROR, "s3.endpoint.connection_error")
         return False, None
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        logger.error(
-            "Unexpected error checking object '%s': %s: %s",
-            file_key,
-            type(e).__name__,
-            str(e),
+        _log_event(
+            logging.ERROR,
+            "s3.object.exists.unexpected_error",
+            file_key=file_key,
+            error_type=type(e).__name__,
+            error=str(e),
         )
         return False, None
 
@@ -542,31 +572,32 @@ def create_bucket(
             CreateBucketConfiguration={"Tags": tags},
         )
         lock_status = "enabled" if enable_object_lock else "disabled"
-        logger.info(
-            "Successfully created bucket '%s' with object lock %s",
-            bucket_name,
-            lock_status,
+        _log_event(
+            logging.INFO,
+            "s3.bucket.created",
+            bucket_name=bucket_name,
+            object_lock=lock_status,
         )
         return True
     except ClientError as e:
-        logger.error(
-            "ClientError creating bucket '%s': %s - %s",
-            bucket_name,
-            e.response["Error"]["Code"],
-            e.response["Error"]["Message"],
+        _log_event(
+            logging.ERROR,
+            "s3.bucket.create.client_error",
+            bucket_name=bucket_name,
+            error_code=e.response["Error"]["Code"],
+            error_message=e.response["Error"]["Message"],
         )
         return False
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
-        )
+        _log_event(logging.ERROR, "s3.endpoint.connection_error")
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        logger.error(
-            "Unexpected error creating bucket '%s': %s: %s",
-            bucket_name,
-            type(e).__name__,
-            str(e),
+        _log_event(
+            logging.ERROR,
+            "s3.bucket.create.unexpected_error",
+            bucket_name=bucket_name,
+            error_type=type(e).__name__,
+            error=str(e),
         )
         return False
 
@@ -584,27 +615,27 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
     """
     try:
         client.put_bucket_policy(Bucket=bucket_name, Policy=policy_json)
-        logger.info("Successfully set bucket policy for '%s'", bucket_name)
+        _log_event(logging.INFO, "s3.bucket.policy_set", bucket_name=bucket_name)
         return True
     except ClientError as e:
-        logger.error(
-            "ClientError setting policy for '%s': %s - %s",
-            bucket_name,
-            e.response["Error"]["Code"],
-            e.response["Error"]["Message"],
+        _log_event(
+            logging.ERROR,
+            "s3.bucket.policy_set.client_error",
+            bucket_name=bucket_name,
+            error_code=e.response["Error"]["Code"],
+            error_message=e.response["Error"]["Message"],
         )
         return False
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
-        )
+        _log_event(logging.ERROR, "s3.endpoint.connection_error")
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        logger.error(
-            "Unexpected error setting policy for '%s': %s: %s",
-            bucket_name,
-            type(e).__name__,
-            str(e),
+        _log_event(
+            logging.ERROR,
+            "s3.bucket.policy_set.unexpected_error",
+            bucket_name=bucket_name,
+            error_type=type(e).__name__,
+            error=str(e),
         )
         return False
 
@@ -629,26 +660,31 @@ def set_bucket_tags(
             Bucket=bucket_name,
             Tagging={"TagSet": tags},
         )
-        logger.info("Successfully set %d tags for bucket '%s'", len(tags), bucket_name)
+        _log_event(
+            logging.INFO,
+            "s3.bucket.tags_set",
+            bucket_name=bucket_name,
+            tag_count=len(tags),
+        )
         return True
     except ClientError as e:
-        logger.error(
-            "ClientError setting tags for '%s': %s - %s",
-            bucket_name,
-            e.response["Error"]["Code"],
-            e.response["Error"]["Message"],
+        _log_event(
+            logging.ERROR,
+            "s3.bucket.tags_set.client_error",
+            bucket_name=bucket_name,
+            error_code=e.response["Error"]["Code"],
+            error_message=e.response["Error"]["Message"],
         )
         return False
     except EndpointConnectionError:
-        logger.error(
-            "Could not connect to the S3 endpoint. Check network connectivity."
-        )
+        _log_event(logging.ERROR, "s3.endpoint.connection_error")
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        logger.error(
-            "Unexpected error setting tags for '%s': %s: %s",
-            bucket_name,
-            type(e).__name__,
-            str(e),
+        _log_event(
+            logging.ERROR,
+            "s3.bucket.tags_set.unexpected_error",
+            bucket_name=bucket_name,
+            error_type=type(e).__name__,
+            error=str(e),
         )
         return False

@@ -53,31 +53,39 @@ from models.submission import (
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
 
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
 
+def _configure_logging() -> None:
+    """Initialize logging once and align root level with configured settings."""
+    root_logger = logging.getLogger()
+    configured_level = get_settings().log_level
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=configured_level,
+            format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        )
+    else:
+        root_logger.setLevel(configured_level)
+
+
+_configure_logging()
 logger = logging.getLogger(__name__)
 
 
-def _log_event(level: int, event: str, **context: Any) -> None:
+def _log_event(
+    level: int,
+    event: str,
+    *,
+    exc_info: bool = False,
+    **context: Any,
+) -> None:
     payload = {"event": event, **context}
-    logger.log(level, json.dumps(payload, default=str))
+    logger.log(level, json.dumps(payload, default=str), exc_info=exc_info)
 
 
 def _elapsed_ms(started_at: datetime) -> int:
     """Compute elapsed milliseconds from a start timestamp."""
     return int((datetime.now() - started_at).total_seconds() * 1000)
 
-
-# Configure logging with level from environment
-logging.basicConfig(
-    level=get_settings().log_level,
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
 
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
@@ -948,9 +956,14 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
 
             # Upload the archive to ActiveScale
-            logger.info(
-                "About to start uploading RO-Crate archive for %s to ActiveScale",
-                drive_name,
+            _log_event(
+                logging.INFO,
+                "crate.upload.start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
             )
 
             with get_activescale_client_context() as client:
@@ -1038,12 +1051,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 session.add(submission)
                 session.commit()
 
-                logger.info(
-                    "Successfully uploaded RO-Crate archive for %s to "
-                    "ActiveScale at %s",
-                    drive_name,
-                    file_key,
-                )
                 _log_event(
                     logging.INFO,
                     "crate.upload.completed",
@@ -1063,10 +1070,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
-                logger.error(
-                    "Failed to upload RO-Crate archive for %s to ActiveScale",
-                    drive_name,
-                )
                 _log_event(
                     logging.ERROR,
                     "crate.upload.failed",
@@ -1141,7 +1144,14 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 ),
                 elapsed_ms=_elapsed_ms(started_at),
             )
-            logger.exception("Background crate generation failed")
+            _log_event(
+                logging.ERROR,
+                "crate.build.exception",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                exc_info=True,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
 
 
 @app.get(
