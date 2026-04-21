@@ -26,6 +26,15 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 
+def _redact_secret(value: str | None) -> str | None:
+    """Return a non-sensitive representation of a secret-like value."""
+    if value is None:
+        return None
+    if len(value) <= 4:
+        return "*" * len(value)
+    return f"{'*' * (len(value) - 4)}{value[-4:]}"
+
+
 def _log_event(level: int, event: str, **context: Any) -> None:
     payload = {"event": event, **context}
     logger.log(level, json.dumps(payload, default=str))
@@ -133,6 +142,15 @@ def _create_activescale_session() -> boto3.Session:
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         region_name=region,
+    )
+
+    _log_event(
+        logging.INFO,
+        "activescale.credentials.loaded",
+        endpoint=hostname,
+        region=region,
+        access_key_preview=_redact_secret(access_key),
+        secret_key_set=bool(secret_key),
     )
     return session
 
