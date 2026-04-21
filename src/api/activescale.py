@@ -80,6 +80,12 @@ def _get_client_config() -> Config:
         connect_timeout=connect_timeout,
         read_timeout=read_timeout,
         max_pool_connections=10,
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+        s3={
+            "addressing_style": "path",
+            "payload_signing_enabled": False,
+        },
         # Explicitly bypass any system proxy env vars (HTTP_PROXY / HTTPS_PROXY).
         # ActiveScale is accessed directly and must not be tunnelled through the proxy.
         proxies={},
@@ -373,7 +379,6 @@ def upload_file(
             timeout_seconds=timeout,
         )
 
-
         # Use a threading-based timeout to prevent indefinite hangs
         upload_result: list[bool | None] = [None]
         upload_exception: list[Exception | None] = [None]
@@ -389,6 +394,7 @@ def upload_file(
                         Bucket=bucket_name,
                         Key=file_key,
                         Body=f,
+                        ContentLength=file_size,
                     )
                 upload_result[0] = True
             except (ClientError, EndpointConnectionError, BotoCoreError, OSError) as e:
