@@ -80,6 +80,9 @@ def _get_client_config() -> Config:
         connect_timeout=connect_timeout,
         read_timeout=read_timeout,
         max_pool_connections=10,
+        # Explicitly bypass any system proxy env vars (HTTP_PROXY / HTTPS_PROXY).
+        # ActiveScale is accessed directly and must not be tunnelled through the proxy.
+        proxies={},
     )
 
 
