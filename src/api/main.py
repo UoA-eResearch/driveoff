@@ -423,6 +423,14 @@ async def create_submission(
     except HTTPException:
         raise
     except Exception as e:
+        _log_event(
+            logging.ERROR,
+            "submission.create.unexpected_error",
+            drive_name=request.drive_name,
+            error=str(e),
+            error_type=type(e).__name__,
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
             detail=(
