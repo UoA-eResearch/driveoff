@@ -4,6 +4,7 @@ set -euo pipefail
 MODE="${MODE:-development}"
 BUCKET="${1:-research-archive-test}"
 CHECK_TIMEOUT_SECONDS="${CHECK_TIMEOUT_SECONDS:-60}"
+BYPASS_PROXY="${BYPASS_PROXY:-1}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -42,6 +43,17 @@ cd "${REPO_ROOT}"
 
 echo "Starting ActiveScale check (mode=${MODE}, bucket=${BUCKET})"
 echo "Timeout: ${CHECK_TIMEOUT_SECONDS}s"
+
+if [[ "${BYPASS_PROXY}" == "1" ]]; then
+    host="${ACTIVESCALE_HOSTNAME:-}"
+    if [[ -n "${host}" ]]; then
+        export NO_PROXY="${host}${NO_PROXY:+,${NO_PROXY}}"
+        export no_proxy="${host}${no_proxy:+,${no_proxy}}"
+    fi
+
+    unset HTTPS_PROXY https_proxy HTTP_PROXY http_proxy ALL_PROXY all_proxy
+    echo "Proxy bypass enabled for this check"
+fi
 
 if command -v timeout >/dev/null 2>&1; then
     CHECK_CMD=(timeout "${CHECK_TIMEOUT_SECONDS}" poetry run python - "${BUCKET}")
