@@ -3,6 +3,7 @@ set -euo pipefail
 
 MODE="${MODE:-development}"
 BUCKET="${1:-research-archive-test}"
+CHECK_TIMEOUT_SECONDS="${CHECK_TIMEOUT_SECONDS:-60}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -39,11 +40,23 @@ load_env_file "${ENV_LOCAL}"
 export MODE
 cd "${REPO_ROOT}"
 
-poetry run python - "${BUCKET}" <<'PY'
+echo "Starting ActiveScale check (mode=${MODE}, bucket=${BUCKET})"
+echo "Timeout: ${CHECK_TIMEOUT_SECONDS}s"
+
+set +e
+if command -v timeout >/dev/null 2>&1; then
+    timeout "${CHECK_TIMEOUT_SECONDS}" poetry run python - "${BUCKET}" <<'PY'
+else
+    poetry run python - "${BUCKET}" <<'PY'
+fi
+check_exit=$?
+set -e
 from __future__ import annotations
 
 import pathlib
 import sys
+
+from botocore.config import Config
 
 sys.path.insert(0, str(pathlib.Path.cwd() / "src"))
 
@@ -52,6 +65,8 @@ from config import get_settings
 
 bucket = sys.argv[1]
 settings = get_settings()
+
+print("Python check started", flush=True)
 
 access_key = (
     settings.activescale_access_key.get_secret_value()
@@ -76,10 +91,27 @@ if missing:
     print("Error: missing required settings: " + ", ".join(missing))
     raise SystemExit(2)
 
+print("Creating ActiveScale session", flush=True)
 session = _create_activescale_session()
-client = session.client("s3", endpoint_url=f"https://{settings.activescale_hostname}")
+print("Creating S3 client", flush=True)
+
+retry_attempts = max(settings.activescale_retry_attempts, 1)
+connect_timeout = max(settings.activescale_connect_timeout, 1)
+read_timeout = max(settings.activescale_read_timeout, 1)
+
+client = session.client(
+    "s3",
+    endpoint_url=f"https://{settings.activescale_hostname}",
+    config=Config(
+        retries={"total_max_attempts": retry_attempts, "mode": "standard"},
+        signature_version="s3v4",
+        connect_timeout=connect_timeout,
+        read_timeout=read_timeout,
+    ),
+)
 
 try:
+    print("Checking bucket access", flush=True)
     ok = verify_connection(client, bucket)
     if ok:
         print(f"PASS: ActiveScale connection verified for bucket '{bucket}'.")
@@ -90,3 +122,11 @@ try:
 finally:
     client.close()
 PY
+
+if [[ "${check_exit}" -eq 124 ]]; then
+    echo "FAIL: ActiveScale check timed out after ${CHECK_TIMEOUT_SECONDS}s."
+    echo "Hint: verify DNS/routing/firewall for the ActiveScale hostname."
+    exit 124
+fi
+
+exit "${check_exit}"
