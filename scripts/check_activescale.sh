@@ -43,14 +43,14 @@ cd "${REPO_ROOT}"
 echo "Starting ActiveScale check (mode=${MODE}, bucket=${BUCKET})"
 echo "Timeout: ${CHECK_TIMEOUT_SECONDS}s"
 
-set +e
 if command -v timeout >/dev/null 2>&1; then
-    timeout "${CHECK_TIMEOUT_SECONDS}" poetry run python - "${BUCKET}" <<'PY'
+    CHECK_CMD=(timeout "${CHECK_TIMEOUT_SECONDS}" poetry run python - "${BUCKET}")
 else
-    poetry run python - "${BUCKET}" <<'PY'
+    CHECK_CMD=(poetry run python - "${BUCKET}")
 fi
-check_exit=$?
-set -e
+
+set +e
+"${CHECK_CMD[@]}" <<'PY'
 from __future__ import annotations
 
 import pathlib
@@ -122,6 +122,8 @@ try:
 finally:
     client.close()
 PY
+check_exit=$?
+set -e
 
 if [[ "${check_exit}" -eq 124 ]]; then
     echo "FAIL: ActiveScale check timed out after ${CHECK_TIMEOUT_SECONDS}s."
