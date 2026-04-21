@@ -69,6 +69,7 @@ import pathlib
 import sys
 
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 sys.path.insert(0, str(pathlib.Path.cwd() / "src"))
 
@@ -124,12 +125,40 @@ client = session.client(
 
 try:
     print("Checking bucket access", flush=True)
-    ok = verify_connection(client, bucket)
-    if ok:
+    bucket_ok = verify_connection(client, bucket)
+
+    print("Checking list-buckets permission", flush=True)
+    list_ok = False
+    bucket_names: list[str] = []
+    try:
+        response = client.list_buckets()
+        bucket_names = [
+            b.get("Name", "")
+            for b in response.get("Buckets", [])
+            if b.get("Name")
+        ]
+        list_ok = True
+        print(f"ListBuckets: OK ({len(bucket_names)} bucket(s))")
+        if bucket_names:
+            print("Buckets: " + ", ".join(bucket_names))
+    except ClientError as e:
+        err = e.response.get("Error", {})
+        print(
+            "ListBuckets: FAIL "
+            f"({err.get('Code', 'Unknown')}: {err.get('Message', 'Unknown error')})"
+        )
+
+    if bucket_ok:
         print(f"PASS: ActiveScale connection verified for bucket '{bucket}'.")
+        if not list_ok:
+            print("Note: bucket access works, but list-buckets is not permitted.")
         raise SystemExit(0)
 
     print(f"FAIL: Could not verify ActiveScale access to bucket '{bucket}'.")
+    if list_ok:
+        print(
+            "Note: credentials can list buckets, but cannot access the requested bucket."
+        )
     raise SystemExit(1)
 finally:
     client.close()
