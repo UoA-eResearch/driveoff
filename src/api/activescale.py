@@ -337,41 +337,30 @@ def upload_file(
     tags: dict[str, str] | None = None,
     timeout: int = 300,
 ) -> bool:
-    """Upload a file to an S3 bucket using streaming for large files.
+    """Upload a file to an S3 bucket using a simple put_object call.
 
     Args:
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to upload to.
         file_key (str): The key (path/filename) in the bucket.
-        file_path (str | None): Path to file on disk (for large files, preferred).
-        metadata (dict[str, str] | None): Optional metadata for the object.
-        tags (dict[str, str] | None): Optional dictionary of tags.
-        timeout (int): Timeout in seconds for the upload operation. Defaults to 300
-            (5 minutes). Use higher values for very large files.
+        file_path (str | None): Path to file on disk.
+        metadata (dict[str, str] | None): Optional metadata (currently unused for ActiveScale compatibility).
+        tags (dict[str, str] | None): Optional tags (currently unused for ActiveScale compatibility).
+        timeout (int): Timeout in seconds for the upload operation. Defaults to 300 (5 minutes).
 
     Returns:
         bool: True if the upload is successful, False otherwise.
 
     Note:
-        For large files, use file_path instead of file_content to avoid loading
-        the entire file into memory. The upload_file method with file_path handles
-        multipart uploads automatically for files larger than 8 MB.
+        Uses put_object with a file stream to avoid multipart complexity and
+        unsupported headers that trigger ActiveScale "NotImplemented" errors.
+        The file is streamed from disk, not loaded into memory.
 
         If the upload operation exceeds the timeout, it will be aborted and logged
         as an error. This prevents indefinite hangs due to poor network connectivity.
-
-        Progress is logged every 5 seconds or every 100 MB. Stalls (no progress for
-        30 seconds) are detected and logged as warnings.
     """
-    if metadata is None:
-        metadata = {}
-    if tags is None:
-        tags = {}
-
     try:
-        tag_string = "&".join(f"{key}={value}" for key, value in tags.items())
-
-        # Get file size for progress tracking
+        # Get file size for logging
         file_size = Path(file_path).stat().st_size
 
         _log_event(
@@ -384,8 +373,6 @@ def upload_file(
             timeout_seconds=timeout,
         )
 
-        # Create progress tracker with stall detection
-        progress_tracker = ProgressTracker(file_key, file_size, stall_timeout=30)
 
         # Use a threading-based timeout to prevent indefinite hangs
         upload_result: list[bool | None] = [None]
@@ -393,19 +380,16 @@ def upload_file(
 
         def perform_upload() -> None:
             try:
-                extra_args: dict[str, str | dict] = {"Metadata": metadata}
-                # Only include Tagging if there are actual tags
-                # (ActiveScale may not support tagging)
-                if tag_string:
-                    extra_args["Tagging"] = tag_string
-
-                client.upload_file(
-                    file_path,
-                    bucket_name,
-                    file_key,
-                    ExtraArgs=extra_args,
-                    Callback=progress_tracker,
-                )
+                # Use put_object with file body instead of upload_file to avoid
+                # multipart complexity and unsupported headers that trigger
+                # ActiveScale "NotImplemented" errors.
+                # For very large files this streams from disk, not memory.
+                with open(file_path, "rb") as f:
+                    client.put_object(
+                        Bucket=bucket_name,
+                        Key=file_key,
+                        Body=f,
+                    )
                 upload_result[0] = True
             except (ClientError, EndpointConnectionError, BotoCoreError, OSError) as e:
                 upload_exception[0] = e
@@ -420,9 +404,6 @@ def upload_file(
                 "s3.upload.timeout",
                 file_key=file_key,
                 timeout_seconds=timeout,
-                transferred_mb=round(
-                    progress_tracker.bytes_transferred / (1024 * 1024), 1
-                ),
                 total_mb=round(file_size / (1024 * 1024), 1),
             )
             return False
