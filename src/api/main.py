@@ -978,9 +978,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 # Upload to ActiveScale with drive_name as the key
                 bucket_name = "research-archive-test"
                 file_key = f"ro-crates/{drive_name}/{drive_name}.zip"
-                # Note: ActiveScale may not support custom metadata headers,
-                # so we don't send any. The object key is descriptive enough.
-                metadata: dict[str, str] = {}
 
                 # Check if object already exists on S3 and skip upload if so
                 _log_event(
@@ -1016,7 +1013,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                         bucket_name,
                         file_key,
                         file_path=str(output_location / f"{drive_name}.zip"),
-                        metadata=metadata,
                         timeout=get_settings().activescale_upload_timeout,
                     )
                 upload_success = success

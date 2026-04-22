@@ -335,8 +335,6 @@ def upload_file(
     bucket_name: str,
     file_key: str,
     file_path: str,
-    metadata: dict[str, str] | None = None,
-    tags: dict[str, str] | None = None,
     timeout: int = 300,
 ) -> bool:
     """Upload a file to an S3 bucket using streaming for large files.
@@ -345,9 +343,7 @@ def upload_file(
         client (S3Client): An initialized S3 client.
         bucket_name (str): The name of the S3 bucket to upload to.
         file_key (str): The key (path/filename) in the bucket.
-        file_path (str | None): Path to file on disk (for large files, preferred).
-        metadata (dict[str, str] | None): Optional metadata for the object.
-        tags (dict[str, str] | None): Optional dictionary of tags.
+        file_path (str): Path to file on disk.
         timeout (int): Timeout in seconds for the upload operation. Defaults to 300
             (5 minutes). Use higher values for very large files.
 
@@ -355,9 +351,8 @@ def upload_file(
         bool: True if the upload is successful, False otherwise.
 
     Note:
-        For large files, use file_path instead of file_content to avoid loading
-        the entire file into memory. The upload_file method with file_path handles
-        multipart uploads automatically for files larger than 8 MB.
+        Uses boto3 upload_file which handles multipart uploads automatically
+        for files larger than 8 MB.
 
         If the upload operation exceeds the timeout, it will be aborted and logged
         as an error. This prevents indefinite hangs due to poor network connectivity.
@@ -365,14 +360,7 @@ def upload_file(
         Progress is logged every 5 seconds or every 100 MB. Stalls (no progress for
         30 seconds) are detected and logged as warnings.
     """
-    if metadata is None:
-        metadata = {}
-    if tags is None:
-        tags = {}
-
     try:
-        tag_string = "&".join(f"{key}={value}" for key, value in tags.items())
-
         # Get file size for progress tracking
         file_size = Path(file_path).stat().st_size
 
@@ -395,17 +383,10 @@ def upload_file(
 
         def perform_upload() -> None:
             try:
-                # extra_args: dict[str, str | dict] = {"Metadata": metadata}
-                # Only include Tagging if there are actual tags
-                # (ActiveScale may not support tagging)
-                # if tag_string:
-                #     extra_args["Tagging"] = tag_string
-
                 client.upload_file(
                     file_path,
                     bucket_name,
                     file_key,
-                    # ExtraArgs=extra_args,
                     Callback=progress_tracker,
                 )
                 upload_result[0] = True
