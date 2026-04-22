@@ -393,17 +393,17 @@ def upload_file(
 
         def perform_upload() -> None:
             try:
-                extra_args: dict[str, str | dict] = {"Metadata": metadata}
+                # extra_args: dict[str, str | dict] = {"Metadata": metadata}
                 # Only include Tagging if there are actual tags
                 # (ActiveScale may not support tagging)
-                if tag_string:
-                    extra_args["Tagging"] = tag_string
+                # if tag_string:
+                #     extra_args["Tagging"] = tag_string
 
                 client.upload_file(
                     file_path,
                     bucket_name,
                     file_key,
-                    ExtraArgs=extra_args,
+                    # ExtraArgs=extra_args,
                     Callback=progress_tracker,
                 )
                 upload_result[0] = True
