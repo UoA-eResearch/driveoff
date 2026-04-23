@@ -6,9 +6,11 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 from api.activescale import (
+    download_file,
     get_activescale_client_context,
     list_bucket_objects,
     list_buckets,
@@ -50,6 +52,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     object_exists_parser.add_argument("bucket", help="Bucket name to inspect.")
     object_exists_parser.add_argument("key", help="Object key to look up.")
+
+    download_object_parser = subparsers.add_parser(
+        "download-object",
+        help="Download an object to a local file path.",
+    )
+    download_object_parser.add_argument("bucket", help="Bucket name to inspect.")
+    download_object_parser.add_argument("key", help="Object key to download.")
+    download_object_parser.add_argument("output", help="Output file path.")
 
     return parser
 
@@ -112,6 +122,31 @@ def run_command(args: argparse.Namespace) -> int:
             }
             _print_output(payload, args.as_json)
             return 0 if exists else 1
+
+        if args.command == "download-object":
+            file_content = download_file(client, args.bucket, args.key)
+            if file_content is None:
+                payload = {
+                    "bucket": args.bucket,
+                    "key": args.key,
+                    "downloaded": False,
+                }
+                _print_output(payload, args.as_json)
+                return 1
+
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(file_content)
+
+            payload = {
+                "bucket": args.bucket,
+                "key": args.key,
+                "downloaded": True,
+                "output": str(output_path),
+                "bytes": len(file_content),
+            }
+            _print_output(payload, args.as_json)
+            return 0
 
     return 2
 
