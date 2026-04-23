@@ -53,3 +53,13 @@ poetry run poe mypy-check
 poetry run poe pytest-check
 ```
 
+## ActiveScale CLI
+Use the repo-local CLI launcher to run simple inspection commands against ActiveScale:
+
+```bash
+poetry run python scripts/activescale_cli.py list-buckets
+poetry run python scripts/activescale_cli.py list-objects research-archive --prefix ro-crates/
+poetry run python scripts/activescale_cli.py object-exists research-archive ro-crates/archive.zip
+poetry run python scripts/activescale_cli.py --json object-exists research-archive ro-crates/archive.zip
+```
+

@@ -102,6 +102,26 @@ def _get_client_config() -> Config:
 
 
 _activescale_session: boto3.Session | None = None
+_activescale_session_lock = threading.Lock()
+
+
+def ensure_activescale_session() -> boto3.Session:
+    """Return a cached ActiveScale session, creating it on first use.
+
+    This supports non-FastAPI entrypoints, such as CLI scripts and background jobs,
+    without duplicating credential and client configuration logic.
+    """
+    global _activescale_session  # pylint: disable=global-statement
+
+    if _activescale_session is not None:
+        return _activescale_session
+
+    with _activescale_session_lock:
+        if _activescale_session is None:
+            _log_event(logging.INFO, "activescale.session.lazy_init_start")
+            _activescale_session = _create_activescale_session()
+
+    return _activescale_session
 
 
 def _create_activescale_session() -> boto3.Session:
@@ -182,15 +202,11 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
         with get_activescale_client_context() as client:
             upload_file(client, bucket, key, content)
     """
-    if _activescale_session is None:
-        _log_event(logging.ERROR, "activescale.session.missing_global")
-        raise RuntimeError(
-            "ActiveScale session not initialized. Call init_activescale first."
-        )
+    session = ensure_activescale_session()
 
     client: S3Client = cast(
         S3Client,
-        _activescale_session.client(
+        session.client(
             "s3",
             endpoint_url=f"https://{get_settings().activescale_hostname}",
             config=_get_client_config(),
@@ -326,6 +342,59 @@ def list_buckets(client: S3Client) -> list[str]:
         return []
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
         _log_unexpected_error("s3.buckets.list.unexpected_error", e)
+        return []
+
+
+def list_bucket_objects(
+    client: S3Client, bucket_name: str, prefix: str = ""
+) -> list[str]:
+    """List object keys in an S3 bucket with optional prefix filtering.
+
+    Args:
+        client (S3Client): An initialized S3 client.
+        bucket_name (str): The name of the S3 bucket.
+        prefix (str): Optional prefix to filter objects by key.
+
+    Returns:
+        list[str]: List of object keys, or empty list if operation fails.
+    """
+    try:
+        paginator = client.get_paginator("list_objects_v2")
+        page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+
+        object_keys = []
+        for page in page_iterator:
+            contents = page.get("Contents", [])
+            for obj in contents:
+                if "Key" in obj:
+                    object_keys.append(obj["Key"])
+
+        _log_event(
+            logging.DEBUG,
+            "s3.bucket.objects.listed",
+            bucket_name=bucket_name,
+            prefix=prefix,
+            object_count=len(object_keys),
+        )
+        return object_keys
+    except ClientError as e:
+        _log_client_error(
+            "s3.bucket.objects.list.client_error",
+            e,
+            bucket_name=bucket_name,
+            prefix=prefix,
+        )
+        return []
+    except EndpointConnectionError:
+        _log_endpoint_connection_error(bucket_name=bucket_name)
+        return []
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
+        _log_unexpected_error(
+            "s3.bucket.objects.list.unexpected_error",
+            e,
+            bucket_name=bucket_name,
+            prefix=prefix,
+        )
         return []
 
 
