@@ -1014,7 +1014,12 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                         file_key,
                         file_path=str(output_location / f"{drive_name}.zip"),
                         timeout=get_settings().activescale_upload_timeout,
-                        metadata={"retention_period_years": str(submission.retention_period_years)},
+                        metadata={
+                            "project_owner": get_project_owner_email(members_list),
+                            "primary_faculty": project_data.get("division") or "Unknown",
+                            "retention_period_years": str(submission.retention_period_years) or "Unknown",
+                            "data_classification": submission.data_classification or "Unknown",
+                        },
                     )
                 upload_success = success
 
@@ -1268,3 +1273,11 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
         # Log error but don't fail the whole process - just return unfiltered members
         _log_event(logging.WARNING, "members.filter_failed", error=str(e))
     return members
+
+
+def get_project_owner_email(members: Any) -> str:
+    """Get the project owner's email from the members list."""
+    for member in members:
+        if member.role.name == "Project Owner":
+            return member.person.email or "Unknown"
+    return "Unknown"
