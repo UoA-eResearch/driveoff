@@ -1016,7 +1016,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                         timeout=get_settings().activescale_upload_timeout,
                         metadata={
                             "project_owner": get_project_owner_email(members_list),
-                            "primary_faculty": project_data.get("division") or "Unknown",
+                            "division": project_data.get("division") or "Unknown",
                             "retention_period_years": str(submission.retention_period_years) or "Unknown",
                             "data_classification": submission.data_classification or "Unknown",
                         },
