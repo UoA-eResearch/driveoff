@@ -405,6 +405,7 @@ def upload_file(
     file_key: str,
     file_path: str,
     timeout: int = 300,
+    metadata: dict[str, str] | None = None,
 ) -> bool:
     """Upload a file to an S3 bucket using streaming for large files.
 
@@ -415,6 +416,8 @@ def upload_file(
         file_path (str): Path to file on disk.
         timeout (int): Timeout in seconds for the upload operation. Defaults to 300
             (5 minutes). Use higher values for very large files.
+        metadata (dict[str, str] | None): Optional dictionary of metadata to attach to
+            the S3 object.
 
     Returns:
         bool: True if the upload is successful, False otherwise.
@@ -457,6 +460,7 @@ def upload_file(
                     bucket_name,
                     file_key,
                     Callback=progress_tracker,
+                    ExtraArgs={"Metadata": metadata} if metadata else None,
                 )
                 upload_result[0] = True
             except (ClientError, EndpointConnectionError, BotoCoreError, OSError) as e:

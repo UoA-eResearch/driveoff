@@ -1014,6 +1014,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                         file_key,
                         file_path=str(output_location / f"{drive_name}.zip"),
                         timeout=get_settings().activescale_upload_timeout,
+                        metadata={"retention_period_years": str(submission.retention_period_years)},
                     )
                 upload_success = success
 
