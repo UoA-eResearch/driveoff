@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateSubmissionApiV1SubmissionPostData, CreateSubmissionApiV1SubmissionPostErrors, CreateSubmissionApiV1SubmissionPostResponses, GetDriveInfoApiV1DriveinfoGetData, GetDriveInfoApiV1DriveinfoGetErrors, GetDriveInfoApiV1DriveinfoGetResponses, GetSubmissionApiV1SubmissionGetData, GetSubmissionApiV1SubmissionGetErrors, GetSubmissionApiV1SubmissionGetResponses } from './types.gen';
+import type { CreateSubmissionApiV1SubmissionPostData, CreateSubmissionApiV1SubmissionPostErrors, CreateSubmissionApiV1SubmissionPostResponses, GetDriveInfoApiV1DriveinfoGetData, GetDriveInfoApiV1DriveinfoGetErrors, GetDriveInfoApiV1DriveinfoGetResponses, GetSubmissionApiV1SubmissionGetData, GetSubmissionApiV1SubmissionGetErrors, GetSubmissionApiV1SubmissionGetResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostData, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -71,4 +71,19 @@ export const createSubmissionApiV1SubmissionPost = <ThrowOnError extends boolean
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Retry Submission
+ *
+ * Retry a failed or abandoned archive job for a research drive.
+ */
+export const retrySubmissionApiV1SubmissionDriveNameRetryPost = <ThrowOnError extends boolean = false>(options: Options<RetrySubmissionApiV1SubmissionDriveNameRetryPostData, ThrowOnError>) => (options.client ?? client).post<RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, ThrowOnError>({
+    security: [{
+            in: 'query',
+            name: 'api-key',
+            type: 'apiKey'
+        }, { name: 'x-api-key', type: 'apiKey' }],
+    url: '/api/v1/submission/{drive_name}/retry',
+    ...options
 });

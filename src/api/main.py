@@ -1,28 +1,33 @@
 """Definition of endpoints/routers for the webserver."""
 
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import json
 import logging
+import shutil
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import requests
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from api.activescale import (
+    get_activescale_client_context,
+    init_activescale,
+    object_exists,
+    upload_file,
+)
 from api.cors import add_cors_middleware
 from api.fake_resdrive import make_fake_resdrive
-from api.manifests import (
-    bag_directory,
-    bagit_exists,
-    create_manifests_directory,
-    generate_manifest,
-)
+from api.manifests import bag_directory, bagit_exists, create_manifests_directory
 from api.security import ApiKey, validate_api_key, validate_permissions
+from config import get_settings
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader, zip_existing_crate
 from models.common import ResearchDriveName
@@ -39,22 +44,47 @@ from models.response import (
     RoleResponse,
     SubmissionResponse,
 )
-from models.submission import ArchiveSubmission
+from models.submission import (
+    ACTIVE_STAGES,
+    RETRYABLE_STAGES,
+    ArchiveSubmission,
+    JobStage,
+)
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
 
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
 
+def _configure_logging() -> None:
+    """Initialize logging once and align root level with configured settings."""
+    root_logger = logging.getLogger()
+    configured_level = get_settings().log_level
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=configured_level,
+            format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        )
+    else:
+        root_logger.setLevel(configured_level)
+
+
+_configure_logging()
 logger = logging.getLogger(__name__)
 
 
-def _log_event(level: int, event: str, **context: Any) -> None:
+def _log_event(
+    level: int,
+    event: str,
+    *,
+    exc_info: bool = False,
+    **context: Any,
+) -> None:
     payload = {"event": event, **context}
-    logger.log(level, json.dumps(payload, default=str))
+    logger.log(level, json.dumps(payload, default=str), exc_info=exc_info)
+
+
+def _elapsed_ms(started_at: datetime) -> int:
+    """Compute elapsed milliseconds from a start timestamp."""
+    return int((datetime.now() - started_at).total_seconds() * 1000)
 
 
 # Ensure driveoff directory is created
@@ -63,7 +93,7 @@ DB_FILE_NAME = Path.home() / ".driveoff" / "database.db"
 DB_URL = f"sqlite:///{DB_FILE_NAME}"
 
 connect_args = {"check_same_thread": False}
-engine = create_engine(DB_URL, connect_args=connect_args, echo=True)
+engine = create_engine(DB_URL, connect_args=connect_args, echo=False)
 
 
 def create_db_and_tables() -> None:
@@ -89,15 +119,66 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     application startup so routes can depend on it.
     """
     create_db_and_tables()
+
+    # initialize external services
     # initialise ProjectDB client for use in endpoints
+    _reconcile_interrupted_jobs()
+
     try:
         init_projectdb(app_instance)
     except (RuntimeError, ValueError) as e:
         # If the ProjectDB client cannot be initialised, allow app to start
         # but the dependency will raise if used.
         _log_event(logging.WARNING, "projectdb.init_failed", error=str(e))
+    try:
+        init_activescale(app_instance)
+    except (RuntimeError, ValueError) as e:
+        # If the Activescale client cannot be initialised, allow app to start
+        # but the dependency will raise if used.
+        _log_event(logging.WARNING, "activescale.init_failed", error=str(e))
     yield
     engine.dispose()
+
+
+def _reconcile_interrupted_jobs() -> None:
+    """Mark any jobs that were active when the process last exited as abandoned.
+
+    FastAPI BackgroundTasks are volatile; if the process restarts while a job
+    is in an active stage (queued/running/uploading/cleanup) that work is lost.
+    We surface this to operators as 'abandoned' so they can trigger a manual retry.
+    """
+    with Session(engine) as session:
+        active_stage_values = [s.value for s in ACTIVE_STAGES]
+        stage_column = cast(Any, ArchiveSubmission.stage)
+        interrupted = session.exec(
+            select(ArchiveSubmission).where(stage_column.in_(active_stage_values))
+        ).all()
+        if not interrupted:
+            return
+        now = datetime.now()
+        for submission in interrupted:
+            previous_stage = submission.stage
+            _log_event(
+                logging.WARNING,
+                "submission.abandoned_on_startup",
+                submission_id=submission.id,
+                drive_name=submission.drive_name,
+                previous_stage=previous_stage,
+            )
+            submission.stage = JobStage.ABANDONED
+            submission.failure_reason = (
+                f"Process restarted while job was in stage '{previous_stage.value}'."
+                " Retry this job to resume."
+            )
+            submission.failed_timestamp = now
+            submission.last_updated_timestamp = now
+            session.add(submission)
+        session.commit()
+        _log_event(
+            logging.WARNING,
+            "startup.reconciliation_complete",
+            abandoned_count=len(interrupted),
+        )
 
 
 app = FastAPI(lifespan=lifespan)
@@ -139,8 +220,6 @@ async def get_drive_info(
             )
         if isinstance(drive_data, list):
             drive_data = drive_data[0]
-    except HTTPException:
-        raise
     except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -282,11 +361,21 @@ async def create_submission(
         )
     ).first()
 
-    if existing_submission and existing_submission.is_completed:
+    if existing_submission and existing_submission.stage == JobStage.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"Drive {request.drive_name} has already been successfully archived."
+            ),
+        )
+
+    if existing_submission and existing_submission.stage in ACTIVE_STAGES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Drive {request.drive_name} already has an active archive job"
+                f" in stage '{existing_submission.stage.value}'."
+                " Wait for it to finish or use the retry endpoint if it has failed."
             ),
         )
 
@@ -328,12 +417,20 @@ async def create_submission(
             message=(
                 f"Archive submission {status_word}"
                 f" for {request.drive_name}."
-                " RO-Crate generation is in progress."
+                " RO-Crate generation and upload to ActiveScale is in progress."
             )
         )
     except HTTPException:
         raise
     except Exception as e:
+        _log_event(
+            logging.ERROR,
+            "submission.create.unexpected_error",
+            drive_name=request.drive_name,
+            error=str(e),
+            error_type=type(e).__name__,
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
             detail=(
@@ -341,6 +438,110 @@ async def create_submission(
                 f" for {request.drive_name}."
             ),
         ) from e
+
+
+@app.post(
+    ENDPOINT_PREFIX + "/submission/{drive_name}/retry",
+    status_code=status.HTTP_200_OK,
+    response_model=CreateSubmissionResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {"model": ErrorResponse, "description": "No submission found for drive"},
+        409: {
+            "model": ErrorResponse,
+            "description": "Job is active or already completed",
+        },
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def retry_submission(
+    drive_name: ResearchDriveName,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    projectdb: ProjectDbDep,
+    api_key: ApiKey = Security(validate_api_key),
+) -> CreateSubmissionResponse:
+    """Retry a failed or abandoned archive job for a research drive."""
+    validate_permissions("POST", api_key)
+
+    submission = session.exec(
+        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == drive_name)
+    ).first()
+
+    if submission is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No archive submission found for drive {drive_name}.",
+        )
+
+    if submission.stage in ACTIVE_STAGES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Drive {drive_name} already has an active archive job"
+                f" in stage '{submission.stage.value}'."
+                " Wait for it to finish."
+            ),
+        )
+
+    if submission.stage == JobStage.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Drive {drive_name} has already been successfully archived.",
+        )
+
+    if submission.stage not in RETRYABLE_STAGES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Drive {drive_name} submission is in stage '{submission.stage.value}'"
+                " which cannot be retried."
+            ),
+        )
+
+    # Reset to QUEUED for the new attempt
+    now = datetime.now()
+    submission.stage = JobStage.QUEUED
+    submission.failure_reason = None
+    submission.failed_timestamp = None
+    submission.retry_count = (submission.retry_count or 0) + 1
+    submission.last_updated_timestamp = now
+    submission.completed_timestamp = None
+    submission.cleanup_succeeded = None
+    submission.cleanup_error = None
+    session.add(submission)
+    session.commit()
+    session.refresh(submission)
+
+    _log_event(
+        logging.INFO,
+        "submission.retry_scheduled",
+        drive_name=drive_name,
+        submission_id=submission.id,
+        retry_count=submission.retry_count,
+    )
+
+    if submission.id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Archive submission record is missing ID.",
+        )
+
+    drive = _validate_drive(projectdb, drive_name)
+    background_tasks.add_task(
+        generate_ro_crate_async,
+        drive,
+        submission.id,
+        projectdb_client=projectdb,
+    )
+
+    return CreateSubmissionResponse(
+        message=(
+            f"Archive job for {drive_name} queued for retry"
+            f" (attempt {submission.retry_count})."
+            " RO-Crate generation and upload to ActiveScale is in progress."
+        )
+    )
 
 
 def _validate_drive(projectdb: ProjectDBClient, drive_name: str) -> Any:
@@ -417,9 +618,6 @@ def _upsert_submission(
     request: CreateSubmissionRequest,
 ) -> ArchiveSubmission:
     """Update an existing pending submission or create a new one."""
-    archive_date = datetime.now()
-    archive_location = str(Path.home() / "mnt" / request.drive_name / "Archive")
-
     if existing_submission:
         existing_submission.drive_id = drive["id"]
         existing_submission.project_id = project_id
@@ -428,14 +626,9 @@ def _upsert_submission(
             request.retention_period_justification
         )
         existing_submission.data_classification = request.data_classification
-        existing_submission.archive_date = archive_date
-        existing_submission.archive_location = archive_location
-        # Reset completion state when a submission is resubmitted.
-        existing_submission.is_completed = False
-        existing_submission.is_failed = False
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
-        existing_submission.manifest_id = None
+        existing_submission.activescale_file_key = None
         submission = existing_submission
     else:
         submission = ArchiveSubmission(
@@ -445,10 +638,15 @@ def _upsert_submission(
             retention_period_years=request.retention_period_years,
             retention_period_justification=request.retention_period_justification,
             data_classification=request.data_classification,
-            archive_date=archive_date,
-            archive_location=archive_location,
-            is_completed=False,
         )
+
+    now = datetime.now()
+    submission.stage = JobStage.QUEUED
+    submission.started_timestamp = now
+    submission.last_updated_timestamp = now
+    submission.completed_timestamp = None
+    submission.cleanup_succeeded = None
+    submission.cleanup_error = None
 
     session.add(submission)
     session.commit()
@@ -472,6 +670,56 @@ def get_resdrive_path(drive_name: str) -> Path:
             "Research Drive must be mounted in order to generate RO-Crate"
         )
     return drive_path
+
+
+def _cleanup_job_artifacts(
+    drive_name: str, output_location: Path
+) -> tuple[bool, str | None]:
+    """Delete generated local archive artifacts for a submission.
+
+    This intentionally only removes generated artifacts in the archive output
+    area and does not remove source drive content under Vault.
+    """
+    generated_paths = [
+        output_location / f"{drive_name}.zip",
+        output_location / str(drive_name),
+        output_location / f"{drive_name}Vault_manifests",
+    ]
+
+    cleanup_errors: list[str] = []
+    removed_count = 0
+    for path in generated_paths:
+        try:
+            if path.is_file():
+                path.unlink()
+                removed_count += 1
+            elif path.is_dir():
+                shutil.rmtree(path)
+                removed_count += 1
+        except FileNotFoundError:
+            continue
+        except OSError as e:  # pragma: no cover - best effort cleanup
+            cleanup_errors.append(f"{path}: {e}")
+
+    if cleanup_errors:
+        _log_event(
+            logging.WARNING,
+            "submission.cleanup.failed",
+            drive_name=drive_name,
+            output_location=str(output_location),
+            removed_count=removed_count,
+            cleanup_error="; ".join(cleanup_errors),
+        )
+        return False, "; ".join(cleanup_errors)
+
+    _log_event(
+        logging.INFO,
+        "submission.cleanup.completed",
+        drive_name=drive_name,
+        output_location=str(output_location),
+        removed_count=removed_count,
+    )
+    return True, None
 
 
 def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-positional-arguments
@@ -532,29 +780,46 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
     )
 
 
-async def generate_ro_crate_async(
+async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-statements
     drive: dict[str, Any],
     submission_id: int,
     projectdb_client: ProjectDBClient,
 ) -> None:
     """Async background task for generating RO-Crate and updating archive record.
 
-    Fetches live project data from ProjectDB, generates crate, and updates
-    the ArchiveSubmission record with completion status and manifest.
+    Fetches live project data from ProjectDB, generates crate,
+    uploads the archive to ActiveScale for long-term storage, and updates
+    the ArchiveSubmission record with stage and operational metadata.
+
+    Implements persisted checkpoints so retries can skip completed steps:
+    - queued→running: After loading submission from DB
+    - running→uploading: After crate build and zip generation
+    - uploading→completed/failed: After upload attempt
 
     Args:
-    drive: Dictionary containing research drive information
-    submission_id: ID of the ArchiveSubmission record
-    projectdb_client: Client for interacting with ProjectDB
+        drive: Dictionary containing research drive information
+        submission_id: ID of the ArchiveSubmission record
+        projectdb_client: Client for interacting with ProjectDB
     """
     drive_name = drive.get("name", None)
+    started_at = datetime.now()
     if drive_name is None:
-        _log_event(logging.ERROR, "crate.build.invalid_drive", drive=drive)
+        _log_event(
+            logging.ERROR,
+            "crate.build.invalid_drive",
+            drive=drive,
+            elapsed_ms=_elapsed_ms(started_at),
+        )
         return
 
     # Create a new session for this background task
     with Session(engine) as session:
         submission: ArchiveSubmission | None = None
+        output_location = Path.home() / "mnt" / str(drive_name) / "Archive"
+        file_key: str | None = None
+        project_id: int | None = None
+        processing_error: str | None = None
+        upload_success = False
         try:
             submission = session.get(ArchiveSubmission, submission_id)
             if submission is None:
@@ -563,8 +828,28 @@ async def generate_ro_crate_async(
                     "crate.build.submission_not_found",
                     submission_id=submission_id,
                     drive_name=drive_name,
+                    elapsed_ms=_elapsed_ms(started_at),
                 )
                 return
+
+            # Transition: queued → running
+            previous_stage = submission.stage
+            submission.stage = JobStage.RUNNING
+            submission.last_updated_timestamp = datetime.now()
+            session.add(submission)
+            session.commit()
+
+            _log_event(
+                logging.INFO,
+                "submission.stage_transition",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                from_stage=previous_stage.value,
+                to_stage=JobStage.RUNNING.value,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
 
             # Fetch project and member data from ProjectDB
             project_id = submission.project_id
@@ -574,6 +859,9 @@ async def generate_ro_crate_async(
                 submission_id=submission_id,
                 drive_name=drive_name,
                 project_id=project_id,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
             )
             project_data = projectdb_client.get_project(
                 pid=project_id,
@@ -601,7 +889,12 @@ async def generate_ro_crate_async(
                 submission_id=submission_id,
                 drive_name=drive_name,
                 project_id=project_id,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
             )
+
+            # Build crate contents (idempotent, safe to retry)
             build_crate_contents_async(
                 drive=drive,
                 submission=submission,
@@ -611,22 +904,192 @@ async def generate_ro_crate_async(
                 output_location=output_location,
             )
 
-            # Zip the generated crate
-            zip_existing_crate(output_location / str(drive_name), drive_location)
+            # Zip the generated crate (check if already exists and skip if so)
+            zip_path = output_location / f"{drive_name}.zip"
+            if not zip_path.exists():
+                _log_event(
+                    logging.INFO,
+                    "crate.zip.start",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+                zip_existing_crate(output_location / str(drive_name), drive_location)
+                _log_event(
+                    logging.INFO,
+                    "crate.zip.completed",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    zip_size_mb=(
+                        zip_path.stat().st_size / (1024 * 1024)
+                        if zip_path.exists()
+                        else 0
+                    ),
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+            else:
+                _log_event(
+                    logging.INFO,
+                    "crate.zip.skipped",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    reason="zip file already exists",
+                    zip_size_mb=zip_path.stat().st_size / (1024 * 1024),
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
 
-            # Generate and store manifest
-            manifest = generate_manifest(drive_location)
-            session.add(manifest)
-            session.commit()
-
-            # Update archive submission with manifest and completion status
-            submission.manifest_id = manifest.id
-            submission.is_completed = True
-            submission.is_failed = False
-            submission.failure_reason = None
-            submission.failed_timestamp = None
+            # Transition: running → uploading
+            previous_stage = submission.stage
+            submission.stage = JobStage.UPLOADING
+            submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
+
+            _log_event(
+                logging.INFO,
+                "submission.stage_transition",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                from_stage=previous_stage.value,
+                to_stage=JobStage.UPLOADING.value,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+
+            # Upload the archive to ActiveScale
+            _log_event(
+                logging.INFO,
+                "crate.upload.start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+
+            with get_activescale_client_context() as client:
+                # Upload to ActiveScale with drive_name as the key
+                bucket_name = "research-archive-test"
+                file_key = f"ro-crates/{drive_name}/{drive_name}.zip"
+
+                # Check if object already exists on S3 and skip upload if so
+                _log_event(
+                    logging.INFO,
+                    "S3.object_exists.check_start",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    file_key=file_key,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+                obj_exists, obj_metadata = object_exists(client, bucket_name, file_key)
+                if obj_exists:
+                    _log_event(
+                        logging.INFO,
+                        "S3.upload.skipped",
+                        submission_id=submission_id,
+                        drive_name=drive_name,
+                        file_key=file_key,
+                        reason="object already exists on S3",
+                        object_size_bytes=(
+                            obj_metadata.get("content_length") if obj_metadata else None
+                        ),
+                        stage=submission.stage.value,
+                        retry_count=submission.retry_count,
+                        elapsed_ms=_elapsed_ms(started_at),
+                    )
+                    success = True
+                else:
+                    success = upload_file(
+                        client,
+                        bucket_name,
+                        file_key,
+                        file_path=str(output_location / f"{drive_name}.zip"),
+                        timeout=get_settings().activescale_upload_timeout,
+                        metadata={
+                            "project_owner": get_project_owner_email(members_list),
+                            "division": project_data.get("division") or "Unknown",
+                            "retention_period_years": str(submission.retention_period_years) or "Unknown",
+                            "data_classification": submission.data_classification or "Unknown",
+                        },
+                    )
+                upload_success = success
+
+            # Transition: uploading → cleanup
+            previous_stage = submission.stage
+            submission.stage = JobStage.CLEANUP
+            submission.last_updated_timestamp = datetime.now()
+            session.add(submission)
+            session.commit()
+
+            _log_event(
+                logging.INFO,
+                "submission.stage_transition",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                from_stage=previous_stage.value,
+                to_stage=JobStage.CLEANUP.value,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+
+            cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(
+                str(drive_name), output_location
+            )
+            submission.cleanup_succeeded = cleanup_succeeded
+            submission.cleanup_error = cleanup_error
+
+            # Update submission record with upload result
+            now = datetime.now()
+            if upload_success:
+                submission.stage = JobStage.COMPLETED
+                submission.failure_reason = None
+                submission.failed_timestamp = None
+                submission.activescale_file_key = file_key
+                submission.completed_timestamp = now
+                submission.last_updated_timestamp = now
+                session.add(submission)
+                session.commit()
+
+                _log_event(
+                    logging.INFO,
+                    "crate.upload.completed",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    file_key=file_key,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    cleanup_succeeded=submission.cleanup_succeeded,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+            else:
+                submission.stage = JobStage.FAILED
+                submission.failure_reason = "ActiveScale upload failed"
+                submission.failed_timestamp = now
+                submission.activescale_file_key = file_key
+                submission.last_updated_timestamp = now
+                session.add(submission)
+                session.commit()
+                _log_event(
+                    logging.ERROR,
+                    "crate.upload.failed",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    file_key=file_key,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    cleanup_succeeded=submission.cleanup_succeeded,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
 
             _log_event(
                 logging.INFO,
@@ -634,14 +1097,45 @@ async def generate_ro_crate_async(
                 submission_id=submission_id,
                 drive_name=drive_name,
                 project_id=project_id,
-                manifest_id=manifest.id,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                cleanup_succeeded=submission.cleanup_succeeded,
+                elapsed_ms=_elapsed_ms(started_at),
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            processing_error = str(e)
             if submission is not None:
-                submission.is_completed = False
-                submission.is_failed = True
-                submission.failure_reason = str(e)
-                submission.failed_timestamp = datetime.now()
+                now = datetime.now()
+
+                # Transition to cleanup before final failed state.
+                previous_stage = submission.stage
+                submission.stage = JobStage.CLEANUP
+                submission.last_updated_timestamp = now
+                session.add(submission)
+                session.commit()
+
+                _log_event(
+                    logging.WARNING,
+                    "submission.stage_transition",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    from_stage=previous_stage.value,
+                    to_stage=JobStage.CLEANUP.value,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+
+                cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(
+                    str(drive_name), output_location
+                )
+                submission.cleanup_succeeded = cleanup_succeeded
+                submission.cleanup_error = cleanup_error
+
+                submission.stage = JobStage.FAILED
+                submission.failure_reason = processing_error
+                submission.failed_timestamp = now
+                submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
             _log_event(
@@ -649,9 +1143,24 @@ async def generate_ro_crate_async(
                 "crate.build.failed",
                 submission_id=submission_id,
                 drive_name=drive_name,
-                error=str(e),
+                error=processing_error,
+                stage=(submission.stage.value if submission is not None else None),
+                retry_count=(
+                    submission.retry_count if submission is not None else None
+                ),
+                cleanup_succeeded=(
+                    submission.cleanup_succeeded if submission is not None else None
+                ),
+                elapsed_ms=_elapsed_ms(started_at),
             )
-            logger.exception("Background crate generation failed")
+            _log_event(
+                logging.ERROR,
+                "crate.build.exception",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                exc_info=True,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
 
 
 @app.get(
@@ -689,14 +1198,16 @@ async def get_submission(
         retention_period_years=submission.retention_period_years,
         retention_period_justification=submission.retention_period_justification,
         data_classification=submission.data_classification,
-        archive_date=submission.archive_date,
-        archive_location=submission.archive_location,
-        is_completed=submission.is_completed,
-        is_failed=submission.is_failed,
+        stage=submission.stage,
         failure_reason=submission.failure_reason,
         failed_timestamp=submission.failed_timestamp,
-        created_timestamp=submission.created_timestamp,
-        manifest=submission.manifest.manifest if submission.manifest else None,
+        started_timestamp=submission.started_timestamp,
+        last_updated_timestamp=submission.last_updated_timestamp,
+        completed_timestamp=submission.completed_timestamp,
+        retry_count=submission.retry_count,
+        cleanup_succeeded=submission.cleanup_succeeded,
+        cleanup_error=submission.cleanup_error,
+        activescale_file_key=submission.activescale_file_key,
     )
 
 
@@ -762,3 +1273,11 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
         # Log error but don't fail the whole process - just return unfiltered members
         _log_event(logging.WARNING, "members.filter_failed", error=str(e))
     return members
+
+
+def get_project_owner_email(members: Any) -> str:
+    """Get the project owner's email from the members list."""
+    for member in members:
+        if member["role"]["name"] == "Project Owner":
+            return member["person"]["email"] or "Unknown"
+    return "Unknown"

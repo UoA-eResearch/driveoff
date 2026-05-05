@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from models.common import DataClassification
+from models.submission import JobStage
 
 
 class RoleResponse(BaseModel):
@@ -94,11 +95,13 @@ class SubmissionResponse(BaseModel):
     retention_period_years: int
     retention_period_justification: str | None
     data_classification: DataClassification
-    archive_date: datetime
-    archive_location: str
-    is_completed: bool
-    is_failed: bool
+    stage: JobStage
     failure_reason: str | None
     failed_timestamp: datetime | None
-    created_timestamp: datetime
-    manifest: str | None
+    started_timestamp: datetime | None
+    last_updated_timestamp: datetime | None
+    completed_timestamp: datetime | None
+    retry_count: int
+    cleanup_succeeded: bool | None
+    cleanup_error: str | None
+    activescale_file_key: str | None

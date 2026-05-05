@@ -1,11 +1,13 @@
 # pylint: disable=missing-class-docstring,redefined-outer-name,too-few-public-methods,missing-module-docstring
-import json
 import shutil
+import json
 import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from collections.abc import Generator
 from typing import Any
+from unittest.mock import patch
 
 import orjson
 import pytest
@@ -24,7 +26,6 @@ from crate.ro_builder import ROBuilder
 from crate.ro_loader import PROFILE as ARCHIVE_PROFILE
 from crate.ro_loader import ROLoader
 from models.common import DataClassification
-from models.manifest import Manifest
 from models.submission import ArchiveSubmission
 
 THIS_DIR = Path(__file__).absolute().parent
@@ -125,11 +126,27 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
         ]
         return mock_projectdb
 
+    # Mock the ActiveScale client context to avoid connecting to real service
+    @contextmanager
+    def mock_activescale_client_context():
+        """Mock context manager for ActiveScale client."""
+        mock_client = MagicMock()
+        mock_client.put_object = MagicMock(return_value={})
+        yield mock_client
+
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[read_api_keys] = read_api_keys_override
     app.dependency_overrides[get_projectdb_client] = get_projectdb_client_override
-    with TestClient(app, headers={"x-api-key": test_api_key}) as client:
-        yield client
+
+    with patch(
+        "api.main.get_activescale_client_context", mock_activescale_client_context
+    ):
+        with patch("api.main.init_activescale"):
+            with patch("api.main.generate_ro_crate_async"):
+                with patch("api.main.upload_file", return_value=True):
+                    client = TestClient(app, headers={"x-api-key": test_api_key})
+                    yield client
+
     app.dependency_overrides.clear()
 
 
@@ -164,21 +181,7 @@ def submission() -> ArchiveSubmission:
         retention_period_years=7,
         retention_period_justification="Standard research data retention",
         data_classification=DataClassification.SENSITIVE,
-        archive_date=datetime(2024, 10, 13),
-        archive_location="/archive/path",
-        manifest_id=None,
-        is_completed=False,
-        created_timestamp=datetime(2024, 10, 13),
-    )
-
-
-@pytest.fixture
-def manifest() -> Manifest:
-    """minimal test Manifest"""
-    return Manifest(
-        manifest=json.dumps(
-            {"files": [{"name": "file.txt", "size": 1024, "hash": "abc123"}]}
-        )
+        started_timestamp=datetime(2024, 10, 13),
     )
 
 
@@ -259,11 +262,7 @@ def test_submission() -> ArchiveSubmission:
         retention_period_years=7,
         retention_period_justification="Standard retention",
         data_classification=DataClassification.SENSITIVE,
-        archive_date=datetime(2024, 10, 13),
-        archive_location="/archive/path",
-        manifest_id=None,
-        is_completed=False,
-        created_timestamp=datetime(2024, 10, 13),
+        started_timestamp=datetime(2024, 10, 13),
     )
 
 

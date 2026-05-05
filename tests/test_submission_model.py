@@ -23,11 +23,8 @@ def submission_data_fixture() -> dict[str, Any]:
         "retention_period_years": 7,
         "retention_period_justification": "Standard research retention",
         "data_classification": DataClassification.SENSITIVE,
-        "archive_date": datetime(2024, 10, 13),
-        "archive_location": "/archive/path",
-        "manifest_id": None,
-        "is_completed": False,
-        "created_timestamp": datetime(2024, 10, 13),
+        "started_timestamp": datetime(2024, 10, 13),
+        "activescale_file_key": None,
     }
 
 
@@ -55,11 +52,25 @@ def test_submission_data_classification_enum() -> None:
         "retention_period_years": 7,
         "retention_period_justification": "Standard",
         "data_classification": "Sensitive",
-        "archive_date": datetime.now(),
-        "archive_location": "/path",
-        "manifest_id": None,
-        "is_completed": False,
-        "created_timestamp": datetime.now(),
+        "started_timestamp": datetime.now(),
     }
     submission = ArchiveSubmission.model_validate(data)
     assert submission.data_classification == DataClassification.SENSITIVE
+
+
+def test_submission_with_activescale_metadata(
+    submission_data: dict[str, Any],
+) -> None:
+    """Tests submission with ActiveScale upload metadata."""
+    submission_data["activescale_file_key"] = "ro-crates/test-drive/archive.zip"
+    instance = ArchiveSubmission.model_validate(submission_data)
+    assert instance.activescale_file_key == "ro-crates/test-drive/archive.zip"
+
+
+def test_submission_with_failed_upload(
+    submission_data: dict[str, Any],
+) -> None:
+    """Tests submission with failed upload metadata."""
+    submission_data["activescale_file_key"] = "ro-crates/test-drive/archive.zip"
+    instance = ArchiveSubmission.model_validate(submission_data)
+    assert instance.activescale_file_key == "ro-crates/test-drive/archive.zip"

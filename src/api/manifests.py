@@ -8,8 +8,6 @@ from pathlib import Path
 
 import bagit
 
-from models.manifest import Manifest
-
 PROCESSES = max(multiprocessing.cpu_count() - 2, 1)
 DEFAULT_CHECKSUM = ["sha256", "sha512"]
 
@@ -48,17 +46,6 @@ def generate_filelist(drive_path: Path) -> str:
     else:
         filenames = [_encode_filename(i) for i in _sorted_walk(drive_path.as_posix())]
     return "\n".join(filenames)
-
-
-def generate_manifest(drive_path: Path) -> Manifest:
-    """Generate a manifest from a drive ID.
-    in future provide logic for a service account to mount a research drive.
-    Currently generate a mockup from a test directory.
-    """
-    # mount drive based on ID
-    # use service account to mount drive to mountpoint
-    manifest = generate_filelist(drive_path)
-    return Manifest(manifest=manifest)
 
 
 def bagit_exists(drive_path: Path) -> bool:

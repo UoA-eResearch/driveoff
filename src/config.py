@@ -4,6 +4,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,9 +29,19 @@ def get_env_file() -> list[Path]:
 class Settings(BaseSettings):
     """
     Configurations for Driveoff. Use get_settings() for a cached version of the settings.
+    For secrets use `SecretStr` so they are not accidentally logged.
     """
 
     cors_allow_host: list[str] = []
+    activescale_hostname: str = ""
+    activescale_region: str = ""
+    activescale_access_key: SecretStr | None = None
+    activescale_secret_key: SecretStr | None = None
+    activescale_connect_timeout: int = 5
+    activescale_read_timeout: int = 15
+    activescale_retry_attempts: int = 2
+    activescale_upload_timeout: int = 120
+    log_level: str = "INFO"
     projectdb_base_url: str = ""
     projectdb_api_key: str = ""
 
