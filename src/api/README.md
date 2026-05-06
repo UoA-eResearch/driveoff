@@ -48,24 +48,7 @@ The API server uses API keys for authentication and access control. Each key is 
    }
    ```
 
-   **For development/PoC**, you can generate a random key using PowerShell:
-   ```powershell
-   $key = [guid]::NewGuid().ToString()
-   $dir = Join-Path $env:USERPROFILE ".driveoff"
-   @"
-   {
-     "keys": [
-       {
-         "value": "$key",
-         "actions": ["GET", "POST", "PUT"]
-       }
-     ]
-   }
-   "@ | Out-File -Encoding utf8 -FilePath (Join-Path $dir "api_keys.json")
-   Write-Output "API key created: $key"
-   ```
-
-   **For production**, generate a secure random key using Python:
+   **For development/PoC**, generate a secure random key using Python:
    ```powershell
    python -c "import secrets; print(secrets.token_urlsafe(32))"
    ```

@@ -16,6 +16,8 @@ pytest-cov = "^6.0.0"
 rocrate = "^0.14.2"
 orjson = "^3.10"
 pydantic-settings = "^2.6.1"
+boto3 = "^1.42.65"
+types-boto3-s3 = "^1.42.37"
 requests = "^2.31.0"
 
 [tool.poetry.group.dev.dependencies]

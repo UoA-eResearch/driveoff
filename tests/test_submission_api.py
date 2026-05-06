@@ -1,5 +1,6 @@
 """Tests for the archive submission API endpoints."""
 
+from datetime import datetime
 from unittest.mock import patch
 
 import requests
@@ -7,8 +8,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from api.main import app
-from models.manifest import Manifest
-from models.submission import ArchiveSubmission
+from models.submission import ArchiveSubmission, JobStage
 from service.projectdb import get_projectdb_client
 
 
@@ -32,14 +32,14 @@ def test_post_submission_can_create(
         data = response.json()
         assert "message" in data
         assert "Archive submission created" in data["message"]
-        assert "RO-Crate generation is in progress" in data["message"]
+        assert "in progress" in data["message"]
 
 
-def test_post_submission_updates_existing_single_row(
+def test_post_submission_rejects_duplicate_active_job(
     client: TestClient,
     session: Session,
 ) -> None:
-    """Repeated submission for the same drive updates one existing row."""
+    """Duplicate submission for the same drive during active job is rejected with 409."""
     with patch("api.main.generate_ro_crate_async"):
         create_response = client.post(
             "/api/v1/submission",
@@ -53,7 +53,8 @@ def test_post_submission_updates_existing_single_row(
         )
         assert create_response.status_code == 201
 
-        update_response = client.post(
+        # Attempt duplicate submission while job is active (in QUEUED stage)
+        duplicate_response = client.post(
             "/api/v1/submission",
             json={
                 "drive_name": "restst000000001-testing",
@@ -63,19 +64,22 @@ def test_post_submission_updates_existing_single_row(
                 "data_classification": "Restricted",
             },
         )
-        assert update_response.status_code == 201
-        update_payload = update_response.json()
-        assert "Archive submission updated" in update_payload["message"]
+        assert duplicate_response.status_code == 409
+        detail = duplicate_response.json()["detail"]
+        assert "already has an active archive job" in detail
+        assert "stage" in detail
 
+    # Verify only the original submission row exists
     rows = session.exec(
         select(ArchiveSubmission).where(
             ArchiveSubmission.drive_name == "restst000000001-testing"
         )
     ).all()
     assert len(rows) == 1
-    assert rows[0].retention_period_years == 10
-    assert rows[0].retention_period_justification == "Updated reason"
-    assert rows[0].data_classification.value == "Restricted"
+    # Original values should be unchanged
+    assert rows[0].retention_period_years == 7
+    assert rows[0].retention_period_justification == "Initial reason"
+    assert rows[0].data_classification.value == "Sensitive"
 
 
 def test_post_submission_rejects_completed_drive(
@@ -84,7 +88,7 @@ def test_post_submission_rejects_completed_drive(
     submission: ArchiveSubmission,
 ) -> None:
     """A drive that is already successfully archived cannot be resubmitted."""
-    submission.is_completed = True
+    submission.stage = JobStage.COMPLETED
     session.add(submission)
     session.commit()
 
@@ -153,15 +157,10 @@ def test_get_submission_returns_archive_record(
     session: Session,
     client: TestClient,
     submission: ArchiveSubmission,
-    manifest: Manifest,
 ) -> None:
     """Test retrieving an archive submission"""
-    # Add test data to session
-    manifest.id = 1
-    session.add(manifest)
-    session.flush()
-
-    submission.manifest_id = manifest.id
+    submission.stage = JobStage.QUEUED
+    submission.retry_count = 0
     session.add(submission)
     session.commit()
 
@@ -180,12 +179,12 @@ def test_get_submission_returns_archive_record(
         == submission.retention_period_justification
     )
     assert data["data_classification"] == submission.data_classification.value
-    assert data["archive_location"] == submission.archive_location
-    assert data["is_completed"] is False
-    assert data["is_failed"] is False
+    assert data["stage"] == submission.stage.value
     assert data["failure_reason"] is None
     assert data["failed_timestamp"] is None
-    assert data["manifest"] == manifest.manifest
+    assert data["retry_count"] == 0
+    assert data["cleanup_succeeded"] is None
+    assert data["cleanup_error"] is None
 
 
 def test_post_submission_validates_retention_years(
@@ -260,3 +259,71 @@ def test_post_submission_accepts_drive_name_with_fullstop(
             },
         )
         assert response.status_code == 201
+
+
+def test_retry_submission_returns_404_when_missing_submission(
+    client: TestClient,
+) -> None:
+    """Retry endpoint returns 404 when drive has no submission record."""
+    response = client.post("/api/v1/submission/restst000000999-testing/retry")
+    assert response.status_code == 404
+    assert "No archive submission found" in response.json()["detail"]
+
+
+def test_retry_submission_rejects_active_stage(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Retry endpoint returns 409 for active-stage jobs."""
+    submission.stage = JobStage.RUNNING
+    submission.last_updated_timestamp = datetime.now()
+    session.add(submission)
+    session.commit()
+
+    response = client.post(f"/api/v1/submission/{submission.drive_name}/retry")
+    assert response.status_code == 409
+    assert "already has an active archive job" in response.json()["detail"]
+
+
+def test_retry_submission_rejects_completed_stage(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Retry endpoint returns 409 for completed jobs."""
+    submission.stage = JobStage.COMPLETED
+    session.add(submission)
+    session.commit()
+
+    response = client.post(f"/api/v1/submission/{submission.drive_name}/retry")
+    assert response.status_code == 409
+    assert "already been successfully archived" in response.json()["detail"]
+
+
+def test_retry_submission_requeues_failed_job(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Retry endpoint should queue a failed job and increment retry_count."""
+    submission.stage = JobStage.FAILED
+    submission.failure_reason = "ActiveScale upload failed"
+    submission.retry_count = 0
+    session.add(submission)
+    session.commit()
+
+    response = client.post(f"/api/v1/submission/{submission.drive_name}/retry")
+    assert response.status_code == 200
+    assert "queued for retry" in response.json()["message"]
+
+    refreshed = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == submission.drive_name
+        )
+    ).first()
+    assert refreshed is not None
+    assert refreshed.stage == JobStage.QUEUED
+    assert refreshed.failure_reason is None
+    assert refreshed.failed_timestamp is None
+    assert refreshed.retry_count == 1

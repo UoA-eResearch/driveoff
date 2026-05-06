@@ -25,21 +25,25 @@ def init_projectdb(app: FastAPI) -> None:
     Reads base_url and api_key from the application Settings (sourced from
     the mode-specific .env files).
     """
-    settings = get_settings()
-    _log_event(
-        logging.INFO,
-        "projectdb.init_start",
-        base_url=settings.projectdb_base_url,
-    )
-    if not settings.projectdb_base_url or not settings.projectdb_api_key:
-        raise ValueError(
-            "PROJECTDB_BASE_URL and PROJECTDB_API_KEY must be set in the environment."
+    try:
+        settings = get_settings()
+        _log_event(
+            logging.INFO,
+            "projectdb.init_start",
+            base_url=settings.projectdb_base_url,
         )
-    client = ProjectDBClient(
-        base_url=settings.projectdb_base_url,
-        api_key=settings.projectdb_api_key,
-    )
-    app.state.projectdb = client
+        if not settings.projectdb_base_url or not settings.projectdb_api_key:
+            raise ValueError(
+                "PROJECTDB_BASE_URL and PROJECTDB_API_KEY must be set in the environment."
+            )
+        client = ProjectDBClient(
+            base_url=settings.projectdb_base_url,
+            api_key=settings.projectdb_api_key,
+        )
+        app.state.projectdb = client
+    except Exception as e:
+        _log_event(logging.ERROR, "projectdb.init_failed", error=str(e))
+        raise
 
 
 def get_projectdb_client(request: Request) -> Any:
