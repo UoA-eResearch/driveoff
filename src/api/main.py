@@ -115,7 +115,7 @@ ProjectDbDep = Annotated[ProjectDBClient, Depends(get_projectdb_client)]
 async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle method for the API
 
-    This creates DB tables and initialises the ActiveScale and ProjectDB clients 
+    This creates DB tables and initialises the ActiveScale and ProjectDB clients
     during application startup so routes can depend on them.
 
     It also performs reconciliation of any active archive jobs that were in-flight
@@ -127,14 +127,14 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
 
     try:
         _reconcile_interrupted_jobs()
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-exception-caught
         _log_event(
             logging.WARNING,
             "startup.reconciliation_failed",
             error=str(e),
             exc_info=True,
         )
-        
+
     yield
     engine.dispose()
 
@@ -1013,8 +1013,12 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                         metadata={
                             "project_owner": get_project_owner_email(members_list),
                             "division": project_data.get("division") or "Unknown",
-                            "retention_period_years": str(submission.retention_period_years) or "Unknown",
-                            "data_classification": submission.data_classification or "Unknown",
+                            "retention_period_years": str(
+                                submission.retention_period_years
+                            )
+                            or "Unknown",
+                            "data_classification": submission.data_classification
+                            or "Unknown",
                         },
                     )
                 upload_success = success
