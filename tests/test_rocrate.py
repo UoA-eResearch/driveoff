@@ -54,11 +54,7 @@ def test_generate_crate_builder(
         retention_period_years=7,
         retention_period_justification="Standard retention",
         data_classification=DataClassification.SENSITIVE,
-        archive_date=datetime(2024, 10, 13),
-        archive_location="/archive/path",
-        manifest_id=None,
-        is_completed=False,
-        created_timestamp=datetime(2024, 10, 13),
+        started_timestamp=datetime(2024, 10, 13),
     )
 
     ro_project = test_ro_builder.add_project(
@@ -99,10 +95,7 @@ def test_crate_metadata_present(test_ro_builder: ROBuilder) -> None:
             retention_period_years=7,
             retention_period_justification="test",
             data_classification=DataClassification.SENSITIVE,
-            archive_date=datetime.now(),
-            archive_location="/archive/path",
-            manifest_id=None,
-            is_completed=False,
+            started_timestamp=datetime.now(),
         ),
         drive={
             "name": "test",

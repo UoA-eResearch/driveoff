@@ -1,11 +1,20 @@
 """Research drive service initialization and dependency injection for FastAPI."""
 
 from __future__ import annotations
+import json
+import logging
 
 from fastapi import FastAPI, Request
 
 from config import get_settings
 from service.research_drive_smb import ResearchDriveSMB
+
+logger = logging.getLogger(__name__)
+
+
+def _log_event(level: int, event: str, **context: Any) -> None:
+    payload = {"event": event, **context}
+    logger.log(level, json.dumps(payload, default=str))
 
 
 def init_research_drive_service(app: FastAPI) -> None:
@@ -20,32 +29,37 @@ def init_research_drive_service(app: FastAPI) -> None:
     Raises:
         ValueError: If required SMB configuration is missing
     """
-    settings = get_settings()
-
-    # Validate required settings
-    required_settings = {
-        "smb_username": settings.smb_username,
-        "smb_password": settings.smb_password,
-        "smb_drive_base_path": settings.smb_drive_base_path,
-    }
-
-    missing = [name for name, value in required_settings.items() if not value]
-    if missing:
-        raise ValueError(
-            f"SMB configuration incomplete. Missing: {', '.join(missing)}. "
-            "Set SMB_USERNAME, SMB_PASSWORD, and SMB_DRIVE_BASE_PATH in environment."
+    try:
+        settings = get_settings()
+        _log_event(
+            logging.INFO,
+            "research_drive_service.init_start",
+            base_url=settings.smb_drive_base_path,
         )
 
-    # Store SMB configuration on app state for use in endpoints
-    app.state.smb_config = {
-        "username": settings.smb_username,
-        "password": settings.smb_password,
-        "base_path": settings.smb_drive_base_path,
-    }
+        # Validate required settings
+        required_settings = {
+            "smb_username": settings.smb_username,
+            "smb_password": settings.smb_password,
+            "smb_drive_base_path": settings.smb_drive_base_path,
+        }
 
-    print(
-        f"Research drive service initialized with base path: {settings.smb_drive_base_path}"
-    )
+        missing = [name for name, value in required_settings.items() if not value]
+        if missing:
+            raise ValueError(
+                f"SMB configuration incomplete. Missing: {', '.join(missing)}. "
+                "Set SMB_USERNAME, SMB_PASSWORD, and SMB_DRIVE_BASE_PATH in environment."
+            )
+
+        # Store SMB configuration on app state for use in endpoints
+        app.state.smb_config = {
+            "username": settings.smb_username,
+            "password": settings.smb_password,
+            "base_path": settings.smb_drive_base_path,
+        }
+    except Exception as e:
+        _log_event(logging.ERROR, "research_drive_service.init_failed", error=str(e))
+        raise
 
 
 def get_research_drive_smb(drive_name: str, request: Request) -> ResearchDriveSMB:
