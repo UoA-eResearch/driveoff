@@ -1,51 +1,13 @@
 """Scripts for generating file manifests"""
 
 import multiprocessing
-import os
 import shutil
-from collections.abc import Generator
 from pathlib import Path
 
 import bagit
 
 PROCESSES = max(multiprocessing.cpu_count() - 2, 1)
 DEFAULT_CHECKSUM = ["sha256", "sha512"]
-
-
-def _sorted_walk(data_dir: str, dirs_only: bool = False) -> Generator[str, None, None]:
-    "Generate a sorted list of filenames or directory names"
-    for dirpath, dirnames, filenames in os.walk(data_dir):
-        relative_dirpath = Path(dirpath).relative_to(data_dir)
-        dirnames.sort()
-        if len(filenames) > 1000 or dirs_only:
-            for dn in dirnames:
-                path = os.path.join(relative_dirpath, dn)
-                yield path
-        else:
-            filenames.sort()
-            for fn in filenames:
-                path = os.path.join(relative_dirpath, fn)
-                yield path
-
-
-def _encode_filename(s: str) -> str:
-    s = s.replace("\r", "%0D")
-    s = s.replace("\n", "%0A")
-    return s
-
-
-def generate_filelist(drive_path: Path) -> str:
-    """Generate a list of all the files in a path separated by newlines.
-    Sorts on filenames and dirnames to mirror bagit process.
-    """
-    if PROCESSES > 1:
-        with multiprocessing.Pool(processes=PROCESSES) as pool:
-            filenames = pool.map(_encode_filename, _sorted_walk(drive_path.as_posix()))
-        # pool.close()
-        # pool.join()
-    else:
-        filenames = [_encode_filename(i) for i in _sorted_walk(drive_path.as_posix())]
-    return "\n".join(filenames)
 
 
 def bagit_exists(drive_path: Path) -> bool:

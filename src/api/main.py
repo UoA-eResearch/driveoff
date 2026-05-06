@@ -115,27 +115,26 @@ ProjectDbDep = Annotated[ProjectDBClient, Depends(get_projectdb_client)]
 async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle method for the API
 
-    This creates DB tables and initialises the ProjectDB client during
-    application startup so routes can depend on it.
+    This creates DB tables and initialises the ActiveScale and ProjectDB clients 
+    during application startup so routes can depend on them.
+
+    It also performs reconciliation of any active archive jobs that were in-flight
+    when the process last exited, marking them as 'abandoned' so they can be retried.
     """
     create_db_and_tables()
-
-    # initialize external services
-    # initialise ProjectDB client for use in endpoints
-    _reconcile_interrupted_jobs()
+    init_projectdb(app_instance)
+    init_activescale(app_instance)
 
     try:
-        init_projectdb(app_instance)
-    except (RuntimeError, ValueError) as e:
-        # If the ProjectDB client cannot be initialised, allow app to start
-        # but the dependency will raise if used.
-        _log_event(logging.WARNING, "projectdb.init_failed", error=str(e))
-    try:
-        init_activescale(app_instance)
-    except (RuntimeError, ValueError) as e:
-        # If the Activescale client cannot be initialised, allow app to start
-        # but the dependency will raise if used.
-        _log_event(logging.WARNING, "activescale.init_failed", error=str(e))
+        _reconcile_interrupted_jobs()
+    except Exception as e:
+        _log_event(
+            logging.WARNING,
+            "startup.reconciliation_failed",
+            error=str(e),
+            exc_info=True,
+        )
+        
     yield
     engine.dispose()
 
@@ -302,12 +301,9 @@ async def get_drive_info(
         last_day=drive_service.get("last_day") if drive_service else None,
     )
 
-    # Build codes
+    # Build project response
     codes = _build_codes(project_data)
-
-    # Build members
     members = _build_members(members_raw)
-
     project_resp = ProjectResponse(
         id=project_data["id"],
         title=project_data.get("title", ""),

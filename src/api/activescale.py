@@ -88,19 +88,6 @@ def _get_client_config() -> Config:
     )
 
 
-# THREAD SAFETY NOTES:
-# - Boto3 S3 clients are thread-safe for concurrent requests (urllib3 connection
-#   pooling is thread-safe)
-# - We use boto3.Session to manage connection pools efficiently
-# - Clients created from a session are lightweight and reusable
-# - This pattern works for both sync request handlers and async background tasks
-
-# NOTE: Currently handles ActiveScale and S3-compatible services. Future work:
-# - Make this more generic and reusable for other S3-compatible services
-# - Implement ability to create different sessions/clients with specific credentials
-# - Standardize S3 error handling across the codebase
-
-
 _activescale_session: boto3.Session | None = None
 
 
@@ -145,11 +132,9 @@ def init_activescale(app: FastAPI) -> None:
     try:
         _activescale_session = _create_activescale_session()
         app.state.activescale_session = _activescale_session
-    except ValueError:
-        raise
     except Exception as e:
         _log_event(logging.ERROR, "activescale.session.init_failed", error=str(e))
-        raise ValueError("Failed to initialize ActiveScale session.") from e
+        raise
 
 
 def get_activescale_client(request: Request) -> S3Client:
@@ -204,9 +189,9 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
         client.close()
 
 
+######################################################################################
 # S3 interactions - generic for any S3-compatible service. Pass in initialised client.
-
-
+######################################################################################
 class ProgressTracker:  # pylint: disable=too-few-public-methods
     """Tracks upload progress and logs periodic updates with stall detection."""
 
@@ -271,7 +256,6 @@ class ProgressTracker:  # pylint: disable=too-few-public-methods
 def verify_connection(client: S3Client, bucket_name: str) -> bool:
     """Verify S3 client connectivity by attempting to access bucket"""
 
-    # bucket_name = "research-archive-test"
     try:
         client.head_bucket(Bucket=bucket_name)
         _log_event(
