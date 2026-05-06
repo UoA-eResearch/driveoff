@@ -127,7 +127,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
 
     try:
         _reconcile_interrupted_jobs()
-    except Exception as e: # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         _log_event(
             logging.WARNING,
             "startup.reconciliation_failed",
