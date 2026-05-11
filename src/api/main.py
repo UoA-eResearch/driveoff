@@ -24,7 +24,6 @@ from api.activescale import (
     upload_file,
 )
 from api.cors import add_cors_middleware
-from api.fake_resdrive import make_fake_resdrive
 from api.manifests import bag_directory, bagit_exists, create_manifests_directory
 from api.security import ApiKey, validate_api_key, validate_permissions
 from config import get_settings
@@ -56,6 +55,7 @@ from service.research_drive_service import (
     create_research_drive_smb_from_settings,
     init_research_drive_service,
 )
+from service.research_drive_smb import ResearchDriveSMB
 
 def _configure_logging() -> None:
     """Initialize logging once and align root level with configured settings."""
@@ -660,32 +660,6 @@ def _upsert_submission(
     return submission
 
 
-def get_resdrive_path(drive_name: str) -> Path:
-    """Get a path for a research drive, and verify connectivity and access permission."""
-    drive_client = create_research_drive_smb_from_settings(drive_name)
-    try:
-        drive_client.verify_access()
-    except Exception as e:
-        raise FileNotFoundError(
-            f"Research Drive is not accessible or does not exist: {e}"
-        ) from e
-
-    drive_path = drive_client.get_root_path()
-    return drive_path
-
-
-# def get_fake_resdrive_path(drive_name: str) -> Path:
-#     """Get a path for a research drive.
-#     Please update when service acc logic is finalized"""
-#     drive_path = Path.home() / "mnt" / drive_name
-#     ###WHILE TESTING MAKE THE DRIVE
-#     make_fake_resdrive(drive_path)
-#     if not drive_path.is_dir():
-#         raise FileNotFoundError(
-#             "Research Drive must be mounted in order to generate RO-Crate"
-#         )
-#     return drive_path
-
 
 def _cleanup_job_artifacts(
     drive_name: str, output_location: Path
@@ -841,6 +815,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
         project_id: int | None = None
         processing_error: str | None = None
         upload_success = False
+        drive_client: ResearchDriveSMB | None = None
         try:
             submission = session.get(ArchiveSubmission, submission_id)
             if submission is None:
@@ -872,6 +847,13 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 elapsed_ms=_elapsed_ms(started_at),
             )
 
+            # Create and verify SMB client connection (keep open for entire job)
+            drive_client = create_research_drive_smb_from_settings(drive_name)
+            try:
+                drive_client.verify_access()
+            except Exception as e:
+                raise FileNotFoundError(f"Research Drive is not accessible: {e}") from e
+
             # Fetch project and member data from ProjectDB
             project_id = submission.project_id
             _log_event(
@@ -899,11 +881,11 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
             members_list = filter_member_identities(members_list)
 
-            # Create output location
-            drive_path = get_resdrive_path(drive_name)
+            # Source data and output locations
+            drive_path = drive_client.get_root_path()
             drive_location = (
                 drive_path / "Vault"
-            )  # TODO: this is probably not correct (data is not necessarily in Vault subdirectory).
+            )  # TODO: data is not necessarily in Vault subdirectory.
             output_location = drive_path / "Archive"
             output_location.mkdir(parents=True, exist_ok=True)
 
@@ -1189,6 +1171,27 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 exc_info=True,
                 elapsed_ms=_elapsed_ms(started_at),
             )
+        finally:
+            # Always close SMB client connection
+            if drive_client is not None:
+                try:
+                    drive_client.close()
+                    _log_event(
+                        logging.INFO,
+                        "smb_client.closed",
+                        submission_id=submission_id,
+                        drive_name=drive_name,
+                        elapsed_ms=_elapsed_ms(started_at),
+                    )
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    _log_event(
+                        logging.WARNING,
+                        "smb_client.close_failed",
+                        submission_id=submission_id,
+                        drive_name=drive_name,
+                        error=str(e),
+                        elapsed_ms=_elapsed_ms(started_at),
+                    )
 
 
 @app.get(

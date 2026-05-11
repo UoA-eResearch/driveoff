@@ -6,6 +6,7 @@ Supports large file streaming for TB-scale data.
 """
 
 from pathlib import Path
+from types import TracebackType
 from typing import Iterator, Literal
 
 import smbclient
@@ -49,6 +50,7 @@ class ResearchDriveSMB:
         self.password = password
         self._root_path = Path(base_path) / drive_name
         self._server = self._extract_server(base_path)
+        self._session_open = False
         self._register_session()
 
     @staticmethod
@@ -76,6 +78,33 @@ class ResearchDriveSMB:
             username=self.username,
             password=self.password,
         )
+        self._session_open = True
+
+    def close(self) -> None:
+        """Close the cached SMB session for this server.
+
+        smbclient uses a process-wide connection cache. Closing when an operation
+        is complete avoids leaking idle tree/session handles in background jobs.
+        """
+        if not self._session_open:
+            return
+        try:
+            smbclient.delete_session(self._server)
+        finally:
+            self._session_open = False
+
+    def __enter__(self) -> "ResearchDriveSMB":
+        """Support `with` usage for deterministic cleanup."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Always close the SMB session when leaving context."""
+        self.close()
 
     def verify_access(self) -> None:
         """Verify that the drive is accessible and permissions are valid.
@@ -226,3 +255,62 @@ class ResearchDriveSMB:
             raise FileNotFoundError(f"File does not exist: {path}") from e
         except Exception as e:
             raise Exception(f"Error getting file size for {path}: {str(e)}") from e
+
+    def mkdir(self, path: Path) -> None:
+        """Create a directory on the drive.
+
+        Args:
+            path: Directory path (relative to drive root)
+
+        Raises:
+            Exception: If directory creation fails
+        """
+        full_path = str(self._root_path / path)
+        try:
+            smbclient.makedirs(full_path, exist_ok=True)
+        except Exception as e:
+            raise Exception(f"Error creating directory {path}: {str(e)}") from e
+
+    def write_file(self, path: Path, content: bytes | str) -> None:
+        """Write content to a file on the drive.
+
+        Args:
+            path: File path (relative to drive root)
+            content: Bytes or string to write
+
+        Raises:
+            Exception: If write fails
+        """
+        full_path = str(self._root_path / path)
+        try:
+            mode = "w" if isinstance(content, str) else "wb"
+            with smbclient.open_file(full_path, mode=mode) as f:
+                if isinstance(content, str):
+                    f.write(content)  # type: ignore[arg-type]
+                else:
+                    f.write(content)  # type: ignore[arg-type]
+        except Exception as e:
+            raise Exception(f"Error writing file {path}: {str(e)}") from e
+
+    def read_file(self, path: Path, mode: Literal["rb", "r"] = "rb") -> bytes | str:
+        """Read content from a file on the drive.
+
+        Args:
+            path: File path (relative to drive root)
+            mode: Read mode ('rb' for binary, 'r' for text)
+
+        Returns:
+            File content as bytes or string
+
+        Raises:
+            FileNotFoundError: If file does not exist
+            Exception: If read fails
+        """
+        full_path = str(self._root_path / path)
+        try:
+            with smbclient.open_file(full_path, mode=mode) as f:
+                return f.read()
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"File does not exist: {path}") from e
+        except Exception as e:
+            raise Exception(f"Error reading file {path}: {str(e)}") from e
