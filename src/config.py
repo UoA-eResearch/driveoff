@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     smb_username: str = ""
     smb_password: str = ""
     smb_drive_base_path: str = ""
+    # Optional on Linux: local parent mount path that contains per-drive folders.
+    # Example: if drive is mounted at /mnt/research/<drive_name>, set to /mnt/research.
+    smb_linux_mount_base_path: str = ""
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 

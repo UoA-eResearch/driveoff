@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
@@ -88,6 +89,35 @@ def _log_event(
 def _elapsed_ms(started_at: datetime) -> int:
     """Compute elapsed milliseconds from a start timestamp."""
     return int((datetime.now() - started_at).total_seconds() * 1000)
+
+
+def _resolve_drive_path_for_archive(
+    drive_client: ResearchDriveSMB, drive_name: str
+) -> Path:
+    """Resolve a filesystem path usable by bagit/rocrate for archive operations.
+
+    On Linux, UNC paths (//server/share) are not valid local filesystem targets.
+    In that case, require SMB_LINUX_MOUNT_BASE_PATH and resolve to:
+    <mount_base>/<drive_name>.
+    """
+    drive_path = drive_client.get_root_path()
+    if os.name == "nt" or not str(drive_path).startswith("//"):
+        return drive_path
+
+    mount_base = get_settings().smb_linux_mount_base_path.strip()
+    if not mount_base:
+        raise RuntimeError(
+            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when "
+            "SMB_DRIVE_BASE_PATH is a UNC path."
+        )
+
+    mounted_drive_path = Path(mount_base) / drive_name
+    if not mounted_drive_path.exists():
+        raise FileNotFoundError(
+            "Configured mounted drive path does not exist: "
+            f"{mounted_drive_path}. Ensure the CIFS mount is available."
+        )
+    return mounted_drive_path
 
 
 # Ensure driveoff directory is created
@@ -882,10 +912,20 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             members_list = filter_member_identities(members_list)
 
             # Source data and output locations
-            drive_path = drive_client.get_root_path()
-            drive_location = (
-                drive_path / "Vault"
-            )  # TODO: data is not necessarily in Vault subdirectory.
+            drive_path = _resolve_drive_path_for_archive(drive_client, drive_name)
+            drive_location = drive_path / "Vault"
+            if not drive_location.exists():
+                drive_location = drive_path
+                _log_event(
+                    logging.WARNING,
+                    "crate.build.source_fallback",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    requested_source="Vault",
+                    fallback_source="drive_root",
+                    elapsed_ms=_elapsed_ms(started_at),
+                )
+
             output_location = drive_path / "Archive"
             output_location.mkdir(parents=True, exist_ok=True)
 

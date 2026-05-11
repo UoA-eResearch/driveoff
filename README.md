@@ -20,6 +20,10 @@ Web frontend: Vite has been configured to read from `modes` directory - see `web
 
 FastAPI backend: See `src/config.py` and [pydantic-settings page](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
 
+Linux note for SMB archive jobs:
+- If `SMB_DRIVE_BASE_PATH` is configured as a UNC path (for example `//server/share`), set `SMB_LINUX_MOUNT_BASE_PATH` to the local CIFS mount parent (for example `/mnt/research`).
+- Drive paths are then resolved as `<SMB_LINUX_MOUNT_BASE_PATH>/<drive_name>` for bagit/RO-Crate filesystem operations.
+
 ## Local Python Tasks
 This project defines local developer tasks in `pyproject.toml` using `poethepoet`.
 

@@ -6,6 +6,7 @@ Supports large file streaming for TB-scale data.
 """
 
 from pathlib import Path
+import shutil
 from types import TracebackType
 from typing import Iterator, Literal
 
@@ -314,3 +315,54 @@ class ResearchDriveSMB:
             raise FileNotFoundError(f"File does not exist: {path}") from e
         except Exception as e:
             raise Exception(f"Error reading file {path}: {str(e)}") from e
+
+    def copy_tree_to_local(self, remote_path: Path, local_destination: Path) -> None:
+        """Recursively copy a file or directory from SMB to local filesystem.
+
+        Args:
+            remote_path: Source path relative to drive root
+            local_destination: Local destination path
+
+        Raises:
+            FileNotFoundError: If remote path does not exist
+            Exception: If copy fails
+        """
+        full_remote_path = str(self._root_path / remote_path)
+
+        try:
+            stat_info = smbclient.stat(full_remote_path)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Remote source does not exist: {remote_path}"
+            ) from e
+        except Exception as e:
+            raise Exception(
+                f"Error accessing remote source {remote_path}: {str(e)}"
+            ) from e
+
+        is_dir = bool(stat_info.st_file_attributes & 0x10)
+        if is_dir:
+            local_destination.mkdir(parents=True, exist_ok=True)
+            try:
+                entries = smbclient.listdir(full_remote_path)
+            except Exception as e:
+                raise Exception(
+                    f"Error listing remote directory {remote_path}: {str(e)}"
+                ) from e
+
+            for entry in entries:
+                child_remote = remote_path / entry
+                child_local = local_destination / entry
+                self.copy_tree_to_local(child_remote, child_local)
+            return
+
+        local_destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with smbclient.open_file(full_remote_path, mode="rb") as src:
+                with open(local_destination, "wb") as dst:
+                    shutil.copyfileobj(src, dst, length=1024 * 1024)
+        except Exception as e:
+            raise Exception(
+                f"Error copying remote file {remote_path} to local path "
+                f"{local_destination}: {str(e)}"
+            ) from e
