@@ -3,6 +3,7 @@
 from __future__ import annotations
 import json
 import logging
+from typing import Any
 
 from fastapi import FastAPI, Request
 
@@ -28,6 +29,7 @@ def init_research_drive_service(app: FastAPI) -> None:
 
     Raises:
         ValueError: If required SMB configuration is missing
+        Exception: For any other initialization errors
     """
     try:
         settings = get_settings()
@@ -89,4 +91,28 @@ def get_research_drive_smb(drive_name: str, request: Request) -> ResearchDriveSM
         base_path=smb_config["base_path"],
         username=smb_config["username"],
         password=smb_config["password"],
+    )
+
+
+def create_research_drive_smb_from_settings(drive_name: str) -> ResearchDriveSMB:
+    """Create a research drive instance using global app settings.
+
+    Useful for background tasks where FastAPI Request is not available.
+    """
+    settings = get_settings()
+    if (
+        not settings.smb_username
+        or not settings.smb_password
+        or not settings.smb_drive_base_path
+    ):
+        raise RuntimeError(
+            "SMB settings are missing. Ensure SMB_USERNAME, SMB_PASSWORD, "
+            "and SMB_DRIVE_BASE_PATH are configured."
+        )
+
+    return ResearchDriveSMB(
+        drive_name=drive_name,
+        base_path=settings.smb_drive_base_path,
+        username=settings.smb_username,
+        password=settings.smb_password,
     )

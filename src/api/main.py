@@ -15,7 +15,6 @@ from typing import Annotated, Any, cast
 
 import requests
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Security, status
-import smbclient
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from api.activescale import (
@@ -53,8 +52,10 @@ from models.submission import (
 )
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
-from service.research_drive_service import init_research_drive_service
-
+from service.research_drive_service import (
+    create_research_drive_smb_from_settings,
+    init_research_drive_service,
+)
 
 def _configure_logging() -> None:
     """Initialize logging once and align root level with configured settings."""
@@ -661,33 +662,29 @@ def _upsert_submission(
 
 def get_resdrive_path(drive_name: str) -> Path:
     """Get a path for a research drive, and verify connectivity and access permission."""
-    drive_path = Path(f"//files.auckland.ac.nz/research/{drive_name}")
-    # use smbclient to check if the drive is accessible before proceeding, to avoid generating a crate and then failing when we try to read files.
+    drive_client = create_research_drive_smb_from_settings(drive_name)
     try:
-        smbclient.open_file(
-            f"{drive_path}/test.txt", mode="r"
-        )  # TODO: need to properly instantiate the smbclient with service account credentials for this to work, and also need to decide on a better way to check connectivity than looking for a specific test file.
-    except Exception:
-        raise FileNotFoundError("Research Drive is not accessible or does not exist.")
-
-    if not drive_path.is_dir():
+        drive_client.verify_access()
+    except Exception as e:
         raise FileNotFoundError(
-            "Research Drive must be mounted in order to generate RO-Crate"
-        )
+            f"Research Drive is not accessible or does not exist: {e}"
+        ) from e
+
+    drive_path = drive_client.get_root_path()
     return drive_path
 
 
-def get_fake_resdrive_path(drive_name: str) -> Path:
-    """Get a path for a research drive.
-    Please update when service acc logic is finalized"""
-    drive_path = Path.home() / "mnt" / drive_name
-    ###WHILE TESTING MAKE THE DRIVE
-    make_fake_resdrive(drive_path)
-    if not drive_path.is_dir():
-        raise FileNotFoundError(
-            "Research Drive must be mounted in order to generate RO-Crate"
-        )
-    return drive_path
+# def get_fake_resdrive_path(drive_name: str) -> Path:
+#     """Get a path for a research drive.
+#     Please update when service acc logic is finalized"""
+#     drive_path = Path.home() / "mnt" / drive_name
+#     ###WHILE TESTING MAKE THE DRIVE
+#     make_fake_resdrive(drive_path)
+#     if not drive_path.is_dir():
+#         raise FileNotFoundError(
+#             "Research Drive must be mounted in order to generate RO-Crate"
+#         )
+#     return drive_path
 
 
 def _cleanup_job_artifacts(
@@ -784,6 +781,12 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
         drive_name=submission.drive_name,
     )
     ro_crate_loader.write_crate(ro_crate_location)
+
+    _log_event(
+        logging.INFO,
+        "bag_directory.start",
+        drive_name=submission.drive_name,
+    )
     bag_directory(
         drive_location,
         bag_info={
@@ -833,7 +836,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
     # Create a new session for this background task
     with Session(engine) as session:
         submission: ArchiveSubmission | None = None
-        output_location = Path.home() / "mnt" / str(drive_name) / "Archive"
+        output_location = Path()
         file_key: str | None = None
         project_id: int | None = None
         processing_error: str | None = None
@@ -896,13 +899,13 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
             members_list = filter_member_identities(members_list)
 
-            # Generate RO-Crate
-            # TODO: For testing, we are using a fake ResDrive path with dummy data. Update to the real get_resdrive_path() when service account logic is finalized.
-            drive_path = get_fake_resdrive_path(drive_name)
+            # Create output location
+            drive_path = get_resdrive_path(drive_name)
             drive_location = (
                 drive_path / "Vault"
             )  # TODO: this is probably not correct (data is not necessarily in Vault subdirectory).
             output_location = drive_path / "Archive"
+            output_location.mkdir(parents=True, exist_ok=True)
 
             _log_event(
                 logging.INFO,

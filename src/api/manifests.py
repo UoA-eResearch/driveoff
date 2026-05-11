@@ -7,7 +7,7 @@ from pathlib import Path
 import bagit
 
 PROCESSES = max(multiprocessing.cpu_count() - 2, 1)
-DEFAULT_CHECKSUM = ["sha256", "sha512"]
+DEFAULT_CHECKSUM = ["sha512"]
 
 
 def bagit_exists(drive_path: Path) -> bool:
