@@ -215,7 +215,7 @@ def _reconcile_interrupted_jobs() -> None:
         )
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="Research Drive Archive API", version="1.0.0")
 
 # Send CORS headers to enable frontend to contact API.
 add_cors_middleware(app)
