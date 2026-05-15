@@ -21,7 +21,6 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from api.activescale import (
     get_activescale_client_context,
     init_activescale,
-    object_exists,
     upload_file,
 )
 from api.cors import add_cors_middleware
@@ -1067,53 +1066,24 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 bucket_name = "research-archive-test"
                 file_key = f"ro-crates/{drive_name}/{drive_name}.zip"
 
-                # Check if object already exists on S3 and skip upload if so
-                _log_event(
-                    logging.INFO,
-                    "S3.object_exists.check_start",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    file_key=file_key,
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
+                # If an object with the same key already exists, a new version will be created (ActiveScale versioning must be enabled on the bucket).
+                upload_success = upload_file(
+                    client,
+                    bucket_name,
+                    file_key,
+                    file_path=str(output_location / f"{drive_name}.zip"),
+                    timeout=get_settings().activescale_upload_timeout,
+                    metadata={
+                        "project_owner": get_project_owner_email(members_list),
+                        "division": project_data.get("division") or "Unknown",
+                        "retention_period_years": str(
+                            submission.retention_period_years
+                        )
+                        or "Unknown",
+                        "data_classification": submission.data_classification
+                        or "Unknown",
+                    },
                 )
-                obj_exists, obj_metadata = object_exists(client, bucket_name, file_key)
-                if obj_exists:
-                    _log_event(
-                        logging.INFO,
-                        "S3.upload.skipped",
-                        submission_id=submission_id,
-                        drive_name=drive_name,
-                        file_key=file_key,
-                        reason="object already exists on S3",
-                        object_size_bytes=(
-                            obj_metadata.get("content_length") if obj_metadata else None
-                        ),
-                        stage=submission.stage.value,
-                        retry_count=submission.retry_count,
-                        elapsed_ms=_elapsed_ms(started_at),
-                    )
-                    success = True
-                else:
-                    success = upload_file(
-                        client,
-                        bucket_name,
-                        file_key,
-                        file_path=str(output_location / f"{drive_name}.zip"),
-                        timeout=get_settings().activescale_upload_timeout,
-                        metadata={
-                            "project_owner": get_project_owner_email(members_list),
-                            "division": project_data.get("division") or "Unknown",
-                            "retention_period_years": str(
-                                submission.retention_period_years
-                            )
-                            or "Unknown",
-                            "data_classification": submission.data_classification
-                            or "Unknown",
-                        },
-                    )
-                upload_success = success
 
             # Transition: uploading → cleanup
             previous_stage = submission.stage
