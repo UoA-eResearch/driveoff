@@ -1,12 +1,17 @@
 """Scripts for generating file manifests"""
 
 import multiprocessing
+import os
 import shutil
 from pathlib import Path
 
 import bagit
 
-PROCESSES = max(multiprocessing.cpu_count() - 2, 1)
+# bagit uses multiprocessing.Pool for checksum generation when processes > 1.
+# On Linux, exceptions raised during bagging can leave semaphore resources
+# behind at shutdown, so we keep it single-process there for deterministic
+# cleanup.
+PROCESSES = 1 if os.name != "nt" else max(multiprocessing.cpu_count() - 2, 1)
 DEFAULT_CHECKSUM = ["sha512"]
 
 
