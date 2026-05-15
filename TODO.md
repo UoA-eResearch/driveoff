@@ -1,8 +1,5 @@
 # TODO
 
-## Core Integrations
-- [ ] Implement mapping to real research drives (service account or temporary credentials). Evaluate `smbprotocol` or equivalent for traversing and processing drive contents.
-
 ## Scale and Performance
 - [ ] Add configurable limits for archive jobs (for example max files, max bytes, max runtime) and enforce them in backend checks.
 - [ ] Optimise for large drives and high file counts (streaming, batching, incremental processing or splitting into multiple RO-Crates). Max file size for ActiveScale is 50TB. 

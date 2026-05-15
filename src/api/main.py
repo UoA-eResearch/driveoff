@@ -51,11 +51,6 @@ from models.submission import (
 )
 from service.projectdb import get_projectdb_client, init_projectdb
 from service.projectdb_client import ProjectDBClient
-from service.research_drive_service import (
-    create_research_drive_smb_from_settings,
-    init_research_drive_service,
-)
-from service.research_drive_smb import ResearchDriveSMB
 
 
 def _configure_logging() -> None:
@@ -133,20 +128,21 @@ def _validate_archive_path_configuration() -> None:
     )
 
 
-def _resolve_drive_path_for_archive(
-    drive_client: ResearchDriveSMB, drive_name: str
-) -> Path:
+def _resolve_drive_path_for_archive(drive_name: str) -> Path:
     """Resolve a filesystem path usable by bagit/rocrate for archive operations.
 
     On Linux, UNC paths (//server/share) are not valid local filesystem targets.
     In that case, require SMB_LINUX_MOUNT_BASE_PATH and resolve to:
     <mount_base>/<drive_name>.
     """
-    drive_path = drive_client.get_root_path()
+    settings = get_settings()
+    smb_base = settings.smb_drive_base_path.strip()
+    drive_path = Path(smb_base) / drive_name
+
     if _is_windows_runtime() or not str(drive_path).startswith("//"):
         return drive_path
 
-    mount_base = get_settings().smb_linux_mount_base_path.strip()
+    mount_base = settings.smb_linux_mount_base_path.strip()
     if not mount_base:
         raise RuntimeError(
             "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when "
@@ -160,6 +156,55 @@ def _resolve_drive_path_for_archive(
             f"{mounted_drive_path}. Ensure the CIFS mount is available."
         )
     return mounted_drive_path
+
+
+def _prepare_archive_paths(
+    drive_path: Path, drive_name: str, started_at: datetime, submission_id: int
+) -> tuple[Path, Path]:
+    """Resolve and validate source/output paths with concrete IO checks.
+
+    This verifies the drive path can be read and archive output can be written.
+    """
+    if not drive_path.exists() or not drive_path.is_dir():
+        raise FileNotFoundError(
+            f"Drive path does not exist or is not a directory: {drive_path}"
+        )
+
+    drive_location = drive_path / "Vault"
+    if not drive_location.exists():
+        drive_location = drive_path
+        _log_event(
+            logging.WARNING,
+            "crate.build.source_fallback",
+            submission_id=submission_id,
+            drive_name=drive_name,
+            requested_source="Vault",
+            fallback_source="drive_root",
+            elapsed_ms=_elapsed_ms(started_at),
+        )
+
+    # Read probe to validate source permissions before heavy processing starts.
+    try:
+        _ = next(drive_location.iterdir(), None)
+    except Exception as e:
+        raise PermissionError(
+            f"Cannot read source directory {drive_location}: {e}"
+        ) from e
+
+    output_location = drive_path / "Archive"
+    output_location.mkdir(parents=True, exist_ok=True)
+
+    probe_file = output_location / ".driveoff_write_probe"
+    try:
+        with open(probe_file, "wb") as f:
+            f.write(b"ok")
+        probe_file.unlink(missing_ok=True)
+    except Exception as e:
+        raise PermissionError(
+            f"Cannot write to archive directory {output_location}: {e}"
+        ) from e
+
+    return drive_location, output_location
 
 
 # Ensure driveoff directory is created
@@ -200,7 +245,6 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     create_db_and_tables()
     _validate_archive_path_configuration()
     init_projectdb(app_instance)
-    init_research_drive_service(app_instance)
     init_activescale(app_instance)
 
     try:
@@ -922,7 +966,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
         project_id: int | None = None
         processing_error: str | None = None
         upload_success = False
-        drive_client: ResearchDriveSMB | None = None
         try:
             submission = session.get(ArchiveSubmission, submission_id)
             if submission is None:
@@ -954,13 +997,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 elapsed_ms=_elapsed_ms(started_at),
             )
 
-            # Create and verify SMB client connection (keep open for entire job)
-            drive_client = create_research_drive_smb_from_settings(drive_name)
-            try:
-                drive_client.verify_access()
-            except Exception as e:
-                raise FileNotFoundError(f"Research Drive is not accessible: {e}") from e
-
             # Fetch project and member data from ProjectDB
             project_id = submission.project_id
             _log_event(
@@ -988,23 +1024,14 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
             members_list = filter_member_identities(members_list)
 
-            # Source data and output locations
-            drive_path = _resolve_drive_path_for_archive(drive_client, drive_name)
-            drive_location = drive_path / "Vault"
-            if not drive_location.exists():
-                drive_location = drive_path
-                _log_event(
-                    logging.WARNING,
-                    "crate.build.source_fallback",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    requested_source="Vault",
-                    fallback_source="drive_root",
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
-
-            output_location = drive_path / "Archive"
-            output_location.mkdir(parents=True, exist_ok=True)
+            # Source data and output locations with concrete read/write probes.
+            drive_path = _resolve_drive_path_for_archive(drive_name)
+            drive_location, output_location = _prepare_archive_paths(
+                drive_path,
+                drive_name,
+                started_at,
+                submission_id,
+            )
 
             _log_event(
                 logging.INFO,
@@ -1258,27 +1285,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 exc_info=True,
                 elapsed_ms=_elapsed_ms(started_at),
             )
-        finally:
-            # Always close SMB client connection
-            if drive_client is not None:
-                try:
-                    drive_client.close()
-                    _log_event(
-                        logging.INFO,
-                        "smb_client.closed",
-                        submission_id=submission_id,
-                        drive_name=drive_name,
-                        elapsed_ms=_elapsed_ms(started_at),
-                    )
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    _log_event(
-                        logging.WARNING,
-                        "smb_client.close_failed",
-                        submission_id=submission_id,
-                        drive_name=drive_name,
-                        error=str(e),
-                        elapsed_ms=_elapsed_ms(started_at),
-                    )
 
 
 @app.get(
