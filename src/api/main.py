@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import platform
 import shutil
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
@@ -91,6 +91,48 @@ def _elapsed_ms(started_at: datetime) -> int:
     return int((datetime.now() - started_at).total_seconds() * 1000)
 
 
+def _is_windows_runtime() -> bool:
+    """Return True when running on Windows.
+
+    Uses platform.system() instead of os.name to avoid some static analyzers
+    folding branches as unreachable based on host/editor platform settings.
+    """
+    return platform.system().lower().startswith("win")
+
+
+def _validate_archive_path_configuration() -> None:
+    """Validate archive path configuration at startup.
+
+    On non-Windows with UNC SMB base paths, a local mount base is required so
+    bagit/rocrate can perform filesystem operations.
+    """
+    settings = get_settings()
+    smb_base = settings.smb_drive_base_path.strip()
+    if _is_windows_runtime() or not smb_base.startswith("//"):
+        return
+
+    mount_base = settings.smb_linux_mount_base_path.strip()
+    if not mount_base:
+        raise RuntimeError(
+            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when "
+            "SMB_DRIVE_BASE_PATH is a UNC path."
+        )
+
+    mount_path = Path(mount_base)
+    if not mount_path.exists() or not mount_path.is_dir():
+        raise RuntimeError(
+            "Configured SMB_LINUX_MOUNT_BASE_PATH is invalid: "
+            f"{mount_path}. Ensure the CIFS mount parent exists."
+        )
+
+    _log_event(
+        logging.INFO,
+        "startup.archive_path_config_validated",
+        smb_drive_base_path=smb_base,
+        smb_linux_mount_base_path=str(mount_path),
+    )
+
+
 def _resolve_drive_path_for_archive(
     drive_client: ResearchDriveSMB, drive_name: str
 ) -> Path:
@@ -101,7 +143,7 @@ def _resolve_drive_path_for_archive(
     <mount_base>/<drive_name>.
     """
     drive_path = drive_client.get_root_path()
-    if os.name == "nt" or not str(drive_path).startswith("//"):
+    if _is_windows_runtime() or not str(drive_path).startswith("//"):
         return drive_path
 
     mount_base = get_settings().smb_linux_mount_base_path.strip()
@@ -156,6 +198,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     when the process last exited, marking them as 'abandoned' so they can be retried.
     """
     create_db_and_tables()
+    _validate_archive_path_configuration()
     init_projectdb(app_instance)
     init_research_drive_service(app_instance)
     init_activescale(app_instance)
@@ -688,7 +731,6 @@ def _upsert_submission(
             detail="Failed to create archive submission record.",
         )
     return submission
-
 
 
 def _cleanup_job_artifacts(
