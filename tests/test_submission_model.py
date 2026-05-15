@@ -62,15 +62,15 @@ def test_submission_with_activescale_metadata(
     submission_data: dict[str, Any],
 ) -> None:
     """Tests submission with ActiveScale upload metadata."""
-    submission_data["activescale_file_key"] = "ro-crates/test-drive/archive.zip"
+    submission_data["activescale_file_key"] = "archive.zip"
     instance = ArchiveSubmission.model_validate(submission_data)
-    assert instance.activescale_file_key == "ro-crates/test-drive/archive.zip"
+    assert instance.activescale_file_key == "archive.zip"
 
 
 def test_submission_with_failed_upload(
     submission_data: dict[str, Any],
 ) -> None:
     """Tests submission with failed upload metadata."""
-    submission_data["activescale_file_key"] = "ro-crates/test-drive/archive.zip"
+    submission_data["activescale_file_key"] = "archive.zip"
     instance = ArchiveSubmission.model_validate(submission_data)
-    assert instance.activescale_file_key == "ro-crates/test-drive/archive.zip"
+    assert instance.activescale_file_key == "archive.zip"

@@ -1064,7 +1064,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             with get_activescale_client_context() as client:
                 # Upload to ActiveScale with drive_name as the key
                 bucket_name = "research-archive-test"
-                file_key = f"ro-crates/{drive_name}/{drive_name}.zip"
+                file_key = f"{drive_name}.zip"
 
                 # If an object with the same key already exists, a new version will be created (ActiveScale versioning must be enabled on the bucket).
                 upload_success = upload_file(
