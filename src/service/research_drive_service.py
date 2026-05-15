@@ -1,6 +1,7 @@
 """Research drive service initialization and dependency injection for FastAPI."""
 
 from __future__ import annotations
+
 import json
 import logging
 from typing import Any

@@ -57,6 +57,7 @@ from service.research_drive_service import (
 )
 from service.research_drive_smb import ResearchDriveSMB
 
+
 def _configure_logging() -> None:
     """Initialize logging once and align root level with configured settings."""
     root_logger = logging.getLogger()
@@ -434,12 +435,30 @@ async def create_submission(
         )
     ).first()
 
-    if existing_submission and existing_submission.stage == JobStage.COMPLETED:
+    if (
+        existing_submission
+        and existing_submission.stage == JobStage.COMPLETED
+        and not request.force
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"Drive {request.drive_name} has already been successfully archived."
+                " Use force=true to re-run."
             ),
+        )
+
+    if (
+        existing_submission
+        and existing_submission.stage == JobStage.COMPLETED
+        and request.force
+    ):
+        _log_event(
+            logging.WARNING,
+            "submission.force_rerun",
+            drive_name=request.drive_name,
+            previous_stage=existing_submission.stage.value,
+            submission_id=existing_submission.id,
         )
 
     if existing_submission and existing_submission.stage in ACTIVE_STAGES:
@@ -533,7 +552,10 @@ async def retry_submission(
     background_tasks: BackgroundTasks,
     projectdb: ProjectDbDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> CreateSubmissionResponse:
+    force: bool = False,
+) -> (
+    CreateSubmissionResponse
+):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Retry a failed or abandoned archive job for a research drive."""
     validate_permissions("POST", api_key)
 
@@ -557,19 +579,33 @@ async def retry_submission(
             ),
         )
 
-    if submission.stage == JobStage.COMPLETED:
+    if submission.stage == JobStage.COMPLETED and not force:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Drive {drive_name} has already been successfully archived.",
+            detail=(
+                f"Drive {drive_name} has already been successfully archived."
+                " Use force=true to re-run."
+            ),
         )
 
-    if submission.stage not in RETRYABLE_STAGES:
+    if submission.stage not in RETRYABLE_STAGES and not (
+        force and submission.stage == JobStage.COMPLETED
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"Drive {drive_name} submission is in stage '{submission.stage.value}'"
                 " which cannot be retried."
             ),
+        )
+
+    if force and submission.stage == JobStage.COMPLETED:
+        _log_event(
+            logging.WARNING,
+            "submission.force_rerun",
+            drive_name=drive_name,
+            previous_stage=submission.stage.value,
+            submission_id=submission.id,
         )
 
     # Reset to QUEUED for the new attempt
@@ -846,7 +882,7 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
     )
 
 
-async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-statements
+async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     drive: dict[str, Any],
     submission_id: int,
     projectdb_client: ProjectDBClient,
@@ -1066,7 +1102,8 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 bucket_name = "research-archive-test"
                 file_key = f"{drive_name}.zip"
 
-                # If an object with the same key already exists, a new version will be created (ActiveScale versioning must be enabled on the bucket).
+                # If an object with the same key already exists, a new version
+                # will be created (ActiveScale versioning must be enabled on the bucket).
                 upload_success = upload_file(
                     client,
                     bucket_name,
@@ -1076,9 +1113,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                     metadata={
                         "project_owner": get_project_owner_email(members_list),
                         "division": project_data.get("division") or "Unknown",
-                        "retention_period_years": str(
-                            submission.retention_period_years
-                        )
+                        "retention_period_years": str(submission.retention_period_years)
                         or "Unknown",
                         "data_classification": submission.data_classification
                         or "Unknown",

@@ -327,3 +327,64 @@ def test_retry_submission_requeues_failed_job(
     assert refreshed.failure_reason is None
     assert refreshed.failed_timestamp is None
     assert refreshed.retry_count == 1
+
+
+def test_post_submission_force_reruns_completed_job(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """force=true on POST /submission allows re-running a completed archive job."""
+    submission.stage = JobStage.COMPLETED
+    session.add(submission)
+    session.commit()
+
+    with patch("api.main.generate_ro_crate_async"):
+        response = client.post(
+            "/api/v1/submission",
+            json={
+                "drive_name": "restst000000001-testing",
+                "project_id": 123,
+                "retention_period_years": 7,
+                "retention_period_justification": "Re-archive after data update",
+                "data_classification": "Sensitive",
+                "force": True,
+            },
+        )
+    assert response.status_code == 201
+    assert "Archive submission updated" in response.json()["message"]
+
+    refreshed = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == "restst000000001-testing"
+        )
+    ).first()
+    assert refreshed is not None
+    assert refreshed.stage == JobStage.QUEUED
+
+
+def test_retry_submission_force_reruns_completed_job(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """force=true on retry endpoint allows re-running a completed archive job."""
+    submission.stage = JobStage.COMPLETED
+    submission.retry_count = 0
+    session.add(submission)
+    session.commit()
+
+    response = client.post(
+        f"/api/v1/submission/{submission.drive_name}/retry", params={"force": "true"}
+    )
+    assert response.status_code == 200
+    assert "queued for retry" in response.json()["message"]
+
+    refreshed = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == submission.drive_name
+        )
+    ).first()
+    assert refreshed is not None
+    assert refreshed.stage == JobStage.QUEUED
+    assert refreshed.retry_count == 1

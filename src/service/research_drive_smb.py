@@ -5,10 +5,10 @@ Handles authentication with service account credentials.
 Supports large file streaming for TB-scale data.
 """
 
-from pathlib import Path
 import shutil
+from pathlib import Path
 from types import TracebackType
-from typing import Iterator, Literal
+from typing import IO, Iterator, Literal
 
 import smbclient
 
@@ -207,7 +207,9 @@ class ResearchDriveSMB:
         except Exception as e:
             raise Exception(f"Error listing directory {path}: {str(e)}") from e
 
-    def open_file(self, path: Path, mode: Literal["rb", "r"] = "rb"):
+    def open_file(
+        self, path: Path, mode: Literal["rb", "r"] = "rb"
+    ) -> IO[bytes] | IO[str]:
         """Open a file for reading.
 
         Supports streaming to handle large files without loading
@@ -227,7 +229,7 @@ class ResearchDriveSMB:
         full_path = str(self._root_path / path)
         try:
             # Open file using smbclient
-            file_obj = smbclient.open_file(full_path, mode=mode)
+            file_obj: IO[bytes] | IO[str] = smbclient.open_file(full_path, mode=mode)
             return file_obj
         except FileNotFoundError as e:
             raise FileNotFoundError(f"File does not exist: {path}") from e
@@ -251,7 +253,7 @@ class ResearchDriveSMB:
         try:
             full_path = str(self._root_path / path)
             stat_info = smbclient.stat(full_path)
-            return stat_info.st_size
+            return int(stat_info.st_size)
         except FileNotFoundError as e:
             raise FileNotFoundError(f"File does not exist: {path}") from e
         except Exception as e:
@@ -286,10 +288,7 @@ class ResearchDriveSMB:
         try:
             mode = "w" if isinstance(content, str) else "wb"
             with smbclient.open_file(full_path, mode=mode) as f:
-                if isinstance(content, str):
-                    f.write(content)  # type: ignore[arg-type]
-                else:
-                    f.write(content)  # type: ignore[arg-type]
+                f.write(content)
         except Exception as e:
             raise Exception(f"Error writing file {path}: {str(e)}") from e
 
@@ -310,7 +309,8 @@ class ResearchDriveSMB:
         full_path = str(self._root_path / path)
         try:
             with smbclient.open_file(full_path, mode=mode) as f:
-                return f.read()
+                result: bytes | str = f.read()
+                return result
         except FileNotFoundError as e:
             raise FileNotFoundError(f"File does not exist: {path}") from e
         except Exception as e:
