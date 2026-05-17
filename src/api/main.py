@@ -10,7 +10,7 @@ import platform
 import shutil
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -158,12 +158,56 @@ def _resolve_drive_path_for_archive(drive_name: str) -> Path:
     return mounted_drive_path
 
 
+def _validate_archive_path_access(drive_name: str) -> Path:
+    """Validate drive path can be read and written before scheduling archive job.
+
+    Synchronous validation to be called from submission endpoints (before 201).
+    Resolves the archive path and validates read/write permissions early.
+    """
+    drive_path = _resolve_drive_path_for_archive(drive_name)
+
+    if not drive_path.exists() or not drive_path.is_dir():
+        raise FileNotFoundError(
+            f"Drive path does not exist or is not a directory: {drive_path}"
+        )
+
+    # Resolve source path (Vault or fallback)
+    drive_location = drive_path / "Vault"
+    if not drive_location.exists():
+        drive_location = drive_path
+
+    # Read probe to validate source permissions
+    try:
+        _ = next(drive_location.iterdir(), None)
+    except Exception as e:
+        raise PermissionError(
+            f"Cannot read source directory {drive_location}: {e}"
+        ) from e
+
+    # Validate archive output writable
+    output_location = drive_path / "Archive"
+    output_location.mkdir(parents=True, exist_ok=True)
+
+    probe_file = output_location / ".driveoff_write_probe"
+    try:
+        with open(probe_file, "wb") as f:
+            f.write(b"ok")
+        probe_file.unlink(missing_ok=True)
+    except Exception as e:
+        raise PermissionError(
+            f"Cannot write to archive directory {output_location}: {e}"
+        ) from e
+
+    return drive_path
+
+
 def _prepare_archive_paths(
     drive_path: Path, drive_name: str, started_at: datetime, submission_id: int
 ) -> tuple[Path, Path]:
     """Resolve and validate source/output paths with concrete IO checks.
 
     This verifies the drive path can be read and archive output can be written.
+    Called from background task (paths already validated synchronously before job).
     """
     if not drive_path.exists() or not drive_path.is_dir():
         raise FileNotFoundError(
@@ -519,6 +563,10 @@ async def create_submission(
         drive = _validate_drive(projectdb, request.drive_name)
         project_id = _resolve_project_id(projectdb, drive, request)
 
+        # Validate drive paths are accessible before creating submission record
+        # This ensures we fail fast with clear errors before returning 201
+        _validate_archive_path_access(request.drive_name)
+
         submission = _upsert_submission(
             session,
             existing_submission,
@@ -681,6 +729,10 @@ async def retry_submission(
         )
 
     drive = _validate_drive(projectdb, drive_name)
+
+    # Validate drive paths are accessible before scheduling the job
+    _validate_archive_path_access(drive_name)
+
     background_tasks.add_task(
         generate_ro_crate_async,
         drive,
@@ -1138,12 +1190,23 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                     file_path=str(output_location / f"{drive_name}.zip"),
                     timeout=get_settings().activescale_upload_timeout,
                     metadata={
+                        "project_id": str(project_data.get("id", "")),
                         "project_owner": get_project_owner_email(members_list),
                         "division": project_data.get("division") or "Unknown",
-                        "retention_period_years": str(submission.retention_period_years)
-                        or "Unknown",
                         "data_classification": submission.data_classification
                         or "Unknown",
+                        "retention_period_years": str(submission.retention_period_years)
+                        or "Unknown",
+                        "review_date": (  # Calculate review date based on retention period,
+                            (
+                                datetime.now()
+                                + timedelta(
+                                    days=365 * submission.retention_period_years
+                                )
+                            ).strftime("%Y-%m-%d")
+                            if submission.retention_period_years is not None
+                            else "Unknown"
+                        ),
                     },
                 )
 
