@@ -30,8 +30,7 @@ from models.submission import ArchiveSubmission
 
 THIS_DIR = Path(__file__).absolute().parent
 TEST_DATA_NAME = "restst000000001-testing"
-TEST_INPUT_NAME = "Vault"
-TEST_OUTPUT_NAME = "Archive"
+TEST_OUTPUT_NAME = "bagit_temp"
 
 
 @pytest.fixture(name="session")
@@ -144,8 +143,12 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
         with patch("api.main.init_activescale"):
             with patch("api.main.generate_ro_crate_async"):
                 with patch("api.main.upload_file", return_value=True):
-                    client = TestClient(app, headers={"x-api-key": test_api_key})
-                    yield client
+                    with patch(
+                        "api.main._validate_archive_path_access",
+                        return_value=Path("/tmp/mock-drive"),
+                    ):
+                        client = TestClient(app, headers={"x-api-key": test_api_key})
+                        yield client
 
     app.dependency_overrides.clear()
 
@@ -159,7 +162,7 @@ def tmpdir(tmpdir: str) -> Path:
 @pytest.fixture
 def data_dir(tmpdir: Path) -> Path:
     """temporary directory for input files"""
-    d = tmpdir / TEST_DATA_NAME / TEST_INPUT_NAME
+    d = tmpdir / TEST_DATA_NAME
     shutil.copytree(THIS_DIR / TEST_DATA_NAME, d)
     return d
 

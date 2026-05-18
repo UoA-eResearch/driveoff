@@ -171,84 +171,46 @@ def _validate_archive_path_access(drive_name: str) -> Path:
             f"Drive path does not exist or is not a directory: {drive_path}"
         )
 
-    # Resolve source path (Vault or fallback)
-    drive_location = drive_path / "Vault"
-    if not drive_location.exists():
-        drive_location = drive_path
-
     # Read probe to validate source permissions
     try:
-        _ = next(drive_location.iterdir(), None)
+        _ = next(drive_path.iterdir(), None)
     except Exception as e:
         raise PermissionError(
-            f"Cannot read source directory {drive_location}: {e}"
+            f"Cannot read source directory {drive_path}: {e}"
         ) from e
 
-    # Validate archive output writable
-    output_location = drive_path / "Archive"
-    output_location.mkdir(parents=True, exist_ok=True)
-
-    probe_file = output_location / ".driveoff_write_probe"
+    # Write probe to validate output permissions
+    probe_file = drive_path / ".driveoff_write_probe"
     try:
         with open(probe_file, "wb") as f:
             f.write(b"ok")
         probe_file.unlink(missing_ok=True)
     except Exception as e:
         raise PermissionError(
-            f"Cannot write to archive directory {output_location}: {e}"
+            f"Cannot write to directory {drive_path}: {e}"
         ) from e
 
     return drive_path
 
 
-def _prepare_archive_paths(
-    drive_path: Path, drive_name: str, started_at: datetime, submission_id: int
-) -> tuple[Path, Path]:
-    """Resolve and validate source/output paths with concrete IO checks.
-
-    This verifies the drive path can be read and archive output can be written.
-    Called from background task (paths already validated synchronously before job).
-    """
-    if not drive_path.exists() or not drive_path.is_dir():
-        raise FileNotFoundError(
-            f"Drive path does not exist or is not a directory: {drive_path}"
-        )
-
-    drive_location = drive_path / "Vault"
-    if not drive_location.exists():
-        drive_location = drive_path
-        _log_event(
-            logging.WARNING,
-            "crate.build.source_fallback",
-            submission_id=submission_id,
-            drive_name=drive_name,
-            requested_source="Vault",
-            fallback_source="drive_root",
-            elapsed_ms=_elapsed_ms(started_at),
-        )
-
-    # Read probe to validate source permissions before heavy processing starts.
-    try:
-        _ = next(drive_location.iterdir(), None)
-    except Exception as e:
-        raise PermissionError(
-            f"Cannot read source directory {drive_location}: {e}"
-        ) from e
-
-    output_location = drive_path / "Archive"
-    output_location.mkdir(parents=True, exist_ok=True)
-
-    probe_file = output_location / ".driveoff_write_probe"
-    try:
-        with open(probe_file, "wb") as f:
-            f.write(b"ok")
-        probe_file.unlink(missing_ok=True)
-    except Exception as e:
-        raise PermissionError(
-            f"Cannot write to archive directory {output_location}: {e}"
-        ) from e
-
-    return drive_location, output_location
+def _as_bad_request_for_archive_path(
+    drive_name: str,
+    error: FileNotFoundError | PermissionError | RuntimeError,
+) -> HTTPException:
+    """Convert archive path validation errors into consistent client errors."""
+    _log_event(
+        logging.WARNING,
+        "submission.archive_path_validation_failed",
+        drive_name=drive_name,
+        error=str(error),
+        error_type=type(error).__name__,
+    )
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=(
+            f"Archive path validation failed for drive {drive_name}: {error}"
+        ),
+    )
 
 
 # Ensure driveoff directory is created
@@ -604,6 +566,8 @@ async def create_submission(
                 " RO-Crate generation and upload to ActiveScale is in progress."
             )
         )
+    except (FileNotFoundError, PermissionError, RuntimeError) as e:
+        raise _as_bad_request_for_archive_path(request.drive_name, e) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -700,6 +664,14 @@ async def retry_submission(
             submission_id=submission.id,
         )
 
+    drive = _validate_drive(projectdb, drive_name)
+
+    # Validate drive paths are accessible before mutating submission state.
+    try:
+        _validate_archive_path_access(drive_name)
+    except (FileNotFoundError, PermissionError, RuntimeError) as e:
+        raise _as_bad_request_for_archive_path(drive_name, e) from e
+
     # Reset to QUEUED for the new attempt
     now = datetime.now()
     submission.stage = JobStage.QUEUED
@@ -727,11 +699,6 @@ async def retry_submission(
             status_code=500,
             detail="Archive submission record is missing ID.",
         )
-
-    drive = _validate_drive(projectdb, drive_name)
-
-    # Validate drive paths are accessible before scheduling the job
-    _validate_archive_path_access(drive_name)
 
     background_tasks.add_task(
         generate_ro_crate_async,
@@ -865,51 +832,53 @@ def _upsert_submission(
 
 
 def _cleanup_job_artifacts(
-    drive_name: str, output_location: Path
+    drive_name: str, output_location: Path | None
 ) -> tuple[bool, str | None]:
     """Delete generated local archive artifacts for a submission.
 
     This intentionally only removes generated artifacts in the archive output
-    area and does not remove source drive content under Vault.
+    area and does not remove source drive content.
     """
-    generated_paths = [
-        output_location / f"{drive_name}.zip",
-        output_location / str(drive_name),
-        output_location / f"{drive_name}Vault_manifests",
-    ]
+    if output_location is None:
+        _log_event(
+            logging.INFO,
+            "submission.cleanup.skipped",
+            drive_name=drive_name,
+            reason="no output path resolved",
+        )
+        return True, None
 
-    cleanup_errors: list[str] = []
-    removed_count = 0
-    for path in generated_paths:
-        try:
-            if path.is_file():
-                path.unlink()
-                removed_count += 1
-            elif path.is_dir():
-                shutil.rmtree(path)
-                removed_count += 1
-        except FileNotFoundError:
-            continue
-        except OSError as e:  # pragma: no cover - best effort cleanup
-            cleanup_errors.append(f"{path}: {e}")
+    if not output_location.exists():
+        _log_event(
+            logging.INFO,
+            "submission.cleanup.skipped",
+            drive_name=drive_name,
+            output_location=str(output_location),
+            reason="path does not exist",
+        )
+        return True, None
 
-    if cleanup_errors:
+    try:
+        if output_location.is_file():
+            output_location.unlink()
+        else:
+            shutil.rmtree(output_location)
+    except OSError as e:  # pragma: no cover - best effort cleanup
+        cleanup_error = f"{output_location}: {e}"
         _log_event(
             logging.WARNING,
             "submission.cleanup.failed",
             drive_name=drive_name,
             output_location=str(output_location),
-            removed_count=removed_count,
-            cleanup_error="; ".join(cleanup_errors),
+            cleanup_error=cleanup_error,
         )
-        return False, "; ".join(cleanup_errors)
+        return False, cleanup_error
 
     _log_event(
         logging.INFO,
         "submission.cleanup.completed",
         drive_name=drive_name,
         output_location=str(output_location),
-        removed_count=removed_count,
     )
     return True, None
 
@@ -1013,7 +982,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
     # Create a new session for this background task
     with Session(engine) as session:
         submission: ArchiveSubmission | None = None
-        output_location = Path()
+        output_location: Path | None = None
         file_key: str | None = None
         project_id: int | None = None
         processing_error: str | None = None
@@ -1078,12 +1047,8 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
 
             # Source data and output locations with concrete read/write probes.
             drive_path = _resolve_drive_path_for_archive(drive_name)
-            drive_location, output_location = _prepare_archive_paths(
-                drive_path,
-                drive_name,
-                started_at,
-                submission_id,
-            )
+            output_location = drive_path / "bagit_temp"
+            output_location.mkdir(parents=True, exist_ok=True)
 
             _log_event(
                 logging.INFO,
@@ -1102,7 +1067,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission=submission,
                 members_list=members_list,
                 project_data=project_data,
-                drive_location=drive_location,
+                drive_location=drive_path,
                 output_location=output_location,
             )
 
@@ -1118,7 +1083,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                     retry_count=submission.retry_count,
                     elapsed_ms=_elapsed_ms(started_at),
                 )
-                zip_existing_crate(output_location / str(drive_name), drive_location)
+                zip_existing_crate(output_location / str(drive_name), drive_path)
                 _log_event(
                     logging.INFO,
                     "crate.zip.completed",

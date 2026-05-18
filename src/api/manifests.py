@@ -85,7 +85,7 @@ def create_manifests_directory(
         raise ValueError(
             "No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate"
         )
-    manifest_dir = output_location / (drive_name + drive_path.name + "_manifests")
+    manifest_dir = output_location / (drive_name + "_manifests")
     manifest_dir.mkdir(parents=True, exist_ok=True)
     for manifest in manifests:
         shutil.copy(str(manifest), str(manifest_dir / manifest.name))
