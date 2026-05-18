@@ -8,7 +8,7 @@ from api.main import _cleanup_job_artifacts
 def test_cleanup_job_artifacts_removes_generated_outputs(tmp_path: Path) -> None:
     """Cleanup removes output directory and contents."""
     drive_name = "restst000000001-testing"
-    output_location = tmp_path / "bagit_temp"
+    output_location = tmp_path / "bagit_temp" / drive_name
     output_location.mkdir(parents=True, exist_ok=True)
 
     zip_file = output_location / f"{drive_name}.zip"
@@ -32,7 +32,7 @@ def test_cleanup_job_artifacts_is_idempotent_when_nothing_exists(
 ) -> None:
     """Cleanup succeeds when files are already missing."""
     drive_name = "restst000000001-testing"
-    output_location = tmp_path / "bagit_temp"
+    output_location = tmp_path / "bagit_temp" / drive_name
     output_location.mkdir(parents=True, exist_ok=True)
 
     success, error = _cleanup_job_artifacts(drive_name, output_location)

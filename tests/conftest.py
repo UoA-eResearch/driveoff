@@ -170,7 +170,7 @@ def data_dir(tmpdir: Path) -> Path:
 @pytest.fixture
 def archive_dir(tmpdir: Path) -> Path:
     """temporary directory for archived files"""
-    d = tmpdir / TEST_DATA_NAME / TEST_OUTPUT_NAME
+    d = tmpdir / TEST_OUTPUT_NAME / TEST_DATA_NAME
     return d
 
 

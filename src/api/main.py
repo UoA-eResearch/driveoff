@@ -202,16 +202,14 @@ def _validate_archive_path_access(drive_name: str) -> Path:
     return drive_path
 
 
-def _resolve_archive_output_location(drive_name: str, submission_id: int) -> Path:
+def _resolve_archive_output_location(drive_name: str) -> Path:
     """Resolve local output directory for generated archive artifacts."""
     temp_base = Path(get_settings().archive_temp_base_path).expanduser()
     safe_drive_name = drive_name.replace("/", "_").replace("\\", "_")
     return (
         temp_base
-        / "driveoff"
-        / safe_drive_name
-        / f"submission-{submission_id}"
         / "bagit_temp"
+        / safe_drive_name
     )
 
 
@@ -1069,10 +1067,10 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
             members_list = filter_member_identities(members_list)
 
-            # Source data and output locations with concrete read/write probes.
+            # Source data and output locations
             drive_path = _resolve_drive_path_for_archive(drive_name)
             output_location = _resolve_archive_output_location(
-                drive_name, submission_id
+                drive_name
             )
 
             _log_event(
