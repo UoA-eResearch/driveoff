@@ -940,6 +940,10 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
             "drive_name": submission.drive_name,
         },
     )
+
+    # Create output location after bagit processing so it doesn't get included in bag
+    output_location.mkdir(parents=True, exist_ok=True)
+
     create_manifests_directory(
         drive_path=drive_location,
         output_location=output_location,
@@ -1048,7 +1052,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             # Source data and output locations with concrete read/write probes.
             drive_path = _resolve_drive_path_for_archive(drive_name)
             output_location = drive_path / "bagit_temp"
-            output_location.mkdir(parents=True, exist_ok=True)
 
             _log_event(
                 logging.INFO,
