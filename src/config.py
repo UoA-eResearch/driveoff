@@ -1,6 +1,7 @@
 """Module for reading configuration files."""
 
 import os
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
@@ -48,6 +49,9 @@ class Settings(BaseSettings):
     # Required on Linux: local parent mount path that contains per-drive folders.
     # Example: if drive is mounted at /mnt/<drive_name>, set to /mnt
     smb_linux_mount_base_path: str = ""
+    # Local filesystem base path for transient archive output artifacts
+    # (zip + copied manifests). Defaults to OS temp directory.
+    archive_temp_base_path: str = tempfile.gettempdir()
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 

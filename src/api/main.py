@@ -175,9 +175,7 @@ def _validate_archive_path_access(drive_name: str) -> Path:
     try:
         _ = next(drive_path.iterdir(), None)
     except Exception as e:
-        raise PermissionError(
-            f"Cannot read source directory {drive_path}: {e}"
-        ) from e
+        raise PermissionError(f"Cannot read source directory {drive_path}: {e}") from e
 
     # Write probe to validate output permissions
     probe_file = drive_path / ".driveoff_write_probe"
@@ -186,11 +184,35 @@ def _validate_archive_path_access(drive_name: str) -> Path:
             f.write(b"ok")
         probe_file.unlink(missing_ok=True)
     except Exception as e:
+        raise PermissionError(f"Cannot write to directory {drive_path}: {e}") from e
+
+    # Validate local temp base is writable for generated archive artifacts.
+    temp_base = Path(get_settings().archive_temp_base_path).expanduser()
+    try:
+        temp_base.mkdir(parents=True, exist_ok=True)
+        temp_probe = temp_base / ".driveoff_temp_probe"
+        with open(temp_probe, "wb") as f:
+            f.write(b"ok")
+        temp_probe.unlink(missing_ok=True)
+    except Exception as e:
         raise PermissionError(
-            f"Cannot write to directory {drive_path}: {e}"
+            f"Cannot write to local archive temp base {temp_base}: {e}"
         ) from e
 
     return drive_path
+
+
+def _resolve_archive_output_location(drive_name: str, submission_id: int) -> Path:
+    """Resolve local output directory for generated archive artifacts."""
+    temp_base = Path(get_settings().archive_temp_base_path).expanduser()
+    safe_drive_name = drive_name.replace("/", "_").replace("\\", "_")
+    return (
+        temp_base
+        / "driveoff"
+        / safe_drive_name
+        / f"submission-{submission_id}"
+        / "bagit_temp"
+    )
 
 
 def _as_bad_request_for_archive_path(
@@ -207,9 +229,7 @@ def _as_bad_request_for_archive_path(
     )
     return HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail=(
-            f"Archive path validation failed for drive {drive_name}: {error}"
-        ),
+        detail=(f"Archive path validation failed for drive {drive_name}: {error}"),
     )
 
 
@@ -1051,7 +1071,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
 
             # Source data and output locations with concrete read/write probes.
             drive_path = _resolve_drive_path_for_archive(drive_name)
-            output_location = drive_path / "bagit_temp"
+            output_location = _resolve_archive_output_location(
+                drive_name, submission_id
+            )
 
             _log_event(
                 logging.INFO,
