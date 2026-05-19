@@ -7,7 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from models.common import DataClassification
-from models.submission import JobStage
+from models.submission import ArchiveObjectLayout, ArchivePackageFormat, JobStage
 
 
 class RoleResponse(BaseModel):
@@ -105,3 +105,11 @@ class SubmissionResponse(BaseModel):
     cleanup_succeeded: bool | None
     cleanup_error: str | None
     activescale_file_key: str | None
+    activescale_object_prefix: str | None
+    activescale_manifest_key: str | None
+    activescale_part_keys_json: str | None
+    archive_layout: ArchiveObjectLayout
+    archive_package_format: ArchivePackageFormat
+    archive_part_count: int | None
+    archive_part_size_bytes: int | None
+    archive_total_bytes: int | None

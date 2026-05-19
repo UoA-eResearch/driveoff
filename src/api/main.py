@@ -46,6 +46,8 @@ from models.response import (
 from models.submission import (
     ACTIVE_STAGES,
     RETRYABLE_STAGES,
+    ArchiveObjectLayout,
+    ArchivePackageFormat,
     ArchiveSubmission,
     JobStage,
 )
@@ -819,6 +821,14 @@ def _upsert_submission(
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
         existing_submission.activescale_file_key = None
+        existing_submission.activescale_object_prefix = None
+        existing_submission.activescale_manifest_key = None
+        existing_submission.activescale_part_keys_json = None
+        existing_submission.archive_layout = ArchiveObjectLayout.SINGLE_OBJECT
+        existing_submission.archive_package_format = ArchivePackageFormat.ZIP
+        existing_submission.archive_part_count = None
+        existing_submission.archive_part_size_bytes = None
+        existing_submission.archive_total_bytes = None
         submission = existing_submission
     else:
         submission = ArchiveSubmission(
@@ -828,6 +838,8 @@ def _upsert_submission(
             retention_period_years=request.retention_period_years,
             retention_period_justification=request.retention_period_justification,
             data_classification=request.data_classification,
+            archive_layout=ArchiveObjectLayout.SINGLE_OBJECT,
+            archive_package_format=ArchivePackageFormat.ZIP,
         )
 
     now = datetime.now()
@@ -1021,9 +1033,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 )
                 return
 
-            # Transition: queued → running
+            # Transition: queued → packaging
             previous_stage = submission.stage
-            submission.stage = JobStage.RUNNING
+            submission.stage = JobStage.PACKAGING
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -1034,7 +1046,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission_id=submission_id,
                 drive_name=drive_name,
                 from_stage=previous_stage.value,
-                to_stage=JobStage.RUNNING.value,
+                to_stage=JobStage.PACKAGING.value,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 elapsed_ms=_elapsed_ms(started_at),
@@ -1134,9 +1146,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                     elapsed_ms=_elapsed_ms(started_at),
                 )
 
-            # Transition: running → uploading
+            # Transition: packaging → uploading_parts
             previous_stage = submission.stage
-            submission.stage = JobStage.UPLOADING
+            submission.stage = JobStage.UPLOADING_PARTS
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -1147,7 +1159,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission_id=submission_id,
                 drive_name=drive_name,
                 from_stage=previous_stage.value,
-                to_stage=JobStage.UPLOADING.value,
+                to_stage=JobStage.UPLOADING_PARTS.value,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 elapsed_ms=_elapsed_ms(started_at),
@@ -1168,6 +1180,19 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 # Upload to ActiveScale with drive_name as the key
                 bucket_name = "research-archive-test"
                 file_key = f"{drive_name}.zip"
+                zip_size_bytes = (output_location / f"{drive_name}.zip").stat().st_size
+
+                # Persist archive transport metadata before upload attempt for observability.
+                submission.archive_layout = ArchiveObjectLayout.SINGLE_OBJECT
+                submission.archive_package_format = ArchivePackageFormat.ZIP
+                submission.archive_part_count = 1
+                submission.archive_part_size_bytes = zip_size_bytes
+                submission.archive_total_bytes = zip_size_bytes
+                submission.activescale_object_prefix = f"{drive_name}/"
+                submission.activescale_manifest_key = None
+                submission.activescale_part_keys_json = json.dumps([file_key])
+                session.add(submission)
+                session.commit()
 
                 # If an object with the same key already exists, a new version
                 # will be created (ActiveScale versioning must be enabled on the bucket).
@@ -1383,6 +1408,14 @@ async def get_submission(
         cleanup_succeeded=submission.cleanup_succeeded,
         cleanup_error=submission.cleanup_error,
         activescale_file_key=submission.activescale_file_key,
+        activescale_object_prefix=submission.activescale_object_prefix,
+        activescale_manifest_key=submission.activescale_manifest_key,
+        activescale_part_keys_json=submission.activescale_part_keys_json,
+        archive_layout=submission.archive_layout,
+        archive_package_format=submission.archive_package_format,
+        archive_part_count=submission.archive_part_count,
+        archive_part_size_bytes=submission.archive_part_size_bytes,
+        archive_total_bytes=submission.archive_total_bytes,
     )
 
 

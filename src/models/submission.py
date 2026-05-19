@@ -14,12 +14,17 @@ class JobStage(str, Enum):
     """Lifecycle stages for an archive job.
 
     State transitions:
-        queued -> running -> uploading -> cleanup -> completed
+        queued -> packaging -> uploading_parts -> writing_manifest -> cleanup -> completed
         any non-terminal stage -> failed  (on unhandled exception)
         any non-terminal stage -> abandoned  (on API restart mid-job)
     """
 
     QUEUED = "queued"
+    PACKAGING = "packaging"
+    UPLOADING_PARTS = "uploading_parts"
+    WRITING_MANIFEST = "writing_manifest"
+
+    # Legacy states retained for compatibility with in-flight/tests during refactor.
     RUNNING = "running"
     UPLOADING = "uploading"
     CLEANUP = "cleanup"
@@ -28,9 +33,31 @@ class JobStage(str, Enum):
     ABANDONED = "abandoned"
 
 
+class ArchiveObjectLayout(str, Enum):
+    """How archive bytes are stored in object storage."""
+
+    SINGLE_OBJECT = "single_object"
+    CHUNKED_OBJECTS = "chunked_objects"
+
+
+class ArchivePackageFormat(str, Enum):
+    """Container format used before upload."""
+
+    ZIP = "zip"
+    TAR = "tar"
+
+
 #: Stages that represent still-active (non-terminal) work.
 ACTIVE_STAGES = frozenset(
-    [JobStage.QUEUED, JobStage.RUNNING, JobStage.UPLOADING, JobStage.CLEANUP]
+    [
+        JobStage.QUEUED,
+        JobStage.PACKAGING,
+        JobStage.UPLOADING_PARTS,
+        JobStage.WRITING_MANIFEST,
+        JobStage.RUNNING,
+        JobStage.UPLOADING,
+        JobStage.CLEANUP,
+    ]
 )
 
 #: Stages that allow a retry to be submitted.
@@ -61,6 +88,29 @@ class ArchiveSubmission(SQLModel, table=True):
     activescale_file_key: str | None = Field(
         default=None, description="S3/ActiveScale path where archive was uploaded"
     )
+    activescale_object_prefix: str | None = Field(
+        default=None,
+        description=(
+            "S3 prefix that groups all objects for this archive (used for chunked uploads)"
+        ),
+    )
+    activescale_manifest_key: str | None = Field(
+        default=None,
+        description="S3 key for an archive sidecar manifest that lists all uploaded parts",
+    )
+    activescale_part_keys_json: str | None = Field(
+        default=None,
+        description="JSON-encoded ordered list of uploaded part object keys",
+    )
+    archive_layout: ArchiveObjectLayout = Field(
+        default=ArchiveObjectLayout.SINGLE_OBJECT
+    )
+    archive_package_format: ArchivePackageFormat = Field(
+        default=ArchivePackageFormat.ZIP
+    )
+    archive_part_count: int | None = Field(default=None)
+    archive_part_size_bytes: int | None = Field(default=None)
+    archive_total_bytes: int | None = Field(default=None)
 
     # Status and audit
     failure_reason: str | None = Field(default=None)
