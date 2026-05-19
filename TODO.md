@@ -10,11 +10,11 @@
 - [x] Extend `JobStage` vocabulary for chunked archive workflow (`packaging`, `uploading_parts`, `writing_manifest`) while retaining legacy stage values for compatibility.
 - [x] Extend `GET /api/v1/submission` response payload with new archive transport fields.
 - [x] Implement chunked archive writer (single logical tar split into ordered parts below ActiveScale object limit).
-- [ ] Upload each part as a separate object under a deterministic prefix and persist uploaded part keys incrementally.
+- [x] Upload each part as a separate object under a deterministic prefix and persist uploaded part keys incrementally.
 - [x] Write sidecar archive manifest file (`archive-manifest.json`) during packaging with part ordering, per-part checksum, and total byte count.
-- [ ] Upload sidecar archive manifest object to ActiveScale alongside uploaded parts.
-- [ ] Replace single-object upload call in archive worker with chunked upload pipeline.
-- [ ] Add retry/resume support to skip already uploaded parts and continue from persisted metadata.
+- [x] Upload sidecar archive manifest object to ActiveScale alongside uploaded parts.
+- [x] Replace single-object upload call in archive worker with chunked upload pipeline.
+- [x] Add retry/resume support to skip already uploaded parts and continue from persisted metadata.
 - [ ] Add archive retrieval/reassembly utility using persisted part ordering from manifest.
 - [ ] Add integration tests for chunked upload success, interrupted upload resume, and manifest integrity checks.
 

@@ -49,7 +49,7 @@ def test_upload_chunked_parts_resumes_skipping_existing(
     first.write_bytes(b"part1")
     second.write_bytes(b"part2")
 
-    prefix = "archives/drive/submission-1/"
+    prefix = "drive/"
     first_key = f"{prefix}{first.name}"
     second_key = f"{prefix}{second.name}"
 
@@ -98,7 +98,7 @@ def test_upload_chunked_parts_stops_on_failure(
     first = archive_parts_dir / "drive.tar.part-00001"
     first.write_bytes(b"part1")
 
-    prefix = "archives/drive/submission-1/"
+    prefix = "drive/"
     expected_key = f"{prefix}{first.name}"
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
