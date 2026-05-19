@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Local filesystem base path for transient archive output artifacts
     # (zip + copied manifests). Defaults to OS temp directory.
     archive_temp_base_path: str = tempfile.gettempdir()
+    # Chunked tar packaging settings for very large archives.
+    archive_chunk_size_bytes: int = 512 * 1024 * 1024
+    archive_chunk_manifest_file_name: str = "archive-manifest.json"
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 
