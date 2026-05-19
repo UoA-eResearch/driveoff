@@ -15,7 +15,7 @@
 - [x] Upload sidecar archive manifest object to ActiveScale alongside uploaded parts.
 - [x] Replace single-object upload call in archive worker with chunked upload pipeline.
 - [x] Add retry/resume support to skip already uploaded parts and continue from persisted metadata.
-- [ ] Add archive retrieval/reassembly utility using persisted part ordering from manifest.
+- [x] Add archive retrieval/reassembly utility using persisted part ordering from manifest.
 - [ ] Add integration tests for chunked upload success, interrupted upload resume, and manifest integrity checks.
 
 ## Quality and Validation
