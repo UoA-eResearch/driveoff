@@ -21,14 +21,16 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from api.activescale import (
     get_activescale_client_context,
     init_activescale,
+    object_exists,
     upload_file,
 )
+from api.archive_chunks import build_chunked_tar_archive
 from api.cors import add_cors_middleware
 from api.manifests import bag_directory, bagit_exists, create_manifests_directory
 from api.security import ApiKey, validate_api_key, validate_permissions
 from config import get_settings
 from crate.ro_builder import ROBuilder
-from crate.ro_loader import ROLoader, zip_existing_crate
+from crate.ro_loader import ROLoader
 from models.common import ResearchDriveName
 from models.request import CreateSubmissionRequest
 from models.response import (
@@ -913,6 +915,95 @@ def _cleanup_job_artifacts(
     return True, None
 
 
+def _parse_uploaded_part_keys(part_keys_json: str | None) -> list[str]:
+    """Decode persisted uploaded part keys with defensive validation."""
+    if not part_keys_json:
+        return []
+    try:
+        parsed = json.loads(part_keys_json)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed if isinstance(item, str)]
+
+
+def _persist_uploaded_part_keys(
+    session: Session,
+    submission: ArchiveSubmission,
+    uploaded_keys: list[str],
+) -> None:
+    """Persist uploaded part key progress so retries can resume."""
+    submission.activescale_part_keys_json = json.dumps(uploaded_keys)
+    submission.last_updated_timestamp = datetime.now()
+    session.add(submission)
+    session.commit()
+
+
+def _upload_chunked_archive_parts(
+    *,
+    session: Session,
+    submission: ArchiveSubmission,
+    client: Any,
+    bucket_name: str,
+    object_prefix: str,
+    archive_parts_dir: Path,
+    timeout_seconds: int,
+) -> tuple[bool, list[str]]:
+    """Upload chunked archive part files with resume support.
+
+    A part key is considered already uploaded only if:
+    - it appears in persisted submission state, and
+    - the key currently exists in object storage.
+    """
+    part_files = sorted(archive_parts_dir.glob("*.tar.part-*"))
+    uploaded_keys = _parse_uploaded_part_keys(submission.activescale_part_keys_json)
+
+    for part_file in part_files:
+        part_key = f"{object_prefix}{part_file.name}"
+        if part_key in uploaded_keys:
+            exists, _ = object_exists(client, bucket_name, part_key)
+            if exists:
+                _log_event(
+                    logging.INFO,
+                    "crate.upload.part.skipped",
+                    submission_id=submission.id,
+                    drive_name=submission.drive_name,
+                    part_key=part_key,
+                    reason="already_uploaded",
+                )
+                continue
+
+        success = upload_file(
+            client,
+            bucket_name,
+            part_key,
+            file_path=str(part_file),
+            timeout=timeout_seconds,
+        )
+        if not success:
+            _log_event(
+                logging.ERROR,
+                "crate.upload.part.failed",
+                submission_id=submission.id,
+                drive_name=submission.drive_name,
+                part_key=part_key,
+            )
+            return False, uploaded_keys
+
+        uploaded_keys.append(part_key)
+        _persist_uploaded_part_keys(session, submission, uploaded_keys)
+        _log_event(
+            logging.INFO,
+            "crate.upload.part.completed",
+            submission_id=submission.id,
+            drive_name=submission.drive_name,
+            part_key=part_key,
+        )
+
+    return True, uploaded_keys
+
+
 def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-positional-arguments
     drive: dict[str, Any],
     submission: ArchiveSubmission,
@@ -1106,45 +1197,56 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 output_location=output_location,
             )
 
-            # Zip the generated crate (check if already exists and skip if so)
-            zip_path = output_location / f"{drive_name}.zip"
-            if not zip_path.exists():
-                _log_event(
-                    logging.INFO,
-                    "crate.zip.start",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
-                zip_existing_crate(output_location / str(drive_name), drive_path)
-                _log_event(
-                    logging.INFO,
-                    "crate.zip.completed",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    zip_size_mb=(
-                        zip_path.stat().st_size / (1024 * 1024)
-                        if zip_path.exists()
-                        else 0
-                    ),
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
-            else:
-                _log_event(
-                    logging.INFO,
-                    "crate.zip.skipped",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    reason="zip file already exists",
-                    zip_size_mb=zip_path.stat().st_size / (1024 * 1024),
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
+            # Build chunked tar archive package for upload.
+            settings = get_settings()
+            archive_parts_dir = output_location / "archive_parts"
+            _log_event(
+                logging.INFO,
+                "crate.package.chunked_tar.start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                archive_parts_dir=str(archive_parts_dir),
+                chunk_size_bytes=settings.archive_chunk_size_bytes,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+            chunk_result = build_chunked_tar_archive(
+                source_dir=drive_path,
+                output_dir=archive_parts_dir,
+                base_name=str(drive_name),
+                part_size_bytes=settings.archive_chunk_size_bytes,
+                manifest_file_name=settings.archive_chunk_manifest_file_name,
+            )
+
+            object_prefix = f"{drive_name}/"
+            submission.archive_layout = ArchiveObjectLayout.CHUNKED_OBJECTS
+            submission.archive_package_format = ArchivePackageFormat.TAR
+            submission.archive_part_count = len(chunk_result.parts)
+            submission.archive_part_size_bytes = settings.archive_chunk_size_bytes
+            submission.archive_total_bytes = chunk_result.total_bytes
+            submission.activescale_object_prefix = object_prefix
+            submission.activescale_manifest_key = (
+                f"{object_prefix}{chunk_result.manifest_path.name}"
+            )
+            if submission.activescale_part_keys_json is None:
+                submission.activescale_part_keys_json = "[]"
+            submission.last_updated_timestamp = datetime.now()
+            session.add(submission)
+            session.commit()
+
+            _log_event(
+                logging.INFO,
+                "crate.package.chunked_tar.completed",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                part_count=len(chunk_result.parts),
+                total_bytes=chunk_result.total_bytes,
+                manifest_path=str(chunk_result.manifest_path),
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
 
             # Transition: packaging → uploading_parts
             previous_stage = submission.stage
@@ -1177,51 +1279,75 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
 
             with get_activescale_client_context() as client:
-                # Upload to ActiveScale with drive_name as the key
                 bucket_name = "research-archive-test"
-                file_key = f"{drive_name}.zip"
-                zip_size_bytes = (output_location / f"{drive_name}.zip").stat().st_size
 
-                # Persist archive transport metadata before upload attempt for observability.
-                submission.archive_layout = ArchiveObjectLayout.SINGLE_OBJECT
-                submission.archive_package_format = ArchivePackageFormat.ZIP
-                submission.archive_part_count = 1
-                submission.archive_part_size_bytes = zip_size_bytes
-                submission.archive_total_bytes = zip_size_bytes
-                submission.activescale_object_prefix = f"{drive_name}/"
-                submission.activescale_manifest_key = None
-                submission.activescale_part_keys_json = json.dumps([file_key])
-                session.add(submission)
-                session.commit()
-
-                # If an object with the same key already exists, a new version
-                # will be created (ActiveScale versioning must be enabled on the bucket).
-                upload_success = upload_file(
-                    client,
-                    bucket_name,
-                    file_key,
-                    file_path=str(output_location / f"{drive_name}.zip"),
-                    timeout=get_settings().activescale_upload_timeout,
-                    metadata={
-                        "project_id": str(project_data.get("id", "")),
-                        "project_owner": get_project_owner_email(members_list),
-                        "division": project_data.get("division") or "Unknown",
-                        "data_classification": submission.data_classification
-                        or "Unknown",
-                        "retention_period_years": str(submission.retention_period_years)
-                        or "Unknown",
-                        "review_date": (  # Calculate review date based on retention period,
-                            (
-                                datetime.now()
-                                + timedelta(
-                                    days=365 * submission.retention_period_years
-                                )
-                            ).strftime("%Y-%m-%d")
-                            if submission.retention_period_years is not None
-                            else "Unknown"
-                        ),
-                    },
+                upload_success, uploaded_part_keys = _upload_chunked_archive_parts(
+                    session=session,
+                    submission=submission,
+                    client=client,
+                    bucket_name=bucket_name,
+                    object_prefix=object_prefix,
+                    archive_parts_dir=archive_parts_dir,
+                    timeout_seconds=settings.activescale_upload_timeout,
                 )
+
+                if upload_success:
+                    # Transition: uploading_parts -> writing_manifest
+                    previous_stage = submission.stage
+                    submission.stage = JobStage.WRITING_MANIFEST
+                    submission.last_updated_timestamp = datetime.now()
+                    session.add(submission)
+                    session.commit()
+
+                    _log_event(
+                        logging.INFO,
+                        "submission.stage_transition",
+                        submission_id=submission_id,
+                        drive_name=drive_name,
+                        from_stage=previous_stage.value,
+                        to_stage=JobStage.WRITING_MANIFEST.value,
+                        stage=submission.stage.value,
+                        retry_count=submission.retry_count,
+                        elapsed_ms=_elapsed_ms(started_at),
+                    )
+
+                    file_key = f"{object_prefix}{chunk_result.manifest_path.name}"
+                    upload_success = upload_file(
+                        client,
+                        bucket_name,
+                        file_key,
+                        file_path=str(chunk_result.manifest_path),
+                        timeout=settings.activescale_upload_timeout,
+                        metadata={
+                            "project_id": str(project_data.get("id", "")),
+                            "project_owner": get_project_owner_email(members_list),
+                            "division": project_data.get("division") or "Unknown",
+                            "data_classification": submission.data_classification
+                            or "Unknown",
+                            "retention_period_years": str(
+                                submission.retention_period_years
+                            )
+                            or "Unknown",
+                            "review_date": (
+                                (
+                                    datetime.now()
+                                    + timedelta(
+                                        days=365 * submission.retention_period_years
+                                    )
+                                ).strftime("%Y-%m-%d")
+                                if submission.retention_period_years is not None
+                                else "Unknown"
+                            ),
+                            "archive_layout": submission.archive_layout.value,
+                            "archive_part_count": str(len(uploaded_part_keys)),
+                        },
+                    )
+                    submission.activescale_manifest_key = file_key
+                    submission.activescale_part_keys_json = json.dumps(
+                        uploaded_part_keys
+                    )
+                    session.add(submission)
+                    session.commit()
 
             # Transition: uploading → cleanup
             previous_stage = submission.stage
