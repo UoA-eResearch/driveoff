@@ -7,7 +7,7 @@ import json
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, cast
 
 
 @dataclass
@@ -147,8 +147,11 @@ def build_chunked_tar_archive(
     writer = _SplitPartWriter(output_dir=output_dir, base_name=base_name, part_size_bytes=part_size_bytes)
 
     try:
-        with tarfile.open(fileobj=writer, mode="w|", format=tarfile.PAX_FORMAT) as tar_stream:
-            tar_stream.add(str(source_dir), arcname=source_dir.name, recursive=True)
+        with tarfile.open(
+            fileobj=cast(BinaryIO, writer),
+            mode="w|",
+        ) as tar_stream:
+            tar_stream.add(str(source_dir), arcname=source_dir.name)
     finally:
         writer.close()
 
