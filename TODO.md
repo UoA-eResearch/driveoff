@@ -16,7 +16,7 @@
 - [x] Replace single-object upload call in archive worker with chunked upload pipeline.
 - [x] Add retry/resume support to skip already uploaded parts and continue from persisted metadata.
 - [x] Add archive retrieval/reassembly utility using persisted part ordering from manifest.
-- [ ] Add integration tests for chunked upload success, interrupted upload resume, and manifest integrity checks.
+- [x] Add integration tests for chunked upload success, interrupted upload resume, and manifest integrity checks.
 
 ## Quality and Validation
 - [ ] Improve end-to-end tests that cover submission -> manifest -> RO-Crate build -> upload flow.
