@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import platform
@@ -1086,6 +1087,11 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
         submission_id: ID of the ArchiveSubmission record
         projectdb_client: Client for interacting with ProjectDB
     """
+    # Yield to the event loop so uvicorn can flush the HTTP response to the client
+    # before this blocking-heavy task runs.  Without this, the SelectorEventLoop on
+    # Linux holds the response in its write buffer until we return.
+    await asyncio.sleep(0)
+
     drive_name = drive.get("name", None)
     started_at = datetime.now()
     if drive_name is None:
