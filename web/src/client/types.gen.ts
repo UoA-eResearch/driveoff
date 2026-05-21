@@ -43,6 +43,10 @@ export type CreateSubmissionRequest = {
      * Project Id
      */
     project_id?: number | null;
+    /**
+     * Force
+     */
+    force?: boolean;
 };
 
 /**
@@ -147,11 +151,11 @@ export type HttpValidationError = {
  * Lifecycle stages for an archive job.
  *
  * State transitions:
- * queued -> running -> uploading -> cleanup -> completed
+ * queued -> packaging -> uploading -> writing_manifest -> cleanup -> completed
  * any non-terminal stage -> failed  (on unhandled exception)
  * any non-terminal stage -> abandoned  (on API restart mid-job)
  */
-export type JobStage = 'queued' | 'running' | 'uploading' | 'cleanup' | 'completed' | 'failed' | 'abandoned';
+export type JobStage = 'queued' | 'packaging' | 'writing_manifest' | 'uploading' | 'cleanup' | 'completed' | 'failed' | 'abandoned';
 
 /**
  * MemberResponse
@@ -304,9 +308,29 @@ export type SubmissionResponse = {
      */
     cleanup_error: string | null;
     /**
-     * Activescale File Key
+     * Archive File Key
      */
-    activescale_file_key: string | null;
+    archive_file_key: string | null;
+    /**
+     * Archive Object Prefix
+     */
+    archive_object_prefix: string | null;
+    /**
+     * Archive Manifest Key
+     */
+    archive_manifest_key: string | null;
+    /**
+     * Archive Part Keys Json
+     */
+    archive_part_keys_json: string | null;
+    /**
+     * Archive Part Count
+     */
+    archive_part_count: number | null;
+    /**
+     * Archive Total Bytes
+     */
+    archive_total_bytes: number | null;
 };
 
 /**
@@ -488,6 +512,10 @@ export type RetrySubmissionApiV1SubmissionDriveNameRetryPostData = {
         drive_name: string;
     };
     query?: {
+        /**
+         * Force
+         */
+        force?: boolean;
         /**
          * Path
          */
