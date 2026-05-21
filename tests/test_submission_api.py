@@ -308,7 +308,7 @@ def test_retry_submission_requeues_failed_job(
 ) -> None:
     """Retry endpoint should queue a failed job and increment retry_count."""
     submission.stage = JobStage.FAILED
-    submission.failure_reason = "ActiveScale upload failed"
+    submission.failure_reason = "Archive upload failed"
     submission.retry_count = 0
     session.add(submission)
     session.commit()

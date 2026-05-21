@@ -144,10 +144,10 @@ def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
         assert submission.stage == JobStage.COMPLETED
         assert submission.archive_part_count is not None
         assert submission.archive_part_count > 0
-        assert submission.activescale_object_prefix == f"{drive_name}/"
-        assert submission.activescale_manifest_key == f"{drive_name}/archive-manifest.json"
+        assert submission.archive_object_prefix == f"{drive_name}/"
+        assert submission.archive_manifest_key == f"{drive_name}/archive-manifest.json"
 
-        part_keys = json.loads(submission.activescale_part_keys_json or "[]")
+        part_keys = json.loads(submission.archive_part_keys_json or "[]")
         assert len(part_keys) == submission.archive_part_count
 
     assert upload_calls
@@ -232,7 +232,7 @@ def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
         submission = session.get(ArchiveSubmission, submission_id)
         assert submission is not None
         assert submission.stage == JobStage.FAILED
-        first_run_keys = json.loads(submission.activescale_part_keys_json or "[]")
+        first_run_keys = json.loads(submission.archive_part_keys_json or "[]")
         assert len(first_run_keys) == 1
         assert first_run_keys[0] in first_run_uploaded
 
@@ -276,8 +276,8 @@ def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
         submission = session.get(ArchiveSubmission, submission_id)
         assert submission is not None
         assert submission.stage == JobStage.COMPLETED
-        assert submission.activescale_manifest_key == f"{drive_name}/archive-manifest.json"
-        final_part_keys = json.loads(submission.activescale_part_keys_json or "[]")
+        assert submission.archive_manifest_key == f"{drive_name}/archive-manifest.json"
+        final_part_keys = json.loads(submission.archive_part_keys_json or "[]")
         assert submission.archive_part_count is not None
         assert len(final_part_keys) == submission.archive_part_count
 

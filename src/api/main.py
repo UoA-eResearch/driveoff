@@ -820,10 +820,10 @@ def _upsert_submission(
         existing_submission.data_classification = request.data_classification
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
-        existing_submission.activescale_file_key = None
-        existing_submission.activescale_object_prefix = None
-        existing_submission.activescale_manifest_key = None
-        existing_submission.activescale_part_keys_json = None
+        existing_submission.archive_file_key = None
+        existing_submission.archive_object_prefix = None
+        existing_submission.archive_manifest_key = None
+        existing_submission.archive_part_keys_json = None
         existing_submission.archive_part_count = None
         existing_submission.archive_total_bytes = None
         submission = existing_submission
@@ -927,7 +927,7 @@ def _persist_uploaded_part_keys(
     uploaded_keys: list[str],
 ) -> None:
     """Persist uploaded part key progress so retries can resume."""
-    submission.activescale_part_keys_json = json.dumps(uploaded_keys)
+    submission.archive_part_keys_json = json.dumps(uploaded_keys)
     submission.last_updated_timestamp = datetime.now()
     session.add(submission)
     session.commit()
@@ -950,7 +950,7 @@ def _upload_chunked_archive_parts(
     - the key currently exists in object storage.
     """
     part_files = sorted(archive_parts_dir.glob("*.tar.part-*"))
-    uploaded_keys = _parse_uploaded_part_keys(submission.activescale_part_keys_json)
+    uploaded_keys = _parse_uploaded_part_keys(submission.archive_part_keys_json)
 
     for part_file in part_files:
         part_key = f"{object_prefix}{part_file.name}"
@@ -1215,12 +1215,12 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             object_prefix = f"{drive_name}/"
             submission.archive_part_count = len(chunk_result.parts)
             submission.archive_total_bytes = chunk_result.total_bytes
-            submission.activescale_object_prefix = object_prefix
-            submission.activescale_manifest_key = (
+            submission.archive_object_prefix = object_prefix
+            submission.archive_manifest_key = (
                 f"{object_prefix}{chunk_result.manifest_path.name}"
             )
-            if submission.activescale_part_keys_json is None:
-                submission.activescale_part_keys_json = "[]"
+            if submission.archive_part_keys_json is None:
+                submission.archive_part_keys_json = "[]"
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -1331,8 +1331,8 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                             "archive_part_count": str(len(uploaded_part_keys)),
                         },
                     )
-                    submission.activescale_manifest_key = file_key
-                    submission.activescale_part_keys_json = json.dumps(
+                    submission.archive_manifest_key = file_key
+                    submission.archive_part_keys_json = json.dumps(
                         uploaded_part_keys
                     )
                     session.add(submission)
@@ -1369,7 +1369,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission.stage = JobStage.COMPLETED
                 submission.failure_reason = None
                 submission.failed_timestamp = None
-                submission.activescale_file_key = file_key
+                submission.archive_file_key = file_key
                 submission.completed_timestamp = now
                 submission.last_updated_timestamp = now
                 session.add(submission)
@@ -1388,9 +1388,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 )
             else:
                 submission.stage = JobStage.FAILED
-                submission.failure_reason = "ActiveScale upload failed"
+                submission.failure_reason = "Archive upload failed"
                 submission.failed_timestamp = now
-                submission.activescale_file_key = file_key
+                submission.archive_file_key = file_key
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
@@ -1522,10 +1522,10 @@ async def get_submission(
         retry_count=submission.retry_count,
         cleanup_succeeded=submission.cleanup_succeeded,
         cleanup_error=submission.cleanup_error,
-        activescale_file_key=submission.activescale_file_key,
-        activescale_object_prefix=submission.activescale_object_prefix,
-        activescale_manifest_key=submission.activescale_manifest_key,
-        activescale_part_keys_json=submission.activescale_part_keys_json,
+        archive_file_key=submission.archive_file_key,
+        archive_object_prefix=submission.archive_object_prefix,
+        archive_manifest_key=submission.archive_manifest_key,
+        archive_part_keys_json=submission.archive_part_keys_json,
         archive_part_count=submission.archive_part_count,
         archive_total_bytes=submission.archive_total_bytes,
     )

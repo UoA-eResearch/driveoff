@@ -63,21 +63,21 @@ class ArchiveSubmission(SQLModel, table=True):
     retention_period_justification: str | None = Field(default=None)
     data_classification: DataClassification
 
-    # ActiveScale upload metadata (optional, only populated after upload attempt)
-    activescale_file_key: str | None = Field(
-        default=None, description="S3/ActiveScale path where archive was uploaded"
+    # Archive upload metadata (optional, only populated after upload attempt)
+    archive_file_key: str | None = Field(
+        default=None, description="S3 path where archive was uploaded"
     )
-    activescale_object_prefix: str | None = Field(
+    archive_object_prefix: str | None = Field(
         default=None,
         description=(
             "S3 prefix that groups all objects for this archive (used for chunked uploads)"
         ),
     )
-    activescale_manifest_key: str | None = Field(
+    archive_manifest_key: str | None = Field(
         default=None,
         description="S3 key for an archive sidecar manifest that lists all uploaded parts",
     )
-    activescale_part_keys_json: str | None = Field(
+    archive_part_keys_json: str | None = Field(
         default=None,
         description="JSON-encoded ordered list of uploaded part object keys",
     )

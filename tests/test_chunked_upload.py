@@ -54,7 +54,7 @@ def test_upload_chunked_parts_resumes_skipping_existing(
     second_key = f"{prefix}{second.name}"
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
-    submission.activescale_part_keys_json = json.dumps([first_key])
+    submission.archive_part_keys_json = json.dumps([first_key])
     session.add(submission)
     session.commit()
 
