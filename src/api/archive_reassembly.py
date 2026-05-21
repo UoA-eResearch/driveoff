@@ -41,7 +41,9 @@ def ordered_part_entries(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 
 def ordered_part_object_keys(object_prefix: str, manifest: dict[str, Any]) -> list[str]:
     """Build ordered object keys from prefix + manifest part ordering."""
-    return [f"{object_prefix}{part['file_name']}" for part in ordered_part_entries(manifest)]
+    return [
+        f"{object_prefix}{part['file_name']}" for part in ordered_part_entries(manifest)
+    ]
 
 
 def _sha256_file(file_path: Path) -> str:
@@ -82,14 +84,20 @@ def reassemble_archive_from_manifest(
 
             if verify_parts:
                 expected_size = part.get("size_bytes")
-                if isinstance(expected_size, int) and part_path.stat().st_size != expected_size:
+                if (
+                    isinstance(expected_size, int)
+                    and part_path.stat().st_size != expected_size
+                ):
                     raise ValueError(
                         f"Part size mismatch for {part_path.name}: "
                         f"expected {expected_size}, got {part_path.stat().st_size}"
                     )
 
                 expected_sha = part.get("sha256")
-                if isinstance(expected_sha, str) and _sha256_file(part_path) != expected_sha:
+                if (
+                    isinstance(expected_sha, str)
+                    and _sha256_file(part_path) != expected_sha
+                ):
                     raise ValueError(f"Part checksum mismatch for {part_path.name}")
 
             with open(part_path, "rb") as part_file:

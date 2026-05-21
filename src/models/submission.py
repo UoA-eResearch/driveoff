@@ -28,6 +28,7 @@ class JobStage(str, Enum):
     FAILED = "failed"
     ABANDONED = "abandoned"
 
+
 #: Stages that represent still-active (non-terminal) work.
 ACTIVE_STAGES = frozenset(
     [

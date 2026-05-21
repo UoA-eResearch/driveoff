@@ -208,11 +208,7 @@ def _resolve_archive_output_location(drive_name: str) -> Path:
     """Resolve local output directory for generated archive artifacts."""
     temp_base = Path(get_settings().archive_temp_base_path).expanduser()
     safe_drive_name = drive_name.replace("/", "_").replace("\\", "_")
-    return (
-        temp_base
-        / "bagit_temp"
-        / safe_drive_name
-    )
+    return temp_base / "bagit_temp" / safe_drive_name
 
 
 def _as_bad_request_for_archive_path(
@@ -1165,9 +1161,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
 
             # Source data and output locations
             drive_path = _resolve_drive_path_for_archive(drive_name)
-            output_location = _resolve_archive_output_location(
-                drive_name
-            )
+            output_location = _resolve_archive_output_location(drive_name)
 
             _log_event(
                 logging.INFO,
@@ -1332,9 +1326,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                         },
                     )
                     submission.archive_manifest_key = file_key
-                    submission.archive_part_keys_json = json.dumps(
-                        uploaded_part_keys
-                    )
+                    submission.archive_part_keys_json = json.dumps(uploaded_part_keys)
                     session.add(submission)
                     session.commit()
 

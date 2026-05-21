@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
@@ -39,12 +43,17 @@ class _ProjectDbStub:
         ]
 
 
-def _build_test_engine():
+@pytest.fixture()
+def test_engine() -> Generator[Engine, Any, None]:
+    """Provide a fresh in-memory SQLite engine, disposed after each test."""
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     SQLModel.metadata.create_all(engine)
-    return engine
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
 def _create_submission(engine, drive_name: str, project_id: int = 123) -> int:
@@ -70,6 +79,7 @@ def _create_submission(engine, drive_name: str, project_id: int = 123) -> int:
 def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
     tmp_path: Path,
     monkeypatch,
+    test_engine: Engine,
 ) -> None:
     drive_name = "resint000000001-testing"
     drive_path = tmp_path / drive_name
@@ -81,7 +91,6 @@ def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
     output_path = tmp_path / "output"
     output_path.mkdir(parents=True, exist_ok=True)
 
-    test_engine = _build_test_engine()
     submission_id = _create_submission(test_engine, drive_name)
 
     monkeypatch.setattr("api.main.engine", test_engine)
@@ -164,6 +173,7 @@ def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
 def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
     tmp_path: Path,
     monkeypatch,
+    test_engine: Engine,
 ) -> None:
     drive_name = "resint000000002-testing"
     drive_path = tmp_path / drive_name
@@ -174,7 +184,6 @@ def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
     output_path = tmp_path / "output"
     output_path.mkdir(parents=True, exist_ok=True)
 
-    test_engine = _build_test_engine()
     submission_id = _create_submission(test_engine, drive_name)
 
     monkeypatch.setattr("api.main.engine", test_engine)

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from models.common import DataClassification
 from models.submission import JobStage
 
+
 class RoleResponse(BaseModel):
     """Project role."""
 

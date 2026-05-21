@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # Local filesystem base path for transient archive output artifacts
     # (tar + copied manifests). Defaults to OS temp directory.
     archive_temp_base_path: str = tempfile.gettempdir()
-    # Chunked tar packaging settings for very large archives. Defaults to 512 MiB, which is a good balance between memory usage and upload performance.
+    # Chunked tar packaging settings for very large archives. Defaults to 512 MiB.
     archive_chunk_size_bytes: int = 512 * 1024 * 1024
     archive_chunk_manifest_file_name: str = "archive-manifest.json"
 

@@ -33,6 +33,14 @@ class _SplitPartWriter:
     """Write byte streams into sequentially numbered part files."""
 
     def __init__(self, output_dir: Path, base_name: str, part_size_bytes: int) -> None:
+        """Initialise the writer.
+
+        Args:
+            output_dir: Directory where part files will be written.
+            base_name: Stem used to derive part file names.
+            part_size_bytes: Maximum number of bytes per part file.
+        """
+
         if part_size_bytes <= 0:
             raise ValueError("part_size_bytes must be greater than zero")
 
@@ -49,19 +57,30 @@ class _SplitPartWriter:
 
     @property
     def parts(self) -> list[ArchivePartInfo]:
+        """Get the list of archive part information."""
         return self._parts
 
     @property
     def total_bytes(self) -> int:
+        """Get the total number of bytes written across all parts."""
         return self._total_bytes
 
     def writable(self) -> bool:
+        """Indicate whether this object supports writing."""
         return True
 
     def tell(self) -> int:
+        """Return the current stream position (total bytes written so far).
+
+        Required by the ``BinaryIO`` protocol; called internally by :mod:`tarfile`.
+        """
         return self._total_bytes
 
     def write(self, data: bytes) -> int:
+        """Write *data* to the current part, rolling over to a new part when full.
+
+        Returns the number of bytes consumed (always ``len(data)``).
+        """
         if not data:
             return 0
 
@@ -88,14 +107,17 @@ class _SplitPartWriter:
         return data_len
 
     def flush(self) -> None:
+        """Flush the current part file to the OS buffer."""
         if self._current_fp is not None:
             self._current_fp.flush()
 
     def close(self) -> None:
+        """Finalise and close the current part file, if one is open."""
         if self._current_fp is not None:
             self._finalize_current_part()
 
     def _open_new_part(self) -> None:
+        """Finalise the current part (if any) and open the next one."""
         if self._current_fp is not None:
             self._finalize_current_part()
 
@@ -105,9 +127,12 @@ class _SplitPartWriter:
 
         file_name = f"{self.base_name}.tar.part-{self._current_index:05d}"
         file_path = self.output_dir / file_name
-        self._current_fp = open(file_path, "wb")
+        self._current_fp = open(
+            file_path, "wb"
+        )  # noqa: SIM115  # pylint: disable=consider-using-with
 
     def _finalize_current_part(self) -> None:
+        """Flush, close, and record :class:`ArchivePartInfo` for the current part."""
         assert self._current_fp is not None
         assert self._current_hasher is not None
 
@@ -141,10 +166,14 @@ def build_chunked_tar_archive(
     Reassembly is done by concatenating parts in index order.
     """
     if not source_dir.exists() or not source_dir.is_dir():
-        raise FileNotFoundError(f"source_dir does not exist or is not a directory: {source_dir}")
+        raise FileNotFoundError(
+            f"source_dir does not exist or is not a directory: {source_dir}"
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    writer = _SplitPartWriter(output_dir=output_dir, base_name=base_name, part_size_bytes=part_size_bytes)
+    writer = _SplitPartWriter(
+        output_dir=output_dir, base_name=base_name, part_size_bytes=part_size_bytes
+    )
 
     try:
         with tarfile.open(

@@ -37,11 +37,12 @@ def session_fixture() -> Generator[Session, Any, None]:
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
-        session.rollback()
-        session.close()
-    engine.dispose()
+    try:
+        with Session(engine) as session:
+            yield session
+            session.rollback()
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture(name="client")

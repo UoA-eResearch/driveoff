@@ -76,4 +76,3 @@ class ROLoader:
                     | orjson.OPT_INDENT_2,  # pylint: disable=no-member
                 ).decode("utf-8")
             )
-
