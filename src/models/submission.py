@@ -14,18 +14,14 @@ class JobStage(str, Enum):
     """Lifecycle stages for an archive job.
 
     State transitions:
-        queued -> packaging -> uploading_parts -> writing_manifest -> cleanup -> completed
+        queued -> packaging -> uploading -> writing_manifest -> cleanup -> completed
         any non-terminal stage -> failed  (on unhandled exception)
         any non-terminal stage -> abandoned  (on API restart mid-job)
     """
 
     QUEUED = "queued"
     PACKAGING = "packaging"
-    UPLOADING_PARTS = "uploading_parts"
     WRITING_MANIFEST = "writing_manifest"
-
-    # Legacy states retained for compatibility with in-flight/tests during refactor.
-    RUNNING = "running"
     UPLOADING = "uploading"
     CLEANUP = "cleanup"
     COMPLETED = "completed"
@@ -52,9 +48,7 @@ ACTIVE_STAGES = frozenset(
     [
         JobStage.QUEUED,
         JobStage.PACKAGING,
-        JobStage.UPLOADING_PARTS,
         JobStage.WRITING_MANIFEST,
-        JobStage.RUNNING,
         JobStage.UPLOADING,
         JobStage.CLEANUP,
     ]

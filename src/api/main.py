@@ -1248,9 +1248,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 elapsed_ms=_elapsed_ms(started_at),
             )
 
-            # Transition: packaging → uploading_parts
+            # Transition: packaging → uploading
             previous_stage = submission.stage
-            submission.stage = JobStage.UPLOADING_PARTS
+            submission.stage = JobStage.UPLOADING
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -1261,7 +1261,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission_id=submission_id,
                 drive_name=drive_name,
                 from_stage=previous_stage.value,
-                to_stage=JobStage.UPLOADING_PARTS.value,
+                to_stage=JobStage.UPLOADING.value,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 elapsed_ms=_elapsed_ms(started_at),
@@ -1292,7 +1292,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 )
 
                 if upload_success:
-                    # Transition: uploading_parts -> writing_manifest
+                    # Transition: uploading -> writing_manifest
                     previous_stage = submission.stage
                     submission.stage = JobStage.WRITING_MANIFEST
                     submission.last_updated_timestamp = datetime.now()
@@ -1319,7 +1319,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                         file_path=str(chunk_result.manifest_path),
                         timeout=settings.activescale_upload_timeout,
                         metadata={
-                            "project_id": str(project_data.get("id", "")),
+                            "cer_project_id": str(project_data.get("id", "")),
                             "project_owner": get_project_owner_email(members_list),
                             "division": project_data.get("division") or "Unknown",
                             "data_classification": submission.data_classification

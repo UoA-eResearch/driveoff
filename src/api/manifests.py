@@ -12,7 +12,7 @@ import bagit
 # behind at shutdown, so we keep it single-process there for deterministic
 # cleanup.
 PROCESSES = 1 if os.name != "nt" else max(multiprocessing.cpu_count() - 2, 1)
-DEFAULT_CHECKSUM = ["sha512"]
+DEFAULT_CHECKSUM = ["sha256"]
 
 
 def bagit_exists(drive_path: Path) -> bool:

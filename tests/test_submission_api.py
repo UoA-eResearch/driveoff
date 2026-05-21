@@ -276,7 +276,7 @@ def test_retry_submission_rejects_active_stage(
     submission: ArchiveSubmission,
 ) -> None:
     """Retry endpoint returns 409 for active-stage jobs."""
-    submission.stage = JobStage.RUNNING
+    submission.stage = JobStage.PACKAGING
     submission.last_updated_timestamp = datetime.now()
     session.add(submission)
     session.commit()
