@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # Example: if drive is mounted at /mnt/<drive_name>, set to /mnt
     smb_linux_mount_base_path: str = ""
     # Local filesystem base path for transient archive output artifacts
-    # (zip + copied manifests). Defaults to OS temp directory.
+    # (tar + copied manifests). Defaults to OS temp directory.
     archive_temp_base_path: str = tempfile.gettempdir()
     # Chunked tar packaging settings for very large archives. Defaults to 512 MiB, which is a good balance between memory usage and upload performance.
     archive_chunk_size_bytes: int = 512 * 1024 * 1024

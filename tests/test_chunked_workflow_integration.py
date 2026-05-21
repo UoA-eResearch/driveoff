@@ -92,7 +92,7 @@ def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
     monkeypatch.setattr("api.main._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
 
     # Avoid heavy crate generation internals; this test focuses on chunked workflow.
-    monkeypatch.setattr("api.main.build_crate_contents_async", lambda **_kwargs: None)
+    monkeypatch.setattr("api.main.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=1024,
@@ -183,7 +183,7 @@ def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
         "api.main._resolve_archive_output_location", lambda _name: output_path
     )
     monkeypatch.setattr("api.main._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
-    monkeypatch.setattr("api.main.build_crate_contents_async", lambda **_kwargs: None)
+    monkeypatch.setattr("api.main.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=1024,

@@ -23,7 +23,7 @@ FastAPI backend: See `src/config.py` and [pydantic-settings page](https://docs.p
 Linux note for SMB archive jobs:
 - If `SMB_DRIVE_BASE_PATH` is configured as a UNC path (for example `//server/share`), set `SMB_LINUX_MOUNT_BASE_PATH` to the local CIFS mount parent (for example `/mnt`).
 - Drive paths are then resolved as `<SMB_LINUX_MOUNT_BASE_PATH>/<drive_name>` for bagit/RO-Crate filesystem operations.
-- Archive output artifacts (zip + manifests) are written to local temp storage under `ARCHIVE_TEMP_BASE_PATH` (defaults to the OS temp directory).
+- Archive output artifacts (tar + manifests) are written to local temp storage under `ARCHIVE_TEMP_BASE_PATH` (defaults to the OS temp directory).
 
 ## Local Python Tasks
 This project defines local developer tasks in `pyproject.toml` using `poethepoet`.

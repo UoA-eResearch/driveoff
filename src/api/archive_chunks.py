@@ -158,7 +158,6 @@ def build_chunked_tar_archive(
     manifest = {
         "archive_name": base_name,
         "archive_format": "tar",
-        "layout": "chunked_objects",
         "source_root": source_dir.name,
         "total_bytes": writer.total_bytes,
         "part_count": len(writer.parts),

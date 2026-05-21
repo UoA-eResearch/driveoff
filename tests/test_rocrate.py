@@ -1,6 +1,5 @@
 """Test creation and writing of RO-Crates"""
 
-import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -111,30 +110,3 @@ def test_crate_metadata_present(test_ro_builder: ROBuilder) -> None:
     assert test_ro_builder.crate.metadata is not None
     assert ro_project is not None
 
-
-def test_zip_crate_structure(
-    data_dir: Path,
-    archive_dir: Path,
-) -> None:
-    """Test zip packaging structure"""
-    # Create test structure
-    test_file = data_dir / "test.txt"
-    test_file.write_text("test content")
-
-    # Simulate creating a bagit package
-    # Create minimal bag structure
-    (data_dir / "data").mkdir(parents=True, exist_ok=True)
-    (data_dir / "data" / "test.txt").write_text("test")
-    (data_dir / "tagmanifest-sha256.txt").write_text("test")
-
-    # Try to zip it
-    zip_path = archive_dir / "test.zip"
-    shutil.make_archive(str(zip_path.with_suffix("")), "zip", data_dir)
-
-    # Verify zip was created
-    assert zip_path.exists()
-
-    # Extract and verify
-    extract_dir = archive_dir / "extracted"
-    shutil.unpack_archive(str(zip_path), str(extract_dir), "zip")
-    assert (extract_dir / "data" / "test.txt").exists()

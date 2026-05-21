@@ -40,7 +40,6 @@ def test_build_chunked_tar_archive_writes_parts_and_manifest(tmp_path: Path) -> 
         manifest = json.load(manifest_file)
     assert manifest["archive_name"] == "drive-archive"
     assert manifest["archive_format"] == "tar"
-    assert manifest["layout"] == "chunked_objects"
     assert manifest["part_count"] == len(result.parts)
     assert manifest["total_bytes"] == result.total_bytes
 

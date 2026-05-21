@@ -11,18 +11,19 @@ def test_cleanup_job_artifacts_removes_generated_outputs(tmp_path: Path) -> None
     output_location = tmp_path / "bagit_temp" / drive_name
     output_location.mkdir(parents=True, exist_ok=True)
 
-    zip_file = output_location / f"{drive_name}.zip"
+    archive_parts_dir = output_location / "archive_parts"
+    archive_parts_dir.mkdir()
+    (archive_parts_dir / f"{drive_name}.tar.part-00000").write_bytes(b"fake-tar-bytes")
+    (archive_parts_dir / "archive-manifest.json").write_text("{}", encoding="utf-8")
     manifests_dir = output_location / f"{drive_name}_manifests"
-
-    zip_file.write_text("zip-bytes", encoding="utf-8")
-    manifests_dir.mkdir(parents=True, exist_ok=True)
+    manifests_dir.mkdir()
     (manifests_dir / "manifest-sha256.txt").write_text("hash", encoding="utf-8")
 
     success, error = _cleanup_job_artifacts(drive_name, output_location)
 
     assert success is True
     assert error is None
-    assert not zip_file.exists()
+    assert not archive_parts_dir.exists()
     assert not manifests_dir.exists()
     assert not output_location.exists()
 

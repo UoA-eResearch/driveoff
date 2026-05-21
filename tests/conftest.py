@@ -1,5 +1,4 @@
 # pylint: disable=missing-class-docstring,redefined-outer-name,too-few-public-methods,missing-module-docstring
-import shutil
 import json
 import uuid
 from collections.abc import Generator
@@ -29,8 +28,6 @@ from models.common import DataClassification
 from models.submission import ArchiveSubmission
 
 THIS_DIR = Path(__file__).absolute().parent
-TEST_DATA_NAME = "restst000000001-testing"
-TEST_OUTPUT_NAME = "bagit_temp"
 
 
 @pytest.fixture(name="session")
@@ -151,27 +148,6 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
                         yield client
 
     app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def tmpdir(tmpdir: str) -> Path:
-    """convert temporary directory to path"""
-    return Path(tmpdir)
-
-
-@pytest.fixture
-def data_dir(tmpdir: Path) -> Path:
-    """temporary directory for input files"""
-    d = tmpdir / TEST_DATA_NAME
-    shutil.copytree(THIS_DIR / TEST_DATA_NAME, d)
-    return d
-
-
-@pytest.fixture
-def archive_dir(tmpdir: Path) -> Path:
-    """temporary directory for archived files"""
-    d = tmpdir / TEST_OUTPUT_NAME / TEST_DATA_NAME
-    return d
 
 
 @pytest.fixture

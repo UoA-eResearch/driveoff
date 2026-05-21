@@ -48,8 +48,6 @@ from models.response import (
 from models.submission import (
     ACTIVE_STAGES,
     RETRYABLE_STAGES,
-    ArchiveObjectLayout,
-    ArchivePackageFormat,
     ArchiveSubmission,
     JobStage,
 )
@@ -826,10 +824,7 @@ def _upsert_submission(
         existing_submission.activescale_object_prefix = None
         existing_submission.activescale_manifest_key = None
         existing_submission.activescale_part_keys_json = None
-        existing_submission.archive_layout = ArchiveObjectLayout.SINGLE_OBJECT
-        existing_submission.archive_package_format = ArchivePackageFormat.ZIP
         existing_submission.archive_part_count = None
-        existing_submission.archive_part_size_bytes = None
         existing_submission.archive_total_bytes = None
         submission = existing_submission
     else:
@@ -840,8 +835,6 @@ def _upsert_submission(
             retention_period_years=request.retention_period_years,
             retention_period_justification=request.retention_period_justification,
             data_classification=request.data_classification,
-            archive_layout=ArchiveObjectLayout.SINGLE_OBJECT,
-            archive_package_format=ArchivePackageFormat.ZIP,
         )
 
     now = datetime.now()
@@ -1004,7 +997,7 @@ def _upload_chunked_archive_parts(
     return True, uploaded_keys
 
 
-def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positional-arguments
     drive: dict[str, Any],
     submission: ArchiveSubmission,
     members_list: list[dict[str, Any]],
@@ -1085,7 +1078,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
 
     Implements persisted checkpoints so retries can skip completed steps:
     - queued→running: After loading submission from DB
-    - running→uploading: After crate build and zip generation
+    - running→uploading: After crate build and tar generation
     - uploading→completed/failed: After upload attempt
 
     Args:
@@ -1188,7 +1181,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
 
             # Build crate contents (idempotent, safe to retry)
-            build_crate_contents_async(
+            build_crate_contents(
                 drive=drive,
                 submission=submission,
                 members_list=members_list,
@@ -1220,10 +1213,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
 
             object_prefix = f"{drive_name}/"
-            submission.archive_layout = ArchiveObjectLayout.CHUNKED_OBJECTS
-            submission.archive_package_format = ArchivePackageFormat.TAR
             submission.archive_part_count = len(chunk_result.parts)
-            submission.archive_part_size_bytes = settings.archive_chunk_size_bytes
             submission.archive_total_bytes = chunk_result.total_bytes
             submission.activescale_object_prefix = object_prefix
             submission.activescale_manifest_key = (
@@ -1338,7 +1328,6 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                                 if submission.retention_period_years is not None
                                 else "Unknown"
                             ),
-                            "archive_layout": submission.archive_layout.value,
                             "archive_part_count": str(len(uploaded_part_keys)),
                         },
                     )
@@ -1537,10 +1526,7 @@ async def get_submission(
         activescale_object_prefix=submission.activescale_object_prefix,
         activescale_manifest_key=submission.activescale_manifest_key,
         activescale_part_keys_json=submission.activescale_part_keys_json,
-        archive_layout=submission.archive_layout,
-        archive_package_format=submission.archive_package_format,
         archive_part_count=submission.archive_part_count,
-        archive_part_size_bytes=submission.archive_part_size_bytes,
         archive_total_bytes=submission.archive_total_bytes,
     )
 

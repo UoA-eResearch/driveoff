@@ -28,21 +28,6 @@ class JobStage(str, Enum):
     FAILED = "failed"
     ABANDONED = "abandoned"
 
-
-class ArchiveObjectLayout(str, Enum):
-    """How archive bytes are stored in object storage."""
-
-    SINGLE_OBJECT = "single_object"
-    CHUNKED_OBJECTS = "chunked_objects"
-
-
-class ArchivePackageFormat(str, Enum):
-    """Container format used before upload."""
-
-    ZIP = "zip"
-    TAR = "tar"
-
-
 #: Stages that represent still-active (non-terminal) work.
 ACTIVE_STAGES = frozenset(
     [
@@ -96,14 +81,7 @@ class ArchiveSubmission(SQLModel, table=True):
         default=None,
         description="JSON-encoded ordered list of uploaded part object keys",
     )
-    archive_layout: ArchiveObjectLayout = Field(
-        default=ArchiveObjectLayout.SINGLE_OBJECT
-    )
-    archive_package_format: ArchivePackageFormat = Field(
-        default=ArchivePackageFormat.ZIP
-    )
     archive_part_count: int | None = Field(default=None)
-    archive_part_size_bytes: int | None = Field(default=None)
     archive_total_bytes: int | None = Field(default=None)
 
     # Status and audit

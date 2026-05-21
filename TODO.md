@@ -6,7 +6,7 @@
 - [ ] Reassess background execution approach; replace FastAPI `BackgroundTasks` with a durable queue (such as Celery or RQ) if reliability requirements increase.
 
 ## Large Archive Datamodel and API (Draft)
-- [x] Extend `ArchiveSubmission` schema to track archive transport metadata (`archive_layout`, `archive_package_format`, `archive_part_count`, byte sizes, object prefix, manifest key, and ordered part keys).
+- [x] Extend `ArchiveSubmission` schema to track archive transport metadata (`archive_part_count`, byte sizes, object prefix, manifest key, and ordered part keys).
 - [x] Extend `JobStage` vocabulary for chunked archive workflow (`packaging`, `uploading`, `writing_manifest`) while retaining legacy stage values for compatibility.
 - [x] Extend `GET /api/v1/submission` response payload with new archive transport fields.
 - [x] Implement chunked archive writer (single logical tar split into ordered parts below ActiveScale object limit).
