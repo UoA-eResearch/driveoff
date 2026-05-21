@@ -1,9 +1,11 @@
 """Classes common to other models."""
 
 import re
+from datetime import datetime
 from enum import Enum
 from typing import Annotated
 
+from dateutil.relativedelta import relativedelta
 from pydantic.functional_validators import AfterValidator
 
 # The set of default retention periods we are offering.
@@ -18,6 +20,16 @@ def validate_resdrive_name(drive_name: str) -> str:
         raise ValueError(f"'{drive_name}' is not a valid Research Drive name.")
 
     return drive_name
+
+
+def calculate_retention_end_date(start_date: datetime, retention_years: int) -> str:
+    """Return the date on which retained data may be deleted.
+
+    Args:
+        start_date: The starting date (typically project end date or today).
+        retention_years: Number of full years to add.
+    """
+    return (start_date + relativedelta(years=retention_years)).strftime("%Y-%m-%d")
 
 
 ResearchDriveName = Annotated[str, AfterValidator(validate_resdrive_name)]

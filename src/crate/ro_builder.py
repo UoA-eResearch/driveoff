@@ -2,12 +2,12 @@
 from datetime import datetime
 from typing import Any, cast
 
-from dateutil.relativedelta import relativedelta
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.person import Person as RoPerson
 from rocrate.rocrate import ROCrate
 from rocrate.utils import is_url
 
+from models.common import calculate_retention_end_date
 from models.submission import ArchiveSubmission
 
 PROJECT_PREFIX = "project/"
@@ -288,16 +288,16 @@ class ROBuilder:
         # Parse project end date if it's a string
         if isinstance(project_end_date, str):
             try:
-                end_date = datetime.fromisoformat(
+                retention_start = datetime.fromisoformat(
                     project_end_date.replace("Z", "+00:00")
                 )
             except Exception:
-                end_date = datetime.now()
+                retention_start = datetime.now()
         else:
-            end_date = project_end_date or datetime.now()
+            retention_start = project_end_date or datetime.now()
 
         # Calculate delete date
-        delete_date = end_date + relativedelta(years=retention_years)
+        delete_date = calculate_retention_end_date(retention_start, retention_years)
 
         # Create delete action entity with proper ID format
         # ID should be: retention_period_for/#research_drive_service/{drive_name}
@@ -309,7 +309,7 @@ class ROBuilder:
             properties={
                 "@type": "DeleteAction",
                 "actionStatus": "PotentialActionStatus",
-                "endTime": delete_date.strftime("%Y-%m-%d"),
+                "endTime": delete_date,
             },
         )
 

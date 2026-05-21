@@ -11,7 +11,7 @@ import platform
 import shutil
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -32,7 +32,7 @@ from api.security import ApiKey, validate_api_key, validate_permissions
 from config import get_settings
 from crate.ro_builder import ROBuilder
 from crate.ro_loader import ROLoader
-from models.common import ResearchDriveName
+from models.common import ResearchDriveName, calculate_retention_end_date
 from models.request import CreateSubmissionRequest
 from models.response import (
     CodeResponse,
@@ -1319,12 +1319,10 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                             )
                             or "Unknown",
                             "review_date": (
-                                (
-                                    datetime.now()
-                                    + timedelta(
-                                        days=365 * submission.retention_period_years
-                                    )
-                                ).strftime("%Y-%m-%d")
+                                calculate_retention_end_date(
+                                    datetime.now(),
+                                    submission.retention_period_years,
+                                )
                                 if submission.retention_period_years is not None
                                 else "Unknown"
                             ),
