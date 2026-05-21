@@ -17,7 +17,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
-from api.main import generate_ro_crate_async
+from api.main import generate_ro_crate
 from models.common import DataClassification
 from models.submission import ArchiveSubmission, JobStage
 
@@ -76,7 +76,7 @@ def _create_submission(engine, drive_name: str, project_id: int = 123) -> int:
         return submission.id
 
 
-def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
+def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     tmp_path: Path,
     monkeypatch,
     test_engine: Engine,
@@ -140,7 +140,7 @@ def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
     monkeypatch.setattr("api.main.object_exists", lambda *_args, **_kwargs: (False, None))
 
     asyncio.run(
-        generate_ro_crate_async(
+        generate_ro_crate(
             drive={"id": 1, "name": drive_name},
             submission_id=submission_id,
             projectdb_client=_ProjectDbStub(),
@@ -170,7 +170,7 @@ def test_generate_ro_crate_async_chunked_success_and_manifest_integrity(
     assert len(manifest["parts"]) == submission.archive_part_count
 
 
-def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
+def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     tmp_path: Path,
     monkeypatch,
     test_engine: Engine,
@@ -230,7 +230,7 @@ def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
     monkeypatch.setattr("api.main.object_exists", lambda *_args, **_kwargs: (False, None))
 
     asyncio.run(
-        generate_ro_crate_async(
+        generate_ro_crate(
             drive={"id": 1, "name": drive_name},
             submission_id=submission_id,
             projectdb_client=_ProjectDbStub(),
@@ -274,7 +274,7 @@ def test_generate_ro_crate_async_resumes_after_interrupted_part_upload(
     monkeypatch.setattr("api.main.object_exists", exists_if_previously_uploaded)
 
     asyncio.run(
-        generate_ro_crate_async(
+        generate_ro_crate(
             drive={"id": 1, "name": drive_name},
             submission_id=submission_id,
             projectdb_client=_ProjectDbStub(),

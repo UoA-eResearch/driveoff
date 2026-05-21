@@ -103,7 +103,8 @@ class ROBuilder:
 
         # Add delete action from retention period
         delete_action = self.add_delete_action(
-            project_end_date=project.get("end_date"),
+            project_end_date=None,  # The project end date from the ProjectDB cant be relied upon
+                                    # so we just let the delete action builder default to current date
             retention_years=submission.retention_period_years,
             drive=drive,
         )
@@ -280,7 +281,7 @@ class ROBuilder:
         """Create a delete action based on project end date and retention period.
 
         Args:
-            project_end_date: ISO format date string for project end date
+            project_end_date: ISO format date string for project end date (or None to default to current date)
             retention_years: Years to retain data after project end date
             drive: Dict with drive properties from ProjectDB
         """

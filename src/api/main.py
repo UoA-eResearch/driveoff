@@ -568,7 +568,7 @@ async def create_submission(
         )
 
         background_tasks.add_task(
-            generate_ro_crate_async,
+            generate_ro_crate,
             drive,
             submission.id,
             projectdb_client=projectdb,
@@ -717,7 +717,7 @@ async def retry_submission(
         )
 
     background_tasks.add_task(
-        generate_ro_crate_async,
+        generate_ro_crate,
         drive,
         submission.id,
         projectdb_client=projectdb,
@@ -860,6 +860,10 @@ def _cleanup_job_artifacts(
     This intentionally only removes generated artifacts in the archive output
     area and does not remove source drive content.
     """
+    return (
+        True,
+        None,
+    )  # Disable cleanup for now to preserve artifacts for debugging and retries
     if output_location is None:
         _log_event(
             logging.INFO,
@@ -1061,7 +1065,7 @@ def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positi
     )
 
 
-async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
+async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     drive: dict[str, Any],
     submission_id: int,
     projectdb_client: ProjectDBClient,

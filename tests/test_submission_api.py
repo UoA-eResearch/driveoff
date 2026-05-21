@@ -17,7 +17,7 @@ def test_post_submission_can_create(
 ) -> None:
     """Test creating a new archive submission"""
     # Mock the background task so it doesn't try to access the database
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -40,7 +40,7 @@ def test_post_submission_rejects_duplicate_active_job(
     session: Session,
 ) -> None:
     """Duplicate submission for the same drive during active job is rejected with 409."""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         create_response = client.post(
             "/api/v1/submission",
             json={
@@ -92,7 +92,7 @@ def test_post_submission_rejects_completed_drive(
     session.add(submission)
     session.commit()
 
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -133,7 +133,7 @@ def test_post_submission_returns_502_when_projectdb_project_lookup_fails(
     app.dependency_overrides[get_projectdb_client] = lambda: BrokenProjectDbClient()
 
     try:
-        with patch("api.main.generate_ro_crate_async"):
+        with patch("api.main.generate_ro_crate"):
             response = client.post(
                 "/api/v1/submission",
                 json={
@@ -191,7 +191,7 @@ def test_post_submission_validates_retention_years(
     client: TestClient,
 ) -> None:
     """Test that retention period validation works"""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -210,7 +210,7 @@ def test_post_submission_validates_classification(
     client: TestClient,
 ) -> None:
     """Test that data classification validation works"""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -229,7 +229,7 @@ def test_post_submission_requires_drive_name(
     client: TestClient,
 ) -> None:
     """Test that drive_name is required"""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -247,7 +247,7 @@ def test_post_submission_accepts_drive_name_with_fullstop(
     client: TestClient,
 ) -> None:
     """Drive names with dot in suffix are accepted by validation."""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -339,7 +339,7 @@ def test_post_submission_force_reruns_completed_job(
     session.add(submission)
     session.commit()
 
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
