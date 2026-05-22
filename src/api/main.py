@@ -861,7 +861,6 @@ def _cleanup_job_artifacts(
     This intentionally only removes generated artifacts in the archive output
     area and does not remove source drive content.
     """
-    return True, None
     if output_location is None:
         _log_event(
             logging.INFO,
