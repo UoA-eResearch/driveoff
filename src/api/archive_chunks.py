@@ -127,9 +127,9 @@ class _SplitPartWriter:
 
         file_name = f"{self.base_name}.tar.gz.part-{self._current_index:05d}"
         file_path = self.output_dir / file_name
-        self._current_fp = open(
+        self._current_fp = open(  # noqa: SIM115  # pylint: disable=consider-using-with
             file_path, "wb"
-        )  # noqa: SIM115  # pylint: disable=consider-using-with
+        )
 
     def _finalize_current_part(self) -> None:
         """Flush, close, and record :class:`ArchivePartInfo` for the current part."""
