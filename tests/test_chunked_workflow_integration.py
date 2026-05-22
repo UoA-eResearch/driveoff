@@ -195,7 +195,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     monkeypatch.setattr("api.main.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
-        archive_chunk_size_bytes=1024,
+        archive_chunk_size_bytes=100,  # small enough to produce multiple parts after gzip
         archive_chunk_manifest_file_name="archive-manifest.json",
         activescale_upload_timeout=60,
     )

@@ -125,7 +125,7 @@ class _SplitPartWriter:
         self._current_size = 0
         self._current_hasher = hashlib.sha256()
 
-        file_name = f"{self.base_name}.tar.part-{self._current_index:05d}"
+        file_name = f"{self.base_name}.tar.gz.part-{self._current_index:05d}"
         file_path = self.output_dir / file_name
         self._current_fp = open(
             file_path, "wb"
@@ -160,10 +160,11 @@ def build_chunked_tar_archive(
     part_size_bytes: int,
     manifest_file_name: str = "archive-manifest.json",
 ) -> ChunkedArchiveResult:
-    """Create a streamed tar split into sequential part files.
+    """Create a gzip-compressed streamed tar split into sequential part files.
 
-    The resulting part files are plain byte segments of one logical tar stream.
-    Reassembly is done by concatenating parts in index order.
+    The resulting part files are contiguous byte segments of one logical
+    gzip-compressed tar stream.  Reassembly is done by concatenating parts
+    in index order and then extracting the resulting ``.tar.gz``.
     """
     if not source_dir.exists() or not source_dir.is_dir():
         raise FileNotFoundError(
@@ -178,7 +179,7 @@ def build_chunked_tar_archive(
     try:
         with tarfile.open(
             fileobj=cast(BinaryIO, writer),
-            mode="w|",
+            mode="w|gz",
         ) as tar_stream:
             tar_stream.add(str(source_dir), arcname=source_dir.name)
     finally:
@@ -186,7 +187,7 @@ def build_chunked_tar_archive(
 
     manifest = {
         "archive_name": base_name,
-        "archive_format": "tar",
+        "archive_format": "tar.gz",
         "source_root": source_dir.name,
         "total_bytes": writer.total_bytes,
         "part_count": len(writer.parts),

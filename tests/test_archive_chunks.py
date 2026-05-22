@@ -26,20 +26,20 @@ def test_build_chunked_tar_archive_writes_parts_and_manifest(tmp_path: Path) -> 
         source_dir=source_dir,
         output_dir=output_dir,
         base_name="drive-archive",
-        part_size_bytes=1024,
+        part_size_bytes=100,
     )
 
     assert len(result.parts) > 1
     assert result.total_bytes > 0
     assert result.manifest_path.exists()
     for part in result.parts:
-        assert part.size_bytes <= 1024
+        assert part.size_bytes <= 100
         assert (output_dir / part.file_name).exists()
 
     with open(result.manifest_path, "r", encoding="utf-8") as manifest_file:
         manifest = json.load(manifest_file)
     assert manifest["archive_name"] == "drive-archive"
-    assert manifest["archive_format"] == "tar"
+    assert manifest["archive_format"] == "tar.gz"
     assert manifest["part_count"] == len(result.parts)
     assert manifest["total_bytes"] == result.total_bytes
 
@@ -63,7 +63,7 @@ def test_chunked_parts_reassemble_into_valid_tar(tmp_path: Path) -> None:
             with open(output_dir / part.file_name, "rb") as source:
                 destination.write(source.read())
 
-    with tarfile.open(reassembled_tar, "r:") as tar_obj:
+    with tarfile.open(reassembled_tar, "r:gz") as tar_obj:
         names = tar_obj.getnames()
 
     assert any(name.endswith("source/one.txt") for name in names)

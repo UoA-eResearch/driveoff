@@ -40,7 +40,7 @@ def test_reassemble_archive_from_manifest_rebuilds_valid_tar(tmp_path: Path) -> 
         output_tar_path=rebuilt_tar,
     )
 
-    with tarfile.open(rebuilt_tar, "r:") as tar_obj:
+    with tarfile.open(rebuilt_tar, "r:gz") as tar_obj:
         names = tar_obj.getnames()
 
     assert any(name.endswith("source/a.bin") for name in names)
@@ -59,7 +59,7 @@ def test_reassemble_archive_fails_on_checksum_mismatch(tmp_path: Path) -> None:
         part_size_bytes=512,
     )
 
-    first_part = sorted(parts_dir.glob("*.tar.part-*"))[0]
+    first_part = sorted(parts_dir.glob("*.tar.gz.part-*"))[0]
     first_part_size = first_part.stat().st_size
     first_part.write_bytes(b"X" * first_part_size)
 
@@ -91,4 +91,4 @@ def test_ordered_part_object_keys_uses_manifest_order(tmp_path: Path) -> None:
 
     assert keys
     assert keys[0].startswith("drive/")
-    assert keys[0].endswith(".tar.part-00001")
+    assert keys[0].endswith(".tar.gz.part-00001")

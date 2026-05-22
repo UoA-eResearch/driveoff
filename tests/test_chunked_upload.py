@@ -44,8 +44,8 @@ def test_upload_chunked_parts_resumes_skipping_existing(
 ) -> None:
     archive_parts_dir = tmp_path / "parts"
     archive_parts_dir.mkdir(parents=True, exist_ok=True)
-    first = archive_parts_dir / "drive.tar.part-00001"
-    second = archive_parts_dir / "drive.tar.part-00002"
+    first = archive_parts_dir / "drive.tar.gz.part-00001"
+    second = archive_parts_dir / "drive.tar.gz.part-00002"
     first.write_bytes(b"part1")
     second.write_bytes(b"part2")
 
@@ -95,7 +95,7 @@ def test_upload_chunked_parts_stops_on_failure(
 ) -> None:
     archive_parts_dir = tmp_path / "parts"
     archive_parts_dir.mkdir(parents=True, exist_ok=True)
-    first = archive_parts_dir / "drive.tar.part-00001"
+    first = archive_parts_dir / "drive.tar.gz.part-00001"
     first.write_bytes(b"part1")
 
     prefix = "drive/"

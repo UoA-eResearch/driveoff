@@ -13,7 +13,9 @@ def test_cleanup_job_artifacts_removes_generated_outputs(tmp_path: Path) -> None
 
     archive_parts_dir = output_location / "archive_parts"
     archive_parts_dir.mkdir()
-    (archive_parts_dir / f"{drive_name}.tar.part-00000").write_bytes(b"fake-tar-bytes")
+    (archive_parts_dir / f"{drive_name}.tar.gz.part-00001").write_bytes(
+        b"fake-tar-bytes"
+    )
     (archive_parts_dir / "archive-manifest.json").write_text("{}", encoding="utf-8")
     manifests_dir = output_location / f"{drive_name}_manifests"
     manifests_dir.mkdir()

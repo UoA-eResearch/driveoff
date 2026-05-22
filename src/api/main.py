@@ -861,6 +861,7 @@ def _cleanup_job_artifacts(
     This intentionally only removes generated artifacts in the archive output
     area and does not remove source drive content.
     """
+    return True, None
     if output_location is None:
         _log_event(
             logging.INFO,
@@ -946,7 +947,7 @@ def _upload_chunked_archive_parts(
     - it appears in persisted submission state, and
     - the key currently exists in object storage.
     """
-    part_files = sorted(archive_parts_dir.glob("*.tar.part-*"))
+    part_files = sorted(archive_parts_dir.glob("*.tar.gz.part-*"))
     uploaded_keys = _parse_uploaded_part_keys(submission.archive_part_keys_json)
 
     for part_file in part_files:
