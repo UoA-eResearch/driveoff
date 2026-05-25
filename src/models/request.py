@@ -25,3 +25,9 @@ class CreateSubmissionRequest(SQLModel):
         if v < 6:
             raise ValueError("Retention period must be at least 6 years.")
         return v
+
+
+class CreateRetrievalRequest(SQLModel):
+    """Request body for starting an archive retrieval job."""
+
+    destination_path: str

@@ -80,6 +80,12 @@ class CreateSubmissionResponse(BaseModel):
     message: str
 
 
+class CreateRetrievalResponse(BaseModel):
+    """Response returned after scheduling an archive retrieval job."""
+
+    message: str
+
+
 class ErrorResponse(BaseModel):
     """Error response returned by the API."""
 
