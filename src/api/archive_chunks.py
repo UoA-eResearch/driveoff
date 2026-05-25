@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -87,7 +88,7 @@ class _SplitPartWriter:
         start = 0
         data_len = len(data)
         while start < data_len:
-            if self._current_fp is None or self._current_size >= self.part_size_bytes:
+            if self._current_fp is None:
                 self._open_new_part()
 
             assert self._current_fp is not None
@@ -116,13 +117,24 @@ class _SplitPartWriter:
         if self._current_fp is not None:
             self._finalize_current_part()
 
-    def _open_new_part(self) -> None:
-        """Finalise the current part (if any) and open the next one."""
-        if self._current_fp is not None:
-            self._finalize_current_part()
+    def __enter__(self) -> _SplitPartWriter:
+        return self
 
+    def __exit__(self, exc_type: type[BaseException] | None, *_: object) -> None:
+        self.close()
+        if exc_type is not None:
+            # Archive creation failed; delete every part file written so far
+            # so that the output directory is clean for a retry.
+            for part in self._parts:
+                (self.output_dir / part.file_name).unlink(missing_ok=True)
+
+    def _open_new_part(self) -> None:
+        """Open the next numbered part file, ready to receive data.
+
+        The caller is responsible for finalising any current part before
+        calling this method.  This method only ever opens a new file.
+        """
         self._current_index += 1
-        self._current_size = 0
         self._current_hasher = hashlib.sha256()
 
         file_name = f"{self.base_name}.tar.gz.part-{self._current_index:05d}"
@@ -138,6 +150,7 @@ class _SplitPartWriter:
 
         file_name = Path(self._current_fp.name).name
         self._current_fp.flush()
+        os.fsync(self._current_fp.fileno())
         self._current_fp.close()
         self._parts.append(
             ArchivePartInfo(
@@ -172,18 +185,14 @@ def build_chunked_tar_archive(
         )
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    writer = _SplitPartWriter(
+    with _SplitPartWriter(
         output_dir=output_dir, base_name=base_name, part_size_bytes=part_size_bytes
-    )
-
-    try:
+    ) as writer:
         with tarfile.open(
             fileobj=cast(BinaryIO, writer),
             mode="w|gz",
         ) as tar_stream:
             tar_stream.add(str(source_dir), arcname=source_dir.name)
-    finally:
-        writer.close()
 
     manifest = {
         "archive_name": base_name,
