@@ -104,4 +104,9 @@ class SubmissionResponse(BaseModel):
     retry_count: int
     cleanup_succeeded: bool | None
     cleanup_error: str | None
-    activescale_file_key: str | None
+    archive_file_key: str | None
+    archive_object_prefix: str | None
+    archive_manifest_key: str | None
+    archive_part_keys_json: str | None
+    archive_part_count: int | None
+    archive_total_bytes: int | None

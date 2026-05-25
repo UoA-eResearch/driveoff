@@ -1,5 +1,4 @@
 # pylint: disable=missing-class-docstring,redefined-outer-name,too-few-public-methods,missing-module-docstring
-import shutil
 import json
 import uuid
 from collections.abc import Generator
@@ -29,9 +28,6 @@ from models.common import DataClassification
 from models.submission import ArchiveSubmission
 
 THIS_DIR = Path(__file__).absolute().parent
-TEST_DATA_NAME = "restst000000001-testing"
-TEST_INPUT_NAME = "Vault"
-TEST_OUTPUT_NAME = "Archive"
 
 
 @pytest.fixture(name="session")
@@ -41,11 +37,12 @@ def session_fixture() -> Generator[Session, Any, None]:
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
-        session.rollback()
-        session.close()
-    engine.dispose()
+    try:
+        with Session(engine) as session:
+            yield session
+            session.rollback()
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture(name="client")
@@ -142,33 +139,16 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
         "api.main.get_activescale_client_context", mock_activescale_client_context
     ):
         with patch("api.main.init_activescale"):
-            with patch("api.main.generate_ro_crate_async"):
+            with patch("api.main.generate_ro_crate"):
                 with patch("api.main.upload_file", return_value=True):
-                    client = TestClient(app, headers={"x-api-key": test_api_key})
-                    yield client
+                    with patch(
+                        "api.main._validate_archive_path_access",
+                        return_value=Path("/tmp/mock-drive"),
+                    ):
+                        client = TestClient(app, headers={"x-api-key": test_api_key})
+                        yield client
 
     app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def tmpdir(tmpdir: str) -> Path:
-    """convert temporary directory to path"""
-    return Path(tmpdir)
-
-
-@pytest.fixture
-def data_dir(tmpdir: Path) -> Path:
-    """temporary directory for input files"""
-    d = tmpdir / TEST_DATA_NAME / TEST_INPUT_NAME
-    shutil.copytree(THIS_DIR / TEST_DATA_NAME, d)
-    return d
-
-
-@pytest.fixture
-def archive_dir(tmpdir: Path) -> Path:
-    """temporary directory for archived files"""
-    d = tmpdir / TEST_DATA_NAME / TEST_OUTPUT_NAME
-    return d
 
 
 @pytest.fixture

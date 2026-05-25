@@ -4,8 +4,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import platform
 import shutil
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
@@ -23,14 +25,14 @@ from api.activescale import (
     object_exists,
     upload_file,
 )
+from api.archive_chunks import build_chunked_tar_archive
 from api.cors import add_cors_middleware
-from api.fake_resdrive import make_fake_resdrive
 from api.manifests import bag_directory, bagit_exists, create_manifests_directory
 from api.security import ApiKey, validate_api_key, validate_permissions
 from config import get_settings
 from crate.ro_builder import ROBuilder
-from crate.ro_loader import ROLoader, zip_existing_crate
-from models.common import ResearchDriveName
+from crate.ro_loader import ROLoader
+from models.common import ResearchDriveName, calculate_retention_end_date
 from models.request import CreateSubmissionRequest
 from models.response import (
     CodeResponse,
@@ -87,6 +89,147 @@ def _elapsed_ms(started_at: datetime) -> int:
     return int((datetime.now() - started_at).total_seconds() * 1000)
 
 
+def _is_windows_runtime() -> bool:
+    """Return True when running on Windows.
+
+    Uses platform.system() instead of os.name to avoid some static analyzers
+    folding branches as unreachable based on host/editor platform settings.
+    """
+    return platform.system().lower().startswith("win")
+
+
+def _validate_archive_path_configuration() -> None:
+    """Validate archive path configuration at startup.
+
+    On non-Windows with UNC SMB base paths, a local mount base is required so
+    bagit/rocrate can perform filesystem operations.
+    """
+    settings = get_settings()
+    smb_base = settings.smb_drive_base_path.strip()
+    if _is_windows_runtime() or not smb_base.startswith("//"):
+        return
+
+    mount_base = settings.smb_linux_mount_base_path.strip()
+    if not mount_base:
+        raise RuntimeError(
+            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when "
+            "SMB_DRIVE_BASE_PATH is a UNC path."
+        )
+
+    mount_path = Path(mount_base)
+    if not mount_path.exists() or not mount_path.is_dir():
+        raise RuntimeError(
+            "Configured SMB_LINUX_MOUNT_BASE_PATH is invalid: "
+            f"{mount_path}. Ensure the CIFS mount parent exists."
+        )
+
+    _log_event(
+        logging.INFO,
+        "startup.archive_path_config_validated",
+        smb_drive_base_path=smb_base,
+        smb_linux_mount_base_path=str(mount_path),
+    )
+
+
+def _resolve_drive_path_for_archive(drive_name: str) -> Path:
+    """Resolve a filesystem path usable by bagit/rocrate for archive operations.
+
+    On Linux, UNC paths (//server/share) are not valid local filesystem targets.
+    In that case, require SMB_LINUX_MOUNT_BASE_PATH and resolve to:
+    <mount_base>/<drive_name>.
+    """
+    settings = get_settings()
+    smb_base = settings.smb_drive_base_path.strip()
+    drive_path = Path(smb_base) / drive_name
+
+    if _is_windows_runtime() or not str(drive_path).startswith("//"):
+        return drive_path
+
+    mount_base = settings.smb_linux_mount_base_path.strip()
+    if not mount_base:
+        raise RuntimeError(
+            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when "
+            "SMB_DRIVE_BASE_PATH is a UNC path."
+        )
+
+    mounted_drive_path = Path(mount_base) / drive_name
+    if not mounted_drive_path.exists():
+        raise FileNotFoundError(
+            "Configured mounted drive path does not exist: "
+            f"{mounted_drive_path}. Ensure the CIFS mount is available."
+        )
+    return mounted_drive_path
+
+
+def _validate_archive_path_access(drive_name: str) -> Path:
+    """Validate drive path can be read and written before scheduling archive job.
+
+    Synchronous validation to be called from submission endpoints (before 201).
+    Resolves the archive path and validates read/write permissions early.
+    """
+    drive_path = _resolve_drive_path_for_archive(drive_name)
+
+    if not drive_path.exists() or not drive_path.is_dir():
+        raise FileNotFoundError(
+            f"Drive path does not exist or is not a directory: {drive_path}"
+        )
+
+    # Read probe to validate source permissions
+    try:
+        _ = next(drive_path.iterdir(), None)
+    except Exception as e:
+        raise PermissionError(f"Cannot read source directory {drive_path}: {e}") from e
+
+    # Write probe to validate output permissions
+    probe_file = drive_path / ".driveoff_write_probe"
+    try:
+        with open(probe_file, "wb") as f:
+            f.write(b"ok")
+        probe_file.unlink(missing_ok=True)
+    except Exception as e:
+        raise PermissionError(f"Cannot write to directory {drive_path}: {e}") from e
+
+    # Validate local temp base is writable for generated archive artifacts.
+    temp_base = Path(get_settings().archive_temp_base_path).expanduser()
+    try:
+        temp_base.mkdir(parents=True, exist_ok=True)
+        temp_probe = temp_base / ".driveoff_temp_probe"
+        with open(temp_probe, "wb") as f:
+            f.write(b"ok")
+        temp_probe.unlink(missing_ok=True)
+    except Exception as e:
+        raise PermissionError(
+            f"Cannot write to local archive temp base {temp_base}: {e}"
+        ) from e
+
+    return drive_path
+
+
+def _resolve_archive_output_location(drive_name: str) -> Path:
+    """Resolve local output directory for generated archive artifacts."""
+    temp_base = Path(get_settings().archive_temp_base_path).expanduser()
+    safe_drive_name = drive_name.replace("/", "_").replace("\\", "_")
+    return temp_base / "bagit_temp" / safe_drive_name
+
+
+def _as_bad_request_for_archive_path(
+    drive_name: str,
+    error: FileNotFoundError | PermissionError | RuntimeError,
+) -> HTTPException:
+    """Convert archive path validation errors into consistent client errors."""
+    _log_event(
+        logging.WARNING,
+        "submission.archive_path_validation_failed",
+        drive_name=drive_name,
+        error=str(error),
+        error_type=type(error).__name__,
+    )
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=(f"Archive path validation failed for drive {drive_name}: {error}"),
+    )
+
+
 # Ensure driveoff directory is created
 (Path.home() / ".driveoff").mkdir(exist_ok=True)
 DB_FILE_NAME = Path.home() / ".driveoff" / "database.db"
@@ -115,13 +258,15 @@ ProjectDbDep = Annotated[ProjectDBClient, Depends(get_projectdb_client)]
 async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     """Lifecycle method for the API
 
-    This creates DB tables and initialises the ActiveScale and ProjectDB clients
-    during application startup so routes can depend on them.
+    This creates DB tables and initialises the ActiveScale, ProjectDB,
+    and research drive service clients during application startup so
+    routes can depend on them.
 
     It also performs reconciliation of any active archive jobs that were in-flight
     when the process last exited, marking them as 'abandoned' so they can be retried.
     """
     create_db_and_tables()
+    _validate_archive_path_configuration()
     init_projectdb(app_instance)
     init_activescale(app_instance)
 
@@ -180,7 +325,7 @@ def _reconcile_interrupted_jobs() -> None:
         )
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="Research Drive Archive API", version="1.0.0")
 
 # Send CORS headers to enable frontend to contact API.
 add_cors_middleware(app)
@@ -357,12 +502,30 @@ async def create_submission(
         )
     ).first()
 
-    if existing_submission and existing_submission.stage == JobStage.COMPLETED:
+    if (
+        existing_submission
+        and existing_submission.stage == JobStage.COMPLETED
+        and not request.force
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"Drive {request.drive_name} has already been successfully archived."
+                " Use force=true to re-run."
             ),
+        )
+
+    if (
+        existing_submission
+        and existing_submission.stage == JobStage.COMPLETED
+        and request.force
+    ):
+        _log_event(
+            logging.WARNING,
+            "submission.force_rerun",
+            drive_name=request.drive_name,
+            previous_stage=existing_submission.stage.value,
+            submission_id=existing_submission.id,
         )
 
     if existing_submission and existing_submission.stage in ACTIVE_STAGES:
@@ -378,6 +541,10 @@ async def create_submission(
     try:
         drive = _validate_drive(projectdb, request.drive_name)
         project_id = _resolve_project_id(projectdb, drive, request)
+
+        # Validate drive paths are accessible before creating submission record
+        # This ensures we fail fast with clear errors before returning 201
+        _validate_archive_path_access(request.drive_name)
 
         submission = _upsert_submission(
             session,
@@ -402,7 +569,7 @@ async def create_submission(
         )
 
         background_tasks.add_task(
-            generate_ro_crate_async,
+            generate_ro_crate,
             drive,
             submission.id,
             projectdb_client=projectdb,
@@ -416,6 +583,8 @@ async def create_submission(
                 " RO-Crate generation and upload to ActiveScale is in progress."
             )
         )
+    except (FileNotFoundError, PermissionError, RuntimeError) as e:
+        raise _as_bad_request_for_archive_path(request.drive_name, e) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -456,7 +625,10 @@ async def retry_submission(
     background_tasks: BackgroundTasks,
     projectdb: ProjectDbDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> CreateSubmissionResponse:
+    force: bool = False,
+) -> (
+    CreateSubmissionResponse
+):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Retry a failed or abandoned archive job for a research drive."""
     validate_permissions("POST", api_key)
 
@@ -480,13 +652,18 @@ async def retry_submission(
             ),
         )
 
-    if submission.stage == JobStage.COMPLETED:
+    if submission.stage == JobStage.COMPLETED and not force:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Drive {drive_name} has already been successfully archived.",
+            detail=(
+                f"Drive {drive_name} has already been successfully archived."
+                " Use force=true to re-run."
+            ),
         )
 
-    if submission.stage not in RETRYABLE_STAGES:
+    if submission.stage not in RETRYABLE_STAGES and not (
+        force and submission.stage == JobStage.COMPLETED
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -494,6 +671,23 @@ async def retry_submission(
                 " which cannot be retried."
             ),
         )
+
+    if force and submission.stage == JobStage.COMPLETED:
+        _log_event(
+            logging.WARNING,
+            "submission.force_rerun",
+            drive_name=drive_name,
+            previous_stage=submission.stage.value,
+            submission_id=submission.id,
+        )
+
+    drive = _validate_drive(projectdb, drive_name)
+
+    # Validate drive paths are accessible before mutating submission state.
+    try:
+        _validate_archive_path_access(drive_name)
+    except (FileNotFoundError, PermissionError, RuntimeError) as e:
+        raise _as_bad_request_for_archive_path(drive_name, e) from e
 
     # Reset to QUEUED for the new attempt
     now = datetime.now()
@@ -523,9 +717,8 @@ async def retry_submission(
             detail="Archive submission record is missing ID.",
         )
 
-    drive = _validate_drive(projectdb, drive_name)
     background_tasks.add_task(
-        generate_ro_crate_async,
+        generate_ro_crate,
         drive,
         submission.id,
         projectdb_client=projectdb,
@@ -624,7 +817,12 @@ def _upsert_submission(
         existing_submission.data_classification = request.data_classification
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
-        existing_submission.activescale_file_key = None
+        existing_submission.archive_file_key = None
+        existing_submission.archive_object_prefix = None
+        existing_submission.archive_manifest_key = None
+        existing_submission.archive_part_keys_json = None
+        existing_submission.archive_part_count = None
+        existing_submission.archive_total_bytes = None
         submission = existing_submission
     else:
         submission = ArchiveSubmission(
@@ -655,70 +853,148 @@ def _upsert_submission(
     return submission
 
 
-def get_resdrive_path(drive_name: str) -> Path:
-    """Get a path for a research drive.
-    Please update when service acc logic is finalized"""
-    drive_path = Path.home() / "mnt" / drive_name
-    ###WHILE TESTING MAKE THE DRIVE
-    make_fake_resdrive(drive_path)
-    if not drive_path.is_dir():
-        raise FileNotFoundError(
-            "Research Drive must be mounted in order to generate RO-Crate"
-        )
-    return drive_path
-
-
 def _cleanup_job_artifacts(
-    drive_name: str, output_location: Path
+    drive_name: str, output_location: Path | None
 ) -> tuple[bool, str | None]:
     """Delete generated local archive artifacts for a submission.
 
     This intentionally only removes generated artifacts in the archive output
-    area and does not remove source drive content under Vault.
+    area and does not remove source drive content.
     """
-    generated_paths = [
-        output_location / f"{drive_name}.zip",
-        output_location / str(drive_name),
-        output_location / f"{drive_name}Vault_manifests",
-    ]
+    if output_location is None:
+        _log_event(
+            logging.INFO,
+            "submission.cleanup.skipped",
+            drive_name=drive_name,
+            reason="no output path resolved",
+        )
+        return True, None
 
-    cleanup_errors: list[str] = []
-    removed_count = 0
-    for path in generated_paths:
-        try:
-            if path.is_file():
-                path.unlink()
-                removed_count += 1
-            elif path.is_dir():
-                shutil.rmtree(path)
-                removed_count += 1
-        except FileNotFoundError:
-            continue
-        except OSError as e:  # pragma: no cover - best effort cleanup
-            cleanup_errors.append(f"{path}: {e}")
+    if not output_location.exists():
+        _log_event(
+            logging.INFO,
+            "submission.cleanup.skipped",
+            drive_name=drive_name,
+            output_location=str(output_location),
+            reason="path does not exist",
+        )
+        return True, None
 
-    if cleanup_errors:
+    try:
+        if output_location.is_file():
+            output_location.unlink()
+        else:
+            shutil.rmtree(output_location)
+    except OSError as e:  # pragma: no cover - best effort cleanup
+        cleanup_error = f"{output_location}: {e}"
         _log_event(
             logging.WARNING,
             "submission.cleanup.failed",
             drive_name=drive_name,
             output_location=str(output_location),
-            removed_count=removed_count,
-            cleanup_error="; ".join(cleanup_errors),
+            cleanup_error=cleanup_error,
         )
-        return False, "; ".join(cleanup_errors)
+        return False, cleanup_error
 
     _log_event(
         logging.INFO,
         "submission.cleanup.completed",
         drive_name=drive_name,
         output_location=str(output_location),
-        removed_count=removed_count,
     )
     return True, None
 
 
-def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+def _parse_uploaded_part_keys(part_keys_json: str | None) -> list[str]:
+    """Decode persisted uploaded part keys with defensive validation."""
+    if not part_keys_json:
+        return []
+    try:
+        parsed = json.loads(part_keys_json)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed if isinstance(item, str)]
+
+
+def _persist_uploaded_part_keys(
+    session: Session,
+    submission: ArchiveSubmission,
+    uploaded_keys: list[str],
+) -> None:
+    """Persist uploaded part key progress so retries can resume."""
+    submission.archive_part_keys_json = json.dumps(uploaded_keys)
+    submission.last_updated_timestamp = datetime.now()
+    session.add(submission)
+    session.commit()
+
+
+def _upload_chunked_archive_parts(
+    *,
+    session: Session,
+    submission: ArchiveSubmission,
+    client: Any,
+    bucket_name: str,
+    object_prefix: str,
+    archive_parts_dir: Path,
+    timeout_seconds: int,
+) -> tuple[bool, list[str]]:
+    """Upload chunked archive part files with resume support.
+
+    A part key is considered already uploaded only if:
+    - it appears in persisted submission state, and
+    - the key currently exists in object storage.
+    """
+    part_files = sorted(archive_parts_dir.glob("*.tar.gz.part-*"))
+    uploaded_keys = _parse_uploaded_part_keys(submission.archive_part_keys_json)
+
+    for part_file in part_files:
+        part_key = f"{object_prefix}{part_file.name}"
+        if part_key in uploaded_keys:
+            exists, _ = object_exists(client, bucket_name, part_key)
+            if exists:
+                _log_event(
+                    logging.INFO,
+                    "crate.upload.part.skipped",
+                    submission_id=submission.id,
+                    drive_name=submission.drive_name,
+                    part_key=part_key,
+                    reason="already_uploaded",
+                )
+                continue
+
+        success = upload_file(
+            client,
+            bucket_name,
+            part_key,
+            file_path=str(part_file),
+            timeout=timeout_seconds,
+        )
+        if not success:
+            _log_event(
+                logging.ERROR,
+                "crate.upload.part.failed",
+                submission_id=submission.id,
+                drive_name=submission.drive_name,
+                part_key=part_key,
+            )
+            return False, uploaded_keys
+
+        uploaded_keys.append(part_key)
+        _persist_uploaded_part_keys(session, submission, uploaded_keys)
+        _log_event(
+            logging.INFO,
+            "crate.upload.part.completed",
+            submission_id=submission.id,
+            drive_name=submission.drive_name,
+            part_key=part_key,
+        )
+
+    return True, uploaded_keys
+
+
+def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positional-arguments
     drive: dict[str, Any],
     submission: ArchiveSubmission,
     members_list: list[dict[str, Any]],
@@ -762,6 +1038,12 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
         drive_name=submission.drive_name,
     )
     ro_crate_loader.write_crate(ro_crate_location)
+
+    _log_event(
+        logging.INFO,
+        "bag_directory.start",
+        drive_name=submission.drive_name,
+    )
     bag_directory(
         drive_location,
         bag_info={
@@ -769,6 +1051,10 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
             "drive_name": submission.drive_name,
         },
     )
+
+    # Create output location after bagit processing so it doesn't get included in bag
+    output_location.mkdir(parents=True, exist_ok=True)
+
     create_manifests_directory(
         drive_path=drive_location,
         output_location=output_location,
@@ -776,7 +1062,7 @@ def build_crate_contents_async(  # pylint: disable=too-many-arguments, too-many-
     )
 
 
-async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-statements
+async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     drive: dict[str, Any],
     submission_id: int,
     projectdb_client: ProjectDBClient,
@@ -789,7 +1075,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
 
     Implements persisted checkpoints so retries can skip completed steps:
     - queued→running: After loading submission from DB
-    - running→uploading: After crate build and zip generation
+    - running→uploading: After crate build and tar generation
     - uploading→completed/failed: After upload attempt
 
     Args:
@@ -797,6 +1083,11 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
         submission_id: ID of the ArchiveSubmission record
         projectdb_client: Client for interacting with ProjectDB
     """
+    # Yield to the event loop so uvicorn can flush the HTTP response to the client
+    # before this blocking-heavy task runs.  Without this, the SelectorEventLoop on
+    # Linux holds the response in its write buffer until we return.
+    await asyncio.sleep(0)
+
     drive_name = drive.get("name", None)
     started_at = datetime.now()
     if drive_name is None:
@@ -811,7 +1102,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
     # Create a new session for this background task
     with Session(engine) as session:
         submission: ArchiveSubmission | None = None
-        output_location = Path.home() / "mnt" / str(drive_name) / "Archive"
+        output_location: Path | None = None
         file_key: str | None = None
         project_id: int | None = None
         processing_error: str | None = None
@@ -828,9 +1119,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 )
                 return
 
-            # Transition: queued → running
+            # Transition: queued → packaging
             previous_stage = submission.stage
-            submission.stage = JobStage.RUNNING
+            submission.stage = JobStage.PACKAGING
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -841,7 +1132,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission_id=submission_id,
                 drive_name=drive_name,
                 from_stage=previous_stage.value,
-                to_stage=JobStage.RUNNING.value,
+                to_stage=JobStage.PACKAGING.value,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 elapsed_ms=_elapsed_ms(started_at),
@@ -874,10 +1165,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
             members_list = filter_member_identities(members_list)
 
-            # Generate RO-Crate
-            drive_path = get_resdrive_path(drive_name)
-            drive_location = drive_path / "Vault"
-            output_location = drive_path / "Archive"
+            # Source data and output locations
+            drive_path = _resolve_drive_path_for_archive(drive_name)
+            output_location = _resolve_archive_output_location(drive_name)
 
             _log_event(
                 logging.INFO,
@@ -891,56 +1181,64 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
 
             # Build crate contents (idempotent, safe to retry)
-            build_crate_contents_async(
+            build_crate_contents(
                 drive=drive,
                 submission=submission,
                 members_list=members_list,
                 project_data=project_data,
-                drive_location=drive_location,
+                drive_location=drive_path,
                 output_location=output_location,
             )
 
-            # Zip the generated crate (check if already exists and skip if so)
-            zip_path = output_location / f"{drive_name}.zip"
-            if not zip_path.exists():
-                _log_event(
-                    logging.INFO,
-                    "crate.zip.start",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
-                zip_existing_crate(output_location / str(drive_name), drive_location)
-                _log_event(
-                    logging.INFO,
-                    "crate.zip.completed",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    zip_size_mb=(
-                        zip_path.stat().st_size / (1024 * 1024)
-                        if zip_path.exists()
-                        else 0
-                    ),
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
-            else:
-                _log_event(
-                    logging.INFO,
-                    "crate.zip.skipped",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    reason="zip file already exists",
-                    zip_size_mb=zip_path.stat().st_size / (1024 * 1024),
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
-                )
+            # Build chunked tar archive package for upload.
+            settings = get_settings()
+            archive_parts_dir = output_location / "archive_parts"
+            _log_event(
+                logging.INFO,
+                "crate.package.chunked_tar.start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                archive_parts_dir=str(archive_parts_dir),
+                chunk_size_bytes=settings.archive_chunk_size_bytes,
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+            chunk_result = build_chunked_tar_archive(
+                source_dir=drive_path,
+                output_dir=archive_parts_dir,
+                base_name=str(drive_name),
+                part_size_bytes=settings.archive_chunk_size_bytes,
+                manifest_file_name=settings.archive_chunk_manifest_file_name,
+            )
 
-            # Transition: running → uploading
+            object_prefix = f"{drive_name}/"
+            submission.archive_part_count = len(chunk_result.parts)
+            submission.archive_total_bytes = chunk_result.total_bytes
+            submission.archive_object_prefix = object_prefix
+            submission.archive_manifest_key = (
+                f"{object_prefix}{chunk_result.manifest_path.name}"
+            )
+            if submission.archive_part_keys_json is None:
+                submission.archive_part_keys_json = "[]"
+            submission.last_updated_timestamp = datetime.now()
+            session.add(submission)
+            session.commit()
+
+            _log_event(
+                logging.INFO,
+                "crate.package.chunked_tar.completed",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                part_count=len(chunk_result.parts),
+                total_bytes=chunk_result.total_bytes,
+                manifest_path=str(chunk_result.manifest_path),
+                stage=submission.stage.value,
+                retry_count=submission.retry_count,
+                elapsed_ms=_elapsed_ms(started_at),
+            )
+
+            # Transition: packaging → uploading
             previous_stage = submission.stage
             submission.stage = JobStage.UPLOADING
             submission.last_updated_timestamp = datetime.now()
@@ -971,57 +1269,70 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
             )
 
             with get_activescale_client_context() as client:
-                # Upload to ActiveScale with drive_name as the key
                 bucket_name = "research-archive-test"
-                file_key = f"ro-crates/{drive_name}/{drive_name}.zip"
 
-                # Check if object already exists on S3 and skip upload if so
-                _log_event(
-                    logging.INFO,
-                    "S3.object_exists.check_start",
-                    submission_id=submission_id,
-                    drive_name=drive_name,
-                    file_key=file_key,
-                    stage=submission.stage.value,
-                    retry_count=submission.retry_count,
-                    elapsed_ms=_elapsed_ms(started_at),
+                upload_success, uploaded_part_keys = _upload_chunked_archive_parts(
+                    session=session,
+                    submission=submission,
+                    client=client,
+                    bucket_name=bucket_name,
+                    object_prefix=object_prefix,
+                    archive_parts_dir=archive_parts_dir,
+                    timeout_seconds=settings.activescale_upload_timeout,
                 )
-                obj_exists, obj_metadata = object_exists(client, bucket_name, file_key)
-                if obj_exists:
+
+                if upload_success:
+                    # Transition: uploading -> writing_manifest
+                    previous_stage = submission.stage
+                    submission.stage = JobStage.WRITING_MANIFEST
+                    submission.last_updated_timestamp = datetime.now()
+                    session.add(submission)
+                    session.commit()
+
                     _log_event(
                         logging.INFO,
-                        "S3.upload.skipped",
+                        "submission.stage_transition",
                         submission_id=submission_id,
                         drive_name=drive_name,
-                        file_key=file_key,
-                        reason="object already exists on S3",
-                        object_size_bytes=(
-                            obj_metadata.get("content_length") if obj_metadata else None
-                        ),
+                        from_stage=previous_stage.value,
+                        to_stage=JobStage.WRITING_MANIFEST.value,
                         stage=submission.stage.value,
                         retry_count=submission.retry_count,
                         elapsed_ms=_elapsed_ms(started_at),
                     )
-                    success = True
-                else:
-                    success = upload_file(
+
+                    file_key = f"{object_prefix}{chunk_result.manifest_path.name}"
+                    upload_success = upload_file(
                         client,
                         bucket_name,
                         file_key,
-                        file_path=str(output_location / f"{drive_name}.zip"),
-                        timeout=get_settings().activescale_upload_timeout,
+                        file_path=str(chunk_result.manifest_path),
+                        timeout=settings.activescale_upload_timeout,
                         metadata={
+                            "cer_project_id": str(project_data.get("id", "")),
                             "project_owner": get_project_owner_email(members_list),
                             "division": project_data.get("division") or "Unknown",
+                            "data_classification": submission.data_classification
+                            or "Unknown",
                             "retention_period_years": str(
                                 submission.retention_period_years
                             )
                             or "Unknown",
-                            "data_classification": submission.data_classification
-                            or "Unknown",
+                            "review_date": (
+                                calculate_retention_end_date(
+                                    datetime.now(),
+                                    submission.retention_period_years,
+                                )
+                                if submission.retention_period_years is not None
+                                else "Unknown"
+                            ),
+                            "archive_part_count": str(len(uploaded_part_keys)),
                         },
                     )
-                upload_success = success
+                    submission.archive_manifest_key = file_key
+                    submission.archive_part_keys_json = json.dumps(uploaded_part_keys)
+                    session.add(submission)
+                    session.commit()
 
             # Transition: uploading → cleanup
             previous_stage = submission.stage
@@ -1054,7 +1365,7 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 submission.stage = JobStage.COMPLETED
                 submission.failure_reason = None
                 submission.failed_timestamp = None
-                submission.activescale_file_key = file_key
+                submission.archive_file_key = file_key
                 submission.completed_timestamp = now
                 submission.last_updated_timestamp = now
                 session.add(submission)
@@ -1073,9 +1384,9 @@ async def generate_ro_crate_async(  # pylint: disable=too-many-locals,too-many-s
                 )
             else:
                 submission.stage = JobStage.FAILED
-                submission.failure_reason = "ActiveScale upload failed"
+                submission.failure_reason = "Archive upload failed"
                 submission.failed_timestamp = now
-                submission.activescale_file_key = file_key
+                submission.archive_file_key = file_key
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
@@ -1207,7 +1518,12 @@ async def get_submission(
         retry_count=submission.retry_count,
         cleanup_succeeded=submission.cleanup_succeeded,
         cleanup_error=submission.cleanup_error,
-        activescale_file_key=submission.activescale_file_key,
+        archive_file_key=submission.archive_file_key,
+        archive_object_prefix=submission.archive_object_prefix,
+        archive_manifest_key=submission.archive_manifest_key,
+        archive_part_keys_json=submission.archive_part_keys_json,
+        archive_part_count=submission.archive_part_count,
+        archive_total_bytes=submission.archive_total_bytes,
     )
 
 

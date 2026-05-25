@@ -14,13 +14,14 @@ class JobStage(str, Enum):
     """Lifecycle stages for an archive job.
 
     State transitions:
-        queued -> running -> uploading -> cleanup -> completed
+        queued -> packaging -> uploading -> writing_manifest -> cleanup -> completed
         any non-terminal stage -> failed  (on unhandled exception)
         any non-terminal stage -> abandoned  (on API restart mid-job)
     """
 
     QUEUED = "queued"
-    RUNNING = "running"
+    PACKAGING = "packaging"
+    WRITING_MANIFEST = "writing_manifest"
     UPLOADING = "uploading"
     CLEANUP = "cleanup"
     COMPLETED = "completed"
@@ -30,7 +31,13 @@ class JobStage(str, Enum):
 
 #: Stages that represent still-active (non-terminal) work.
 ACTIVE_STAGES = frozenset(
-    [JobStage.QUEUED, JobStage.RUNNING, JobStage.UPLOADING, JobStage.CLEANUP]
+    [
+        JobStage.QUEUED,
+        JobStage.PACKAGING,
+        JobStage.WRITING_MANIFEST,
+        JobStage.UPLOADING,
+        JobStage.CLEANUP,
+    ]
 )
 
 #: Stages that allow a retry to be submitted.
@@ -57,10 +64,26 @@ class ArchiveSubmission(SQLModel, table=True):
     retention_period_justification: str | None = Field(default=None)
     data_classification: DataClassification
 
-    # ActiveScale upload metadata (optional, only populated after upload attempt)
-    activescale_file_key: str | None = Field(
-        default=None, description="S3/ActiveScale path where archive was uploaded"
+    # Archive upload metadata (optional, only populated after upload attempt)
+    archive_file_key: str | None = Field(
+        default=None, description="S3 path where archive was uploaded"
     )
+    archive_object_prefix: str | None = Field(
+        default=None,
+        description=(
+            "S3 prefix that groups all objects for this archive (used for chunked uploads)"
+        ),
+    )
+    archive_manifest_key: str | None = Field(
+        default=None,
+        description="S3 key for an archive sidecar manifest that lists all uploaded parts",
+    )
+    archive_part_keys_json: str | None = Field(
+        default=None,
+        description="JSON-encoded ordered list of uploaded part object keys",
+    )
+    archive_part_count: int | None = Field(default=None)
+    archive_total_bytes: int | None = Field(default=None)
 
     # Status and audit
     failure_reason: str | None = Field(default=None)

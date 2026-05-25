@@ -17,7 +17,7 @@ def test_post_submission_can_create(
 ) -> None:
     """Test creating a new archive submission"""
     # Mock the background task so it doesn't try to access the database
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -40,7 +40,7 @@ def test_post_submission_rejects_duplicate_active_job(
     session: Session,
 ) -> None:
     """Duplicate submission for the same drive during active job is rejected with 409."""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         create_response = client.post(
             "/api/v1/submission",
             json={
@@ -92,7 +92,7 @@ def test_post_submission_rejects_completed_drive(
     session.add(submission)
     session.commit()
 
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -133,7 +133,7 @@ def test_post_submission_returns_502_when_projectdb_project_lookup_fails(
     app.dependency_overrides[get_projectdb_client] = lambda: BrokenProjectDbClient()
 
     try:
-        with patch("api.main.generate_ro_crate_async"):
+        with patch("api.main.generate_ro_crate"):
             response = client.post(
                 "/api/v1/submission",
                 json={
@@ -191,7 +191,7 @@ def test_post_submission_validates_retention_years(
     client: TestClient,
 ) -> None:
     """Test that retention period validation works"""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -210,7 +210,7 @@ def test_post_submission_validates_classification(
     client: TestClient,
 ) -> None:
     """Test that data classification validation works"""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -229,7 +229,7 @@ def test_post_submission_requires_drive_name(
     client: TestClient,
 ) -> None:
     """Test that drive_name is required"""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -247,7 +247,7 @@ def test_post_submission_accepts_drive_name_with_fullstop(
     client: TestClient,
 ) -> None:
     """Drive names with dot in suffix are accepted by validation."""
-    with patch("api.main.generate_ro_crate_async"):
+    with patch("api.main.generate_ro_crate"):
         response = client.post(
             "/api/v1/submission",
             json={
@@ -276,7 +276,7 @@ def test_retry_submission_rejects_active_stage(
     submission: ArchiveSubmission,
 ) -> None:
     """Retry endpoint returns 409 for active-stage jobs."""
-    submission.stage = JobStage.RUNNING
+    submission.stage = JobStage.PACKAGING
     submission.last_updated_timestamp = datetime.now()
     session.add(submission)
     session.commit()
@@ -308,7 +308,7 @@ def test_retry_submission_requeues_failed_job(
 ) -> None:
     """Retry endpoint should queue a failed job and increment retry_count."""
     submission.stage = JobStage.FAILED
-    submission.failure_reason = "ActiveScale upload failed"
+    submission.failure_reason = "Archive upload failed"
     submission.retry_count = 0
     session.add(submission)
     session.commit()
@@ -326,4 +326,65 @@ def test_retry_submission_requeues_failed_job(
     assert refreshed.stage == JobStage.QUEUED
     assert refreshed.failure_reason is None
     assert refreshed.failed_timestamp is None
+    assert refreshed.retry_count == 1
+
+
+def test_post_submission_force_reruns_completed_job(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """force=true on POST /submission allows re-running a completed archive job."""
+    submission.stage = JobStage.COMPLETED
+    session.add(submission)
+    session.commit()
+
+    with patch("api.main.generate_ro_crate"):
+        response = client.post(
+            "/api/v1/submission",
+            json={
+                "drive_name": "restst000000001-testing",
+                "project_id": 123,
+                "retention_period_years": 7,
+                "retention_period_justification": "Re-archive after data update",
+                "data_classification": "Sensitive",
+                "force": True,
+            },
+        )
+    assert response.status_code == 201
+    assert "Archive submission updated" in response.json()["message"]
+
+    refreshed = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == "restst000000001-testing"
+        )
+    ).first()
+    assert refreshed is not None
+    assert refreshed.stage == JobStage.QUEUED
+
+
+def test_retry_submission_force_reruns_completed_job(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """force=true on retry endpoint allows re-running a completed archive job."""
+    submission.stage = JobStage.COMPLETED
+    submission.retry_count = 0
+    session.add(submission)
+    session.commit()
+
+    response = client.post(
+        f"/api/v1/submission/{submission.drive_name}/retry", params={"force": "true"}
+    )
+    assert response.status_code == 200
+    assert "queued for retry" in response.json()["message"]
+
+    refreshed = session.exec(
+        select(ArchiveSubmission).where(
+            ArchiveSubmission.drive_name == submission.drive_name
+        )
+    ).first()
+    assert refreshed is not None
+    assert refreshed.stage == JobStage.QUEUED
     assert refreshed.retry_count == 1

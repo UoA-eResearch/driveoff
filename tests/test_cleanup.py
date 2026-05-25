@@ -6,28 +6,28 @@ from api.main import _cleanup_job_artifacts
 
 
 def test_cleanup_job_artifacts_removes_generated_outputs(tmp_path: Path) -> None:
-    """Cleanup removes generated zip, crate directory, and manifests directory."""
+    """Cleanup removes output directory and contents."""
     drive_name = "restst000000001-testing"
-    output_location = tmp_path / "Archive"
+    output_location = tmp_path / "bagit_temp" / drive_name
     output_location.mkdir(parents=True, exist_ok=True)
 
-    zip_file = output_location / f"{drive_name}.zip"
-    crate_dir = output_location / drive_name
-    manifests_dir = output_location / f"{drive_name}Vault_manifests"
-
-    zip_file.write_text("zip-bytes", encoding="utf-8")
-    crate_dir.mkdir(parents=True, exist_ok=True)
-    (crate_dir / "dummy.txt").write_text("content", encoding="utf-8")
-    manifests_dir.mkdir(parents=True, exist_ok=True)
+    archive_parts_dir = output_location / "archive_parts"
+    archive_parts_dir.mkdir()
+    (archive_parts_dir / f"{drive_name}.tar.gz.part-00001").write_bytes(
+        b"fake-tar-bytes"
+    )
+    (archive_parts_dir / "archive-manifest.json").write_text("{}", encoding="utf-8")
+    manifests_dir = output_location / f"{drive_name}_manifests"
+    manifests_dir.mkdir()
     (manifests_dir / "manifest-sha256.txt").write_text("hash", encoding="utf-8")
 
     success, error = _cleanup_job_artifacts(drive_name, output_location)
 
     assert success is True
     assert error is None
-    assert not zip_file.exists()
-    assert not crate_dir.exists()
+    assert not archive_parts_dir.exists()
     assert not manifests_dir.exists()
+    assert not output_location.exists()
 
 
 def test_cleanup_job_artifacts_is_idempotent_when_nothing_exists(
@@ -35,7 +35,7 @@ def test_cleanup_job_artifacts_is_idempotent_when_nothing_exists(
 ) -> None:
     """Cleanup succeeds when files are already missing."""
     drive_name = "restst000000001-testing"
-    output_location = tmp_path / "Archive"
+    output_location = tmp_path / "bagit_temp" / drive_name
     output_location.mkdir(parents=True, exist_ok=True)
 
     success, error = _cleanup_job_artifacts(drive_name, output_location)

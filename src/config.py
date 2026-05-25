@@ -1,6 +1,7 @@
 """Module for reading configuration files."""
 
 import os
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
@@ -44,6 +45,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     projectdb_base_url: str = ""
     projectdb_api_key: str = ""
+    smb_drive_base_path: str = ""
+    # Required on Linux: local parent mount path that contains per-drive folders.
+    # Example: if drive is mounted at /mnt/<drive_name>, set to /mnt
+    smb_linux_mount_base_path: str = ""
+    # Local filesystem base path for transient archive output artifacts
+    # (tar + copied manifests). Defaults to OS temp directory.
+    archive_temp_base_path: str = tempfile.gettempdir()
+    # Chunked tar packaging settings for very large archives. Defaults to 512 MiB.
+    archive_chunk_size_bytes: int = 512 * 1024 * 1024
+    archive_chunk_manifest_file_name: str = "archive-manifest.json"
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 

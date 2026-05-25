@@ -31,7 +31,7 @@ _eResearch Project Archive Crate's_ MUST:
 
 _eResearch Project Archive Crates_ MUST be stored as a valid [BagIT](https://datatracker.ietf.org/doc/html/rfc8493) _Bag_. with the `ro_crate_metadata.json` and all data within the `data\` directory of the _Bag_. https://datatracker.ietf.org/doc/html/rfc8493
 
-_eResearch Project Archive Crates_ SHOULD be stored as a single file archive such as a `.tar` (https://lists.gnu.org/archive/html/info-gnu/2023-07/msg00005.html) or `.zip` containing the _Bag_ which in turns contains all metadata and data. `.zip` archives will be used as default.
+_eResearch Project Archive Crates_ SHOULD be stored as a single file archive such as a `.tar` (https://lists.gnu.org/archive/html/info-gnu/2023-07/msg00005.html) or `.zip` containing the _Bag_ which in turns contains all metadata and data. `.tar` archives will be used as default.
 
 _eResearch Project Archive Crates_ MUST contain one `Project` describing the research project associated with the archived data.
 

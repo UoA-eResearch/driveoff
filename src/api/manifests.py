@@ -1,13 +1,18 @@
 """Scripts for generating file manifests"""
 
 import multiprocessing
+import os
 import shutil
 from pathlib import Path
 
 import bagit
 
-PROCESSES = max(multiprocessing.cpu_count() - 2, 1)
-DEFAULT_CHECKSUM = ["sha256", "sha512"]
+# bagit uses multiprocessing.Pool for checksum generation when processes > 1.
+# On Linux, exceptions raised during bagging can leave semaphore resources
+# behind at shutdown, so we keep it single-process there for deterministic
+# cleanup.
+PROCESSES = 1 if os.name != "nt" else max(multiprocessing.cpu_count() - 2, 1)
+DEFAULT_CHECKSUM = ["sha256"]
 
 
 def bagit_exists(drive_path: Path) -> bool:
@@ -80,7 +85,7 @@ def create_manifests_directory(
         raise ValueError(
             "No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate"
         )
-    manifest_dir = output_location / (drive_name + drive_path.name + "_manifests")
+    manifest_dir = output_location / (drive_name + "_manifests")
     manifest_dir.mkdir(parents=True, exist_ok=True)
     for manifest in manifests:
         shutil.copy(str(manifest), str(manifest_dir / manifest.name))

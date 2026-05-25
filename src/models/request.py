@@ -16,6 +16,7 @@ class CreateSubmissionRequest(SQLModel):
     retention_period_justification: str | None = None
     data_classification: DataClassification = DataClassification.SENSITIVE
     project_id: int | None = None
+    force: bool = False
 
     @field_validator("retention_period_years")
     @classmethod
