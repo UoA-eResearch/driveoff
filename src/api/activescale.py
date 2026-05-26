@@ -635,3 +635,202 @@ def set_bucket_tags(
             "s3.bucket.tags_set.unexpected_error", e, bucket_name=bucket_name
         )
         return False
+
+
+def initiate_object_restore(
+    client: S3Client,
+    bucket_name: str,
+    file_key: str,
+    days: int = 3,
+) -> bool:
+    """Send a restore request for an archived (tape-tier) S3 object.
+
+    Args:
+        client: An initialized S3 client.
+        bucket_name: Name of the S3 bucket.
+        file_key: Object key to restore.
+        days: Number of days to make the restored copy available.
+
+    Returns:
+        True if a restore was initiated or is already in progress (caller should
+        poll :func:`is_object_ready_for_download` before downloading).
+        False if the object is in active storage and can be downloaded immediately.
+
+    Raises:
+        RuntimeError: On unexpected S3 or network errors.
+    """
+    try:
+        client.restore_object(
+            Bucket=bucket_name,
+            Key=file_key,
+            RestoreRequest={"Days": days},
+        )
+        _log_event(
+            logging.INFO,
+            "s3.object.restore.initiated",
+            bucket_name=bucket_name,
+            file_key=file_key,
+            days=days,
+        )
+        return True
+    except ClientError as e:
+        error_code, _ = _extract_client_error(e)
+        if error_code == "InvalidObjectState":
+            # Object is already in active (non-archival) storage; no restore required.
+            _log_event(
+                logging.INFO,
+                "s3.object.restore.not_required",
+                bucket_name=bucket_name,
+                file_key=file_key,
+            )
+            return False
+        if error_code == "RestoreAlreadyInProgress":
+            # A previous restore request is still running; continue polling.
+            _log_event(
+                logging.INFO,
+                "s3.object.restore.already_in_progress",
+                bucket_name=bucket_name,
+                file_key=file_key,
+            )
+            return True
+        _log_client_error(
+            "s3.object.restore.client_error",
+            e,
+            bucket_name=bucket_name,
+            file_key=file_key,
+        )
+        raise RuntimeError(f"Failed to initiate restore for '{file_key}': {e}") from e
+    except EndpointConnectionError:
+        _log_endpoint_connection_error(bucket_name=bucket_name, file_key=file_key)
+        raise RuntimeError(
+            f"Endpoint connection error initiating restore for '{file_key}'"
+        )
+    except (BotoCoreError, OSError) as e:
+        _log_unexpected_error(
+            "s3.object.restore.unexpected_error",
+            e,
+            bucket_name=bucket_name,
+            file_key=file_key,
+        )
+        raise RuntimeError(
+            f"Unexpected error initiating restore for '{file_key}': {e}"
+        ) from e
+
+
+def is_object_ready_for_download(
+    client: S3Client,
+    bucket_name: str,
+    file_key: str,
+) -> bool:
+    """Return True if the object is available for immediate download.
+
+    Calls ``head_object`` and inspects the ``Restore`` response header:
+
+    * No ``Restore`` header → object is in active storage, ready now.
+    * ``ongoing-request="false"`` → restore completed, ready now.
+    * ``ongoing-request="true"`` → restore still in progress, not ready.
+
+    Returns False on any error (safe default: keep waiting).
+
+    Args:
+        client: An initialized S3 client.
+        bucket_name: Name of the S3 bucket.
+        file_key: Object key to check.
+    """
+    try:
+        response = client.head_object(Bucket=bucket_name, Key=file_key)
+        restore_header: str | None = response.get("Restore")  # type: ignore[assignment]
+        if restore_header is None:
+            # No Restore header: object lives in active (non-archival) storage.
+            return True
+        ready = 'ongoing-request="false"' in restore_header
+        _log_event(
+            logging.DEBUG,
+            "s3.object.restore.status_checked",
+            bucket_name=bucket_name,
+            file_key=file_key,
+            restore_header=restore_header,
+            ready=ready,
+        )
+        return ready
+    except ClientError as e:
+        _log_client_error(
+            "s3.object.restore.head_error",
+            e,
+            bucket_name=bucket_name,
+            file_key=file_key,
+        )
+        return False
+    except EndpointConnectionError:
+        _log_endpoint_connection_error(bucket_name=bucket_name, file_key=file_key)
+        return False
+    except (BotoCoreError, OSError) as e:
+        _log_unexpected_error(
+            "s3.object.restore.head_unexpected_error",
+            e,
+            bucket_name=bucket_name,
+            file_key=file_key,
+        )
+        return False
+
+
+def download_file_to_disk(
+    client: S3Client,
+    bucket_name: str,
+    file_key: str,
+    dest_path: Path,
+) -> bool:
+    """Download an S3 object to a local file, streaming to avoid memory pressure.
+
+    Streams the response body in 8 MiB chunks so that very large archive
+    parts are not loaded into memory all at once.
+
+    Args:
+        client: An initialized S3 client.
+        bucket_name: Name of the S3 bucket.
+        file_key: Object key to download.
+        dest_path: Local filesystem path to write the downloaded bytes to.
+            Any existing file at this path will be overwritten.
+
+    Returns:
+        True if the download completed successfully, False otherwise.
+    """
+    _CHUNK_SIZE = 8 * 1024 * 1024  # 8 MiB
+    try:
+        response = client.get_object(Bucket=bucket_name, Key=file_key)
+        total_bytes = response.get("ContentLength", 0)
+        body = response["Body"]
+        bytes_written = 0
+        with open(dest_path, "wb") as dest_file:
+            for chunk in body.iter_chunks(chunk_size=_CHUNK_SIZE):
+                dest_file.write(chunk)
+                bytes_written += len(chunk)
+        _log_event(
+            logging.INFO,
+            "s3.object.download.complete",
+            bucket_name=bucket_name,
+            file_key=file_key,
+            dest_path=str(dest_path),
+            bytes_written=bytes_written,
+            content_length=total_bytes,
+        )
+        return True
+    except ClientError as e:
+        _log_client_error(
+            "s3.object.download.client_error",
+            e,
+            bucket_name=bucket_name,
+            file_key=file_key,
+        )
+        return False
+    except EndpointConnectionError:
+        _log_endpoint_connection_error(bucket_name=bucket_name, file_key=file_key)
+        return False
+    except (BotoCoreError, OSError, ValueError) as e:
+        _log_unexpected_error(
+            "s3.object.download.unexpected_error",
+            e,
+            bucket_name=bucket_name,
+            file_key=file_key,
+        )
+        return False

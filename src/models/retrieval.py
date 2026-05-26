@@ -61,6 +61,11 @@ class ArchiveRetrieval(SQLModel, table=True):
     # Failure details
     failure_reason: str | None = Field(default=None)
 
+    # Resume support: JSON-encoded ordered list of already-downloaded part object keys.
+    # Updated after each successful part download so that the job can skip re-downloading
+    # parts that are already on disk if the task is ever restarted mid-download.
+    retrieved_part_keys_json: str | None = Field(default=None)
+
     # Timestamps
     started_timestamp: datetime | None = Field(default=None)
     last_updated_timestamp: datetime | None = Field(default=None)
