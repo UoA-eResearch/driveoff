@@ -8,7 +8,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.14"
-fastapi = {extras = ["standard"], version = "^0.132.0"}
+fastapi = {extras = ["standard"], version = "^0.136.3"}
 sqlmodel = "^0.0.22"
 sqlalchemy = "^2.0.36"
 bagit = "^1.8.1"
@@ -56,6 +56,9 @@ testpaths= ["tests"]
 
 [tool.pylint]
 extension-pkg-whitelist = ["orjson"]
+
+[tool.pylint.messages_control]
+disable = ["duplicate-code", "mixed-line-endings"]
 
 [tool.poe.tasks]
 isort-check = "python -m isort --check --diff --profile black src"
