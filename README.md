@@ -4,8 +4,11 @@ Prototype for research drive offboarding and archiving, from IDS team.
 ## Folder structure
 ```
     src - Namespace for Python packages
-    - api - web API server for offboarding status and project infomration.
-    - cli - interactive scripts to initiate offboarding
+    - api - web API server for offboarding status, drive and project information, triggering offboarding jobs and retrieval of archived data.
+    - crate - RO-Crate generation and validation utilities.
+    - models - Pydantic/SQLModel schemas for API requests/responses and database models.
+    - service - external service clients (e.g. ProjectDB)
+    tests - Pytest test cases for API endpoints and core logic.
     web - JavaScript web frontend.
     Project-Archive-RoCrate-Profile - ROCrate profile that this prototype will create.
 ```
@@ -57,4 +60,3 @@ poetry run poe pylint-check
 poetry run poe mypy-check
 poetry run poe pytest-check
 ```
-
