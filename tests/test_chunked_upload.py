@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from api.main import _parse_uploaded_part_keys, _upload_chunked_archive_parts
+from workers.submission_worker import _parse_uploaded_part_keys, _upload_chunked_archive_parts
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
 
@@ -69,8 +69,8 @@ def test_upload_chunked_parts_resumes_skipping_existing(
         uploaded_keys.append(key)
         return True
 
-    monkeypatch.setattr("api.main.object_exists", fake_exists)
-    monkeypatch.setattr("api.main.upload_file", fake_upload)
+    monkeypatch.setattr("workers.submission_worker.object_exists", fake_exists)
+    monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,
@@ -103,8 +103,8 @@ def test_upload_chunked_parts_stops_on_failure(
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
 
-    monkeypatch.setattr("api.main.object_exists", lambda *_args, **_kwargs: (False, None))
-    monkeypatch.setattr("api.main.upload_file", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_args, **_kwargs: False)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,

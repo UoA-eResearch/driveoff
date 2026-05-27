@@ -4,7 +4,7 @@ from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 
-from crate.ro_builder import RD_PREFIX, ROBuilder, as_ro_id
+from packaging.crate.ro_builder import RD_PREFIX, ROBuilder, as_ro_id
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
 

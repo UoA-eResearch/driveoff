@@ -56,8 +56,8 @@ def test_create_retrieval_returns_201(
     completed_submission: ArchiveSubmission,
 ) -> None:
     """A valid retrieval request returns 201 with a message."""
-    with patch("api.main.run_archive_retrieval"), patch(
-        "api.main._validate_destination_path", return_value=Path(_DEST_PATH)
+    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
+        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
     ):
         response = client.post(
             f"/api/v1/submission/{_DRIVE_NAME}/retrieve",
@@ -75,8 +75,8 @@ def test_create_retrieval_persists_record(
     completed_submission: ArchiveSubmission,
 ) -> None:
     """A retrieval record is written to the database with the correct fields."""
-    with patch("api.main.run_archive_retrieval"), patch(
-        "api.main._validate_destination_path", return_value=Path(_DEST_PATH)
+    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
+        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
     ):
         response = client.post(
             f"/api/v1/submission/{_DRIVE_NAME}/retrieve",
@@ -102,8 +102,8 @@ def test_create_retrieval_schedules_background_task(
     completed_submission: ArchiveSubmission,
 ) -> None:
     """The background task is invoked with the new retrieval record's ID."""
-    with patch("api.main.run_archive_retrieval") as mock_task, patch(
-        "api.main._validate_destination_path", return_value=Path(_DEST_PATH)
+    with patch("api.routers.retrievals.run_archive_retrieval") as mock_task, patch(
+        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
     ):
         response = client.post(
             f"/api/v1/submission/{_DRIVE_NAME}/retrieve",
@@ -221,7 +221,7 @@ def test_create_retrieval_409_when_active_retrieval_exists(
     session.commit()
 
     with patch(
-        "api.main._validate_destination_path", return_value=Path(_DEST_PATH)
+        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
     ):
         response = client.post(
             f"/api/v1/submission/{_DRIVE_NAME}/retrieve",
@@ -251,8 +251,8 @@ def test_create_retrieval_allows_new_job_after_completed_retrieval(
     session.add(previous)
     session.commit()
 
-    with patch("api.main.run_archive_retrieval"), patch(
-        "api.main._validate_destination_path", return_value=Path(_DEST_PATH)
+    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
+        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
     ):
         response = client.post(
             f"/api/v1/submission/{_DRIVE_NAME}/retrieve",
@@ -279,8 +279,8 @@ def test_create_retrieval_allows_new_job_after_failed_retrieval(
     session.add(previous)
     session.commit()
 
-    with patch("api.main.run_archive_retrieval"), patch(
-        "api.main._validate_destination_path", return_value=Path(_DEST_PATH)
+    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
+        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
     ):
         response = client.post(
             f"/api/v1/submission/{_DRIVE_NAME}/retrieve",
@@ -301,7 +301,7 @@ def test_create_retrieval_400_when_destination_path_not_found(
 ) -> None:
     """Returns 400 when the destination path does not exist."""
     with patch(
-        "api.main._validate_destination_path",
+        "api.routers.retrievals.validate_destination_path",
         side_effect=FileNotFoundError("path does not exist"),
     ):
         response = client.post(
@@ -319,7 +319,7 @@ def test_create_retrieval_400_when_destination_not_writable(
 ) -> None:
     """Returns 400 when the destination path is not writable."""
     with patch(
-        "api.main._validate_destination_path",
+        "api.routers.retrievals.validate_destination_path",
         side_effect=PermissionError("cannot write"),
     ):
         response = client.post(

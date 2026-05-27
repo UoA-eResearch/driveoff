@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from api.archive_chunks import build_chunked_tar_archive
-from api.archive_reassembly import (
+from packaging.archive_chunks import build_chunked_tar_archive
+from packaging.archive_reassembly import (
     ordered_part_object_keys,
     reassemble_archive_from_manifest,
 )
@@ -84,7 +84,7 @@ def test_ordered_part_object_keys_uses_manifest_order(tmp_path: Path) -> None:
     )
 
     # manifest already ordered, but this verifies key assembly from manifest entries
-    from api.archive_reassembly import load_archive_manifest
+    from packaging.archive_reassembly import load_archive_manifest
 
     manifest = load_archive_manifest(chunked.manifest_path)
     keys = ordered_part_object_keys("drive/", manifest)

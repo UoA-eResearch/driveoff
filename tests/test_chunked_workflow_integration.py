@@ -17,7 +17,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
-from api.main import generate_ro_crate
+from workers.submission_worker import generate_ro_crate
 from models.common import DataClassification
 from models.submission import ArchiveSubmission, JobStage
 
@@ -93,15 +93,15 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
 
     submission_id = _create_submission(test_engine, drive_name)
 
-    monkeypatch.setattr("api.main.engine", test_engine)
-    monkeypatch.setattr("api.main._resolve_drive_path_for_archive", lambda _name: drive_path)
+    monkeypatch.setattr("workers.submission_worker.engine", test_engine)
+    monkeypatch.setattr("workers.submission_worker.resolve_drive_path_for_archive", lambda _name: drive_path)
     monkeypatch.setattr(
-        "api.main._resolve_archive_output_location", lambda _name: output_path
+        "workers.submission_worker.resolve_archive_output_location", lambda _name: output_path
     )
-    monkeypatch.setattr("api.main._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
+    monkeypatch.setattr("workers.submission_worker._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
 
     # Avoid heavy crate generation internals; this test focuses on chunked workflow.
-    monkeypatch.setattr("api.main.build_crate_contents", lambda **_kwargs: None)
+    monkeypatch.setattr("workers.submission_worker.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=1024,
@@ -109,13 +109,13 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
     )
-    monkeypatch.setattr("api.main.get_settings", lambda: settings)
+    monkeypatch.setattr("workers.submission_worker.get_settings", lambda: settings)
 
     @contextmanager
     def fake_client_context():
         yield object()
 
-    monkeypatch.setattr("api.main.get_activescale_client_context", fake_client_context)
+    monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
 
     upload_calls: list[dict[str, object]] = []
 
@@ -137,8 +137,8 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         )
         return True
 
-    monkeypatch.setattr("api.main.upload_file", fake_upload)
-    monkeypatch.setattr("api.main.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
 
     asyncio.run(
         generate_ro_crate(
@@ -187,13 +187,13 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
 
     submission_id = _create_submission(test_engine, drive_name)
 
-    monkeypatch.setattr("api.main.engine", test_engine)
-    monkeypatch.setattr("api.main._resolve_drive_path_for_archive", lambda _name: drive_path)
+    monkeypatch.setattr("workers.submission_worker.engine", test_engine)
+    monkeypatch.setattr("workers.submission_worker.resolve_drive_path_for_archive", lambda _name: drive_path)
     monkeypatch.setattr(
-        "api.main._resolve_archive_output_location", lambda _name: output_path
+        "workers.submission_worker.resolve_archive_output_location", lambda _name: output_path
     )
-    monkeypatch.setattr("api.main._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
-    monkeypatch.setattr("api.main.build_crate_contents", lambda **_kwargs: None)
+    monkeypatch.setattr("workers.submission_worker._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
+    monkeypatch.setattr("workers.submission_worker.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=100,  # small enough to produce multiple parts after gzip
@@ -201,13 +201,13 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
     )
-    monkeypatch.setattr("api.main.get_settings", lambda: settings)
+    monkeypatch.setattr("workers.submission_worker.get_settings", lambda: settings)
 
     @contextmanager
     def fake_client_context():
         yield object()
 
-    monkeypatch.setattr("api.main.get_activescale_client_context", fake_client_context)
+    monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
 
     first_run_uploaded: set[str] = set()
 
@@ -228,8 +228,8 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         first_run_uploaded.add(key)
         return True
 
-    monkeypatch.setattr("api.main.upload_file", fail_on_second_part)
-    monkeypatch.setattr("api.main.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr("workers.submission_worker.upload_file", fail_on_second_part)
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
 
     asyncio.run(
         generate_ro_crate(
@@ -268,12 +268,12 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         second_run_uploaded.append(key)
         return True
 
-    monkeypatch.setattr("api.main.upload_file", upload_all)
+    monkeypatch.setattr("workers.submission_worker.upload_file", upload_all)
 
     def exists_if_previously_uploaded(_client, _bucket: str, key: str):
         return (key in first_run_uploaded), None
 
-    monkeypatch.setattr("api.main.object_exists", exists_if_previously_uploaded)
+    monkeypatch.setattr("workers.submission_worker.object_exists", exists_if_previously_uploaded)
 
     asyncio.run(
         generate_ro_crate(

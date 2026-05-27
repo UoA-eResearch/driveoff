@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from api.main import _cleanup_job_artifacts
+from workers.submission_worker import _cleanup_job_artifacts
 
 
 def test_cleanup_job_artifacts_removes_generated_outputs(tmp_path: Path) -> None:

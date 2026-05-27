@@ -18,12 +18,13 @@ from sqlalchemy import create_engine
 from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
-from api.main import app, get_session
-from service.projectdb import get_projectdb_client
+from api.dependencies import get_session
+from api.main import app
 from api.security import ApiKey, read_api_keys
-from crate.ro_builder import ROBuilder
-from crate.ro_loader import PROFILE as ARCHIVE_PROFILE
-from crate.ro_loader import ROLoader
+from packaging.crate.ro_builder import ROBuilder
+from packaging.crate.ro_loader import PROFILE as ARCHIVE_PROFILE
+from packaging.crate.ro_loader import ROLoader
+from service.projectdb import get_projectdb_client
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
 
@@ -136,17 +137,17 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
     app.dependency_overrides[get_projectdb_client] = get_projectdb_client_override
 
     with patch(
-        "api.main.get_activescale_client_context", mock_activescale_client_context
+        "workers.submission_worker.get_activescale_client_context",
+        mock_activescale_client_context,
     ):
         with patch("api.main.init_activescale"):
-            with patch("api.main.generate_ro_crate"):
-                with patch("api.main.upload_file", return_value=True):
-                    with patch(
-                        "api.main._validate_archive_path_access",
-                        return_value=Path("/tmp/mock-drive"),
-                    ):
-                        client = TestClient(app, headers={"x-api-key": test_api_key})
-                        yield client
+            with patch("api.routers.submissions.generate_ro_crate"):
+                with patch(
+                    "api.routers.submissions.validate_archive_path_access",
+                    return_value=Path("/tmp/mock-drive"),
+                ):
+                    client = TestClient(app, headers={"x-api-key": test_api_key})
+                    yield client
 
     app.dependency_overrides.clear()
 
