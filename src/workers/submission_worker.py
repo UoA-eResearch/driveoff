@@ -29,6 +29,7 @@ from service.projectdb_client import ProjectDBClient
 from service.projectdb_helpers import filter_member_identities, get_project_owner_email
 from utils.logging import elapsed_ms, log_event
 from utils.paths import resolve_archive_output_location, resolve_drive_path_for_archive
+from workers import parse_part_keys_json
 
 
 def _cleanup_job_artifacts(
@@ -83,19 +84,6 @@ def _cleanup_job_artifacts(
     return True, None
 
 
-def _parse_uploaded_part_keys(part_keys_json: str | None) -> list[str]:
-    """Decode persisted uploaded part keys with defensive validation."""
-    if not part_keys_json:
-        return []
-    try:
-        parsed = json.loads(part_keys_json)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(parsed, list):
-        return []
-    return [str(item) for item in parsed if isinstance(item, str)]
-
-
 def _persist_uploaded_part_keys(
     session: Session,
     submission: ArchiveSubmission,
@@ -108,7 +96,7 @@ def _persist_uploaded_part_keys(
     session.commit()
 
 
-def _upload_chunked_archive_parts(
+def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     *,
     session: Session,
     submission: ArchiveSubmission,
@@ -125,7 +113,7 @@ def _upload_chunked_archive_parts(
     - the key currently exists in object storage.
     """
     part_files = sorted(archive_parts_dir.glob("*.tar.gz.part-*"))
-    uploaded_keys = _parse_uploaded_part_keys(submission.archive_part_keys_json)
+    uploaded_keys = parse_part_keys_json(submission.archive_part_keys_json)
 
     for part_file in part_files:
         part_key = f"{object_prefix}{part_file.name}"

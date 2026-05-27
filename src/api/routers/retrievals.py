@@ -10,12 +10,17 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Security, status
 from sqlmodel import select
 
 from api.dependencies import SessionDep
+from api.routers import _get_submission_or_404
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
 from models.request import CreateRetrievalRequest
 from models.response import CreateRetrievalResponse, ErrorResponse
-from models.retrieval import ACTIVE_RETRIEVAL_STAGES, ArchiveRetrieval, RetrievalJobStage
-from models.submission import ArchiveSubmission, JobStage
+from models.retrieval import (
+    ACTIVE_RETRIEVAL_STAGES,
+    ArchiveRetrieval,
+    RetrievalJobStage,
+)
+from models.submission import JobStage
 from utils.logging import log_event
 from utils.paths import validate_destination_path
 from workers.retrieval_worker import run_archive_retrieval
@@ -58,15 +63,7 @@ async def create_retrieval(
     validate_permissions("POST", api_key)
 
     # 1. Verify a completed archive submission exists for this drive.
-    submission = session.exec(
-        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == drive_name)
-    ).first()
-
-    if submission is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No archive submission found for drive {drive_name}.",
-        )
+    submission = _get_submission_or_404(session, drive_name)
 
     if submission.stage != JobStage.COMPLETED:
         raise HTTPException(
@@ -93,7 +90,7 @@ async def create_retrieval(
     active_retrieval = session.exec(
         select(ArchiveRetrieval).where(
             ArchiveRetrieval.drive_name == drive_name,
-            stage_column.in_(active_stage_values),
+            stage_column.in_(active_stage_values),  # pylint: disable=no-member
         )
     ).first()
 

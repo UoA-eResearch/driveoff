@@ -11,14 +11,11 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Security, status
 from sqlmodel import Session, select
 
 from api.dependencies import ProjectDbDep, SessionDep
+from api.routers import _get_submission_or_404
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
 from models.request import CreateSubmissionRequest
-from models.response import (
-    CreateSubmissionResponse,
-    ErrorResponse,
-    SubmissionResponse,
-)
+from models.response import CreateSubmissionResponse, ErrorResponse, SubmissionResponse
 from models.submission import (
     ACTIVE_STAGES,
     RETRYABLE_STAGES,
@@ -340,19 +337,13 @@ async def retry_submission(
     projectdb: ProjectDbDep,
     api_key: ApiKey = Security(validate_api_key),
     force: bool = False,
-) -> CreateSubmissionResponse:  # pylint: disable=too-many-arguments,too-many-positional-arguments
+) -> (
+    CreateSubmissionResponse
+):  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Retry a failed or abandoned archive job for a research drive."""
     validate_permissions("POST", api_key)
 
-    submission = session.exec(
-        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == drive_name)
-    ).first()
-
-    if submission is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No archive submission found for drive {drive_name}.",
-        )
+    submission = _get_submission_or_404(session, drive_name)
 
     if submission.stage in ACTIVE_STAGES:
         raise HTTPException(

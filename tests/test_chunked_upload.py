@@ -8,7 +8,8 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from workers.submission_worker import _parse_uploaded_part_keys, _upload_chunked_archive_parts
+from workers import parse_part_keys_json
+from workers.submission_worker import _upload_chunked_archive_parts
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
 
@@ -30,11 +31,11 @@ def _create_submission(session: Session, drive_name: str) -> ArchiveSubmission:
 
 
 def test_parse_uploaded_part_keys_defensive() -> None:
-    assert _parse_uploaded_part_keys(None) == []
-    assert _parse_uploaded_part_keys("") == []
-    assert _parse_uploaded_part_keys("{}") == []
-    assert _parse_uploaded_part_keys("not-json") == []
-    assert _parse_uploaded_part_keys('["a", "b"]') == ["a", "b"]
+    assert parse_part_keys_json(None) == []
+    assert parse_part_keys_json("") == []
+    assert parse_part_keys_json("{}") == []
+    assert parse_part_keys_json("not-json") == []
+    assert parse_part_keys_json('["a", "b"]') == ["a", "b"]
 
 
 def test_upload_chunked_parts_resumes_skipping_existing(

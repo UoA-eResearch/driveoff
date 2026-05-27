@@ -34,6 +34,7 @@ from service.activescale import (
     is_object_ready_for_download,
 )
 from utils.logging import elapsed_ms, log_event
+from workers import parse_part_keys_json
 
 
 def _transition_retrieval_stage(
@@ -62,19 +63,6 @@ def _transition_retrieval_stage(
     )
 
 
-def _parse_retrieved_part_keys(part_keys_json: str | None) -> list[str]:
-    """Decode the JSON-encoded list of already-downloaded part object keys."""
-    if not part_keys_json:
-        return []
-    try:
-        parsed = json.loads(part_keys_json)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(parsed, list):
-        return []
-    return [str(item) for item in parsed if isinstance(item, str)]
-
-
 def _persist_retrieved_part_keys(
     session: Session,
     retrieval: ArchiveRetrieval,
@@ -87,7 +75,9 @@ def _persist_retrieved_part_keys(
     session.commit()
 
 
-async def run_archive_retrieval(retrieval_id: int) -> None:  # pylint: disable=too-many-statements
+async def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-locals,too-many-branches
+    retrieval_id: int,
+) -> None:
     """Background task: restore, download, and extract a completed archive.
 
     Workflow:
@@ -274,7 +264,7 @@ async def run_archive_retrieval(retrieval_id: int) -> None:  # pylint: disable=t
                 session, retrieval, RetrievalJobStage.DOWNLOADING, started_at
             )
 
-            already_downloaded = _parse_retrieved_part_keys(
+            already_downloaded = parse_part_keys_json(
                 retrieval.retrieved_part_keys_json
             )
 
