@@ -5,6 +5,18 @@ export type ClientOptions = {
 };
 
 /**
+ * ArchiveJobStage
+ *
+ * Lifecycle stages for an archive job.
+ *
+ * State transitions:
+ * queued -> packaging -> uploading -> writing_manifest -> cleanup -> completed
+ * any non-terminal stage -> failed  (on unhandled exception)
+ * any non-terminal stage -> abandoned  (on API restart mid-job)
+ */
+export type ArchiveJobStage = 'queued' | 'packaging' | 'writing_manifest' | 'uploading' | 'cleanup' | 'completed' | 'failed' | 'abandoned';
+
+/**
  * CodeResponse
  *
  * Project code.
@@ -18,6 +30,30 @@ export type CodeResponse = {
      * Code
      */
     code: string;
+};
+
+/**
+ * CreateRetrievalRequest
+ *
+ * Request body for starting an archive retrieval job.
+ */
+export type CreateRetrievalRequest = {
+    /**
+     * Destination Path
+     */
+    destination_path: string;
+};
+
+/**
+ * CreateRetrievalResponse
+ *
+ * Response returned after scheduling an archive retrieval job.
+ */
+export type CreateRetrievalResponse = {
+    /**
+     * Message
+     */
+    message: string;
 };
 
 /**
@@ -146,18 +182,6 @@ export type HttpValidationError = {
 };
 
 /**
- * JobStage
- *
- * Lifecycle stages for an archive job.
- *
- * State transitions:
- * queued -> packaging -> uploading -> writing_manifest -> cleanup -> completed
- * any non-terminal stage -> failed  (on unhandled exception)
- * any non-terminal stage -> abandoned  (on API restart mid-job)
- */
-export type JobStage = 'queued' | 'packaging' | 'writing_manifest' | 'uploading' | 'cleanup' | 'completed' | 'failed' | 'abandoned';
-
-/**
  * MemberResponse
  *
  * Project member with role.
@@ -165,6 +189,76 @@ export type JobStage = 'queued' | 'packaging' | 'writing_manifest' | 'uploading'
 export type MemberResponse = {
     role: RoleResponse;
     person: PersonResponse;
+};
+
+/**
+ * PatchRetrievalRequest
+ *
+ * Request body for partially updating an archive retrieval record.
+ *
+ * Only fields present in the request body are applied; omitted fields are
+ * left unchanged.  Timestamps (last_updated, completed, failed) are managed
+ * server-side based on the resulting stage value.
+ */
+export type PatchRetrievalRequest = {
+    stage?: RetrievalJobStage | null;
+    /**
+     * Failure Reason
+     */
+    failure_reason?: string | null;
+    /**
+     * Retrieved Part Keys Json
+     */
+    retrieved_part_keys_json?: string | null;
+};
+
+/**
+ * PatchSubmissionRequest
+ *
+ * Request body for partially updating an archive submission record.
+ *
+ * Only fields present in the request body are applied; omitted fields are
+ * left unchanged. Timestamps (last_updated, completed) are managed
+ * server-side based on the resulting stage value.
+ */
+export type PatchSubmissionRequest = {
+    stage?: ArchiveJobStage | null;
+    /**
+     * Failure Reason
+     */
+    failure_reason?: string | null;
+    /**
+     * Cleanup Succeeded
+     */
+    cleanup_succeeded?: boolean | null;
+    /**
+     * Cleanup Error
+     */
+    cleanup_error?: string | null;
+    /**
+     * Archive File Key
+     */
+    archive_file_key?: string | null;
+    /**
+     * Archive Object Prefix
+     */
+    archive_object_prefix?: string | null;
+    /**
+     * Archive Manifest Key
+     */
+    archive_manifest_key?: string | null;
+    /**
+     * Archive Part Keys Json
+     */
+    archive_part_keys_json?: string | null;
+    /**
+     * Archive Part Count
+     */
+    archive_part_count?: number | null;
+    /**
+     * Archive Total Bytes
+     */
+    archive_total_bytes?: number | null;
 };
 
 /**
@@ -232,6 +326,62 @@ export type ProjectResponse = {
 };
 
 /**
+ * RetrievalJobStage
+ *
+ * Lifecycle stages for an archive retrieval job.
+ *
+ * State transitions:
+ * queued -> restoring -> downloading -> extracting -> completed
+ * any non-terminal stage -> failed  (on unhandled exception)
+ */
+export type RetrievalJobStage = 'queued' | 'restoring' | 'downloading' | 'extracting' | 'completed' | 'failed';
+
+/**
+ * RetrievalResponse
+ *
+ * Archive retrieval record returned by the retrieval endpoint.
+ */
+export type RetrievalResponse = {
+    /**
+     * Id
+     */
+    id: number | null;
+    /**
+     * Drive Name
+     */
+    drive_name: string;
+    /**
+     * Submission Id
+     */
+    submission_id: number;
+    /**
+     * Destination Path
+     */
+    destination_path: string;
+    stage: RetrievalJobStage;
+    /**
+     * Failure Reason
+     */
+    failure_reason: string | null;
+    /**
+     * Started Timestamp
+     */
+    started_timestamp: string | null;
+    /**
+     * Last Updated Timestamp
+     */
+    last_updated_timestamp: string | null;
+    /**
+     * Completed Timestamp
+     */
+    completed_timestamp: string | null;
+    /**
+     * Failed Timestamp
+     */
+    failed_timestamp: string | null;
+};
+
+/**
  * RoleResponse
  *
  * Project role.
@@ -274,7 +424,7 @@ export type SubmissionResponse = {
      */
     retention_period_justification: string | null;
     data_classification: DataClassification;
-    stage: JobStage;
+    stage: ArchiveJobStage;
     /**
      * Failure Reason
      */
@@ -557,3 +707,190 @@ export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses = {
 };
 
 export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponse = RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses[keyof RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses];
+
+export type PatchSubmissionApiV1SubmissionDriveNamePatchData = {
+    body: PatchSubmissionRequest;
+    path?: never;
+    query: {
+        /**
+         * Submission Id
+         */
+        submission_id: number;
+        /**
+         * Path
+         */
+        path?: string;
+    };
+    url: '/api/v1/submission/{drive_name}';
+};
+
+export type PatchSubmissionApiV1SubmissionDriveNamePatchErrors = {
+    /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * No archive submission found for drive
+     */
+    404: ErrorResponse;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PatchSubmissionApiV1SubmissionDriveNamePatchError = PatchSubmissionApiV1SubmissionDriveNamePatchErrors[keyof PatchSubmissionApiV1SubmissionDriveNamePatchErrors];
+
+export type PatchSubmissionApiV1SubmissionDriveNamePatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SubmissionResponse;
+};
+
+export type PatchSubmissionApiV1SubmissionDriveNamePatchResponse = PatchSubmissionApiV1SubmissionDriveNamePatchResponses[keyof PatchSubmissionApiV1SubmissionDriveNamePatchResponses];
+
+export type GetRetrievalApiV1RetrievalDriveNameGetData = {
+    body?: never;
+    path: {
+        /**
+         * Drive Name
+         */
+        drive_name: string;
+    };
+    query?: {
+        /**
+         * Path
+         */
+        path?: string;
+    };
+    url: '/api/v1/retrieval/{drive_name}';
+};
+
+export type GetRetrievalApiV1RetrievalDriveNameGetErrors = {
+    /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * No archive retrieval job found for drive
+     */
+    404: ErrorResponse;
+    /**
+     * Validation error
+     */
+    422: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetRetrievalApiV1RetrievalDriveNameGetError = GetRetrievalApiV1RetrievalDriveNameGetErrors[keyof GetRetrievalApiV1RetrievalDriveNameGetErrors];
+
+export type GetRetrievalApiV1RetrievalDriveNameGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RetrievalResponse;
+};
+
+export type GetRetrievalApiV1RetrievalDriveNameGetResponse = GetRetrievalApiV1RetrievalDriveNameGetResponses[keyof GetRetrievalApiV1RetrievalDriveNameGetResponses];
+
+export type CreateRetrievalApiV1RetrievalDriveNamePostData = {
+    body: CreateRetrievalRequest;
+    path: {
+        /**
+         * Drive Name
+         */
+        drive_name: string;
+    };
+    query?: {
+        /**
+         * Path
+         */
+        path?: string;
+    };
+    url: '/api/v1/retrieval/{drive_name}';
+};
+
+export type CreateRetrievalApiV1RetrievalDriveNamePostErrors = {
+    /**
+     * Invalid retrieval request
+     */
+    400: ErrorResponse;
+    /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * No completed archive submission found for drive
+     */
+    404: ErrorResponse;
+    /**
+     * A retrieval job for this drive is already active
+     */
+    409: ErrorResponse;
+    /**
+     * Validation error
+     */
+    422: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type CreateRetrievalApiV1RetrievalDriveNamePostError = CreateRetrievalApiV1RetrievalDriveNamePostErrors[keyof CreateRetrievalApiV1RetrievalDriveNamePostErrors];
+
+export type CreateRetrievalApiV1RetrievalDriveNamePostResponses = {
+    /**
+     * Successful Response
+     */
+    201: CreateRetrievalResponse;
+};
+
+export type CreateRetrievalApiV1RetrievalDriveNamePostResponse = CreateRetrievalApiV1RetrievalDriveNamePostResponses[keyof CreateRetrievalApiV1RetrievalDriveNamePostResponses];
+
+export type PatchRetrievalApiV1RetrievalRetrievalIdPatchData = {
+    body: PatchRetrievalRequest;
+    path: {
+        /**
+         * Retrieval Id
+         */
+        retrieval_id: number;
+    };
+    query?: {
+        /**
+         * Path
+         */
+        path?: string;
+    };
+    url: '/api/v1/retrieval/{retrieval_id}';
+};
+
+export type PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors = {
+    /**
+     * Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Retrieval job not found
+     */
+    404: ErrorResponse;
+    /**
+     * Validation error
+     */
+    422: unknown;
+};
+
+export type PatchRetrievalApiV1RetrievalRetrievalIdPatchError = PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors[keyof PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors];
+
+export type PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: RetrievalResponse;
+};
+
+export type PatchRetrievalApiV1RetrievalRetrievalIdPatchResponse = PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses[keyof PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses];
