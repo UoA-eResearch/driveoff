@@ -13,8 +13,8 @@ from api.dependencies import SessionDep
 from api.routers import _get_submission_or_404
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
-from models.request import CreateRetrievalRequest
-from models.response import CreateRetrievalResponse, ErrorResponse
+from models.request import CreateRetrievalRequest, PatchRetrievalRequest
+from models.response import CreateRetrievalResponse, ErrorResponse, RetrievalResponse
 from models.retrieval import (
     ACTIVE_RETRIEVAL_STAGES,
     ArchiveRetrieval,
@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 @router.post(
-    "/submission/{drive_name}/retrieve",
+    "/retrieval/{drive_name}",
     status_code=status.HTTP_201_CREATED,
     response_model=CreateRetrievalResponse,
     responses={
@@ -164,3 +164,96 @@ async def create_retrieval(
             f" Restoring archive to {request.destination_path}."
         )
     )
+
+
+@router.get(
+    "/retrieval/{drive_name}",
+    status_code=status.HTTP_200_OK,
+    response_model=RetrievalResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {
+            "model": ErrorResponse,
+            "description": "No archive retrieval job found for drive",
+        },
+        422: {"description": "Validation error"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def get_retrieval(
+    drive_name: ResearchDriveName,
+    session: SessionDep,
+    api_key: ApiKey = Security(validate_api_key),
+) -> RetrievalResponse:
+    """Check if an archive retrieval job exists for the drive and return it."""
+    validate_permissions("GET", api_key)
+
+    retrieval = session.exec(
+        select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == drive_name)
+    ).first()
+
+    if retrieval is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No archive retrieval job found for drive {drive_name}.",
+        )
+
+    return RetrievalResponse.model_validate(retrieval)
+
+
+@router.patch(
+    "/retrieval/{retrieval_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=RetrievalResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {"model": ErrorResponse, "description": "Retrieval job not found"},
+        422: {"description": "Validation error"},
+    },
+)
+async def patch_retrieval(
+    retrieval_id: int,
+    patch: PatchRetrievalRequest,
+    session: SessionDep,
+    api_key: ApiKey = Security(validate_api_key),
+) -> RetrievalResponse:
+    """Partially update an archive retrieval record.
+
+    Intended for worker processes to report stage transitions and progress.
+    Only fields present in the request body are applied.  Timestamps are
+    managed server-side: last_updated_timestamp is always refreshed;
+    completed_timestamp and failed_timestamp are set automatically on the
+    corresponding stage transition.
+    """
+    validate_permissions("PATCH", api_key)
+
+    retrieval = session.get(ArchiveRetrieval, retrieval_id)
+    if retrieval is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No retrieval job found with id {retrieval_id}.",
+        )
+
+    update_data = patch.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(retrieval, field, value)
+
+    now = datetime.now()
+    retrieval.last_updated_timestamp = now
+    if "stage" in update_data:
+        if (
+            retrieval.stage == RetrievalJobStage.COMPLETED
+            and retrieval.completed_timestamp is None
+        ):
+            retrieval.completed_timestamp = now
+        elif (
+            retrieval.stage == RetrievalJobStage.FAILED
+            and retrieval.failed_timestamp is None
+        ):
+            retrieval.failed_timestamp = now
+
+    session.add(retrieval)
+    session.commit()
+    session.refresh(retrieval)
+
+    return RetrievalResponse.model_validate(retrieval)

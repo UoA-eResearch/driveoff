@@ -134,7 +134,7 @@ Send a `POST /api/v1/submission` request with the drive name, data classificatio
 
 ## Archive Retrieval Workflow
 
-Send a `POST /api/v1/submission/{drive_name}/retrieve` request with a `destination_path` body field. The API validates the request synchronously (completed submission exists, no active retrieval in progress, destination path is writable) and immediately returns `201`. The actual retrieval runs as a background task through four stages:
+Send a `POST /api/v1/retrieval/{drive_name}` request with a `destination_path` body field. The API validates the request synchronously (completed submission exists, no active retrieval in progress, destination path is writable) and immediately returns `201`. The actual retrieval runs as a background task through four stages:
 
 **RESTORING** — The archive manifest and all chunked archive parts are requested from tape/archival storage. If any are on tape, the task polls until they are thawed (up to 24 h by default, configurable via `activescale_restore_poll_max_seconds`). Files already in active storage skip the restore step.
 

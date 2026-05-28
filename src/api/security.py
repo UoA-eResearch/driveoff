@@ -9,7 +9,7 @@ from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader, APIKeyQuery
 from pydantic import BaseModel
 
-HttpAction = Literal["GET", "POST", "PUT"]
+HttpAction = Literal["GET", "POST", "PUT", "PATCH"]
 
 _api_key_query = APIKeyQuery(name="api-key", auto_error=False)
 _api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)

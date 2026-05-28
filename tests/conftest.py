@@ -58,7 +58,9 @@ def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
     test_api_key: str = str(uuid.uuid4())
 
     def read_api_keys_override():
-        api_key_obj = ApiKey(value=test_api_key, actions=["GET", "PUT", "POST"])
+        api_key_obj = ApiKey(
+            value=test_api_key, actions=["GET", "PUT", "POST", "PATCH"]
+        )
         return {test_api_key: api_key_obj}
 
     # Mock ProjectDB client for API tests

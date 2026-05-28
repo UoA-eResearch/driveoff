@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from pydantic import field_validator
+from pydantic import BaseModel, field_validator
 from sqlmodel import SQLModel
 
 from models.common import DataClassification, ResearchDriveName
+from models.retrieval import RetrievalJobStage
 
 
 class CreateSubmissionRequest(SQLModel):
@@ -31,3 +32,16 @@ class CreateRetrievalRequest(SQLModel):
     """Request body for starting an archive retrieval job."""
 
     destination_path: str
+
+
+class PatchRetrievalRequest(BaseModel):
+    """Request body for partially updating an archive retrieval record.
+
+    Only fields present in the request body are applied; omitted fields are
+    left unchanged.  Timestamps (last_updated, completed, failed) are managed
+    server-side based on the resulting stage value.
+    """
+
+    stage: RetrievalJobStage | None = None
+    failure_reason: str | None = None
+    retrieved_part_keys_json: str | None = None

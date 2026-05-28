@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from models.common import DataClassification
+from models.retrieval import RetrievalJobStage
 from models.submission import JobStage
 
 
@@ -116,3 +117,20 @@ class SubmissionResponse(BaseModel):
     archive_part_keys_json: str | None
     archive_part_count: int | None
     archive_total_bytes: int | None
+
+
+class RetrievalResponse(BaseModel):
+    """Archive retrieval record returned by the retrieval endpoint."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int | None
+    drive_name: str
+    submission_id: int
+    destination_path: str
+    stage: RetrievalJobStage
+    failure_reason: str | None
+    started_timestamp: datetime | None
+    last_updated_timestamp: datetime | None
+    completed_timestamp: datetime | None
+    failed_timestamp: datetime | None
