@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from models.common import DataClassification
 from models.retrieval import RetrievalJobStage
-from models.submission import JobStage
+from models.submission import ArchiveJobStage
 
 
 class RoleResponse(BaseModel):
@@ -96,13 +96,15 @@ class ErrorResponse(BaseModel):
 class SubmissionResponse(BaseModel):
     """Archive submission record returned by the submission endpoint."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     drive_id: int
     project_id: int
     drive_name: str
     retention_period_years: int
     retention_period_justification: str | None
     data_classification: DataClassification
-    stage: JobStage
+    stage: ArchiveJobStage
     failure_reason: str | None
     failed_timestamp: datetime | None
     started_timestamp: datetime | None

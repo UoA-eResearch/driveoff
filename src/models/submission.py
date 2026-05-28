@@ -10,7 +10,7 @@ from sqlmodel import Field, SQLModel
 from models.common import DataClassification
 
 
-class JobStage(str, Enum):
+class ArchiveJobStage(str, Enum):
     """Lifecycle stages for an archive job.
 
     State transitions:
@@ -32,16 +32,16 @@ class JobStage(str, Enum):
 #: Stages that represent still-active (non-terminal) work.
 ACTIVE_STAGES = frozenset(
     [
-        JobStage.QUEUED,
-        JobStage.PACKAGING,
-        JobStage.WRITING_MANIFEST,
-        JobStage.UPLOADING,
-        JobStage.CLEANUP,
+        ArchiveJobStage.QUEUED,
+        ArchiveJobStage.PACKAGING,
+        ArchiveJobStage.WRITING_MANIFEST,
+        ArchiveJobStage.UPLOADING,
+        ArchiveJobStage.CLEANUP,
     ]
 )
 
 #: Stages that allow a retry to be submitted.
-RETRYABLE_STAGES = frozenset([JobStage.FAILED, JobStage.ABANDONED])
+RETRYABLE_STAGES = frozenset([ArchiveJobStage.FAILED, ArchiveJobStage.ABANDONED])
 
 
 class ArchiveSubmission(SQLModel, table=True):
@@ -90,7 +90,7 @@ class ArchiveSubmission(SQLModel, table=True):
     failed_timestamp: datetime | None = Field(default=None)
 
     # Lifecycle stage (authoritative status for the archive job)
-    stage: JobStage = Field(default=JobStage.QUEUED)
+    stage: ArchiveJobStage = Field(default=ArchiveJobStage.QUEUED)
 
     # Timestamps for operational visibility
     started_timestamp: datetime | None = Field(default=None)

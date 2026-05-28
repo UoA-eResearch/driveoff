@@ -15,7 +15,7 @@ from sqlmodel import Session, select
 from api.dependencies import engine
 from config import get_settings
 from models.common import calculate_retention_end_date
-from models.submission import ACTIVE_STAGES, ArchiveSubmission, JobStage
+from models.submission import ACTIVE_STAGES, ArchiveJobStage, ArchiveSubmission
 from packaging.archive_chunks import build_chunked_tar_archive
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import ROLoader
@@ -287,7 +287,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
 
             # Transition: queued → packaging
             previous_stage = submission.stage
-            submission.stage = JobStage.PACKAGING
+            submission.stage = ArchiveJobStage.PACKAGING
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -298,7 +298,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                 submission_id=submission_id,
                 drive_name=drive_name,
                 from_stage=previous_stage.value,
-                to_stage=JobStage.PACKAGING.value,
+                to_stage=ArchiveJobStage.PACKAGING.value,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 elapsed_ms=elapsed_ms(started_at),
@@ -406,7 +406,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
 
             # Transition: packaging → uploading
             previous_stage = submission.stage
-            submission.stage = JobStage.UPLOADING
+            submission.stage = ArchiveJobStage.UPLOADING
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -417,7 +417,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                 submission_id=submission_id,
                 drive_name=drive_name,
                 from_stage=previous_stage.value,
-                to_stage=JobStage.UPLOADING.value,
+                to_stage=ArchiveJobStage.UPLOADING.value,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 elapsed_ms=elapsed_ms(started_at),
@@ -450,7 +450,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                 if upload_success:
                     # Transition: uploading -> writing_manifest
                     previous_stage = submission.stage
-                    submission.stage = JobStage.WRITING_MANIFEST
+                    submission.stage = ArchiveJobStage.WRITING_MANIFEST
                     submission.last_updated_timestamp = datetime.now()
                     session.add(submission)
                     session.commit()
@@ -461,7 +461,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                         submission_id=submission_id,
                         drive_name=drive_name,
                         from_stage=previous_stage.value,
-                        to_stage=JobStage.WRITING_MANIFEST.value,
+                        to_stage=ArchiveJobStage.WRITING_MANIFEST.value,
                         stage=submission.stage.value,
                         retry_count=submission.retry_count,
                         elapsed_ms=elapsed_ms(started_at),
@@ -502,7 +502,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
 
             # Transition: uploading → cleanup
             previous_stage = submission.stage
-            submission.stage = JobStage.CLEANUP
+            submission.stage = ArchiveJobStage.CLEANUP
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
@@ -513,7 +513,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                 submission_id=submission_id,
                 drive_name=drive_name,
                 from_stage=previous_stage.value,
-                to_stage=JobStage.CLEANUP.value,
+                to_stage=ArchiveJobStage.CLEANUP.value,
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
                 elapsed_ms=elapsed_ms(started_at),
@@ -528,7 +528,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
             # Update submission record with upload result
             now = datetime.now()
             if upload_success:
-                submission.stage = JobStage.COMPLETED
+                submission.stage = ArchiveJobStage.COMPLETED
                 submission.failure_reason = None
                 submission.failed_timestamp = None
                 submission.archive_file_key = file_key
@@ -549,7 +549,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                     elapsed_ms=elapsed_ms(started_at),
                 )
             else:
-                submission.stage = JobStage.FAILED
+                submission.stage = ArchiveJobStage.FAILED
                 submission.failure_reason = "Archive upload failed"
                 submission.failed_timestamp = now
                 submission.archive_file_key = file_key
@@ -586,7 +586,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
 
                 # Transition to cleanup before final failed state.
                 previous_stage = submission.stage
-                submission.stage = JobStage.CLEANUP
+                submission.stage = ArchiveJobStage.CLEANUP
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
@@ -597,7 +597,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                     submission_id=submission_id,
                     drive_name=drive_name,
                     from_stage=previous_stage.value,
-                    to_stage=JobStage.CLEANUP.value,
+                    to_stage=ArchiveJobStage.CLEANUP.value,
                     stage=submission.stage.value,
                     retry_count=submission.retry_count,
                     elapsed_ms=elapsed_ms(started_at),
@@ -609,7 +609,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                 submission.cleanup_succeeded = cleanup_succeeded
                 submission.cleanup_error = cleanup_error
 
-                submission.stage = JobStage.FAILED
+                submission.stage = ArchiveJobStage.FAILED
                 submission.failure_reason = processing_error
                 submission.failed_timestamp = now
                 submission.last_updated_timestamp = now
@@ -665,7 +665,7 @@ def _reconcile_interrupted_jobs() -> None:
                 drive_name=submission.drive_name,
                 previous_stage=previous_stage,
             )
-            submission.stage = JobStage.ABANDONED
+            submission.stage = ArchiveJobStage.ABANDONED
             submission.failure_reason = (
                 f"Process restarted while job was in stage '{previous_stage.value}'."
                 " Retry this job to resume."

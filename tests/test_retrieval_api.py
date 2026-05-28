@@ -10,8 +10,7 @@ from sqlmodel import Session, select
 
 from models.common import DataClassification
 from models.retrieval import ACTIVE_RETRIEVAL_STAGES, ArchiveRetrieval, RetrievalJobStage
-from models.submission import ArchiveSubmission, JobStage
-
+from models.submission import ArchiveSubmission, ArchiveJobStage
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -31,7 +30,7 @@ def completed_submission_fixture(session: Session) -> ArchiveSubmission:
         retention_period_years=7,
         retention_period_justification="Standard research data retention",
         data_classification=DataClassification.SENSITIVE,
-        stage=JobStage.COMPLETED,
+        stage=ArchiveJobStage.COMPLETED,
         archive_manifest_key=f"{_DRIVE_NAME}/archive-manifest.json",
         archive_object_prefix=f"{_DRIVE_NAME}/",
         archive_part_count=2,
@@ -147,20 +146,20 @@ def test_create_retrieval_404_when_no_submission(
 @pytest.mark.parametrize(
     "stage",
     [
-        JobStage.QUEUED,
-        JobStage.PACKAGING,
-        JobStage.UPLOADING,
-        JobStage.WRITING_MANIFEST,
-        JobStage.CLEANUP,
-        JobStage.FAILED,
-        JobStage.ABANDONED,
+        ArchiveJobStage.QUEUED,
+        ArchiveJobStage.PACKAGING,
+        ArchiveJobStage.UPLOADING,
+        ArchiveJobStage.WRITING_MANIFEST,
+        ArchiveJobStage.CLEANUP,
+        ArchiveJobStage.FAILED,
+        ArchiveJobStage.ABANDONED,
     ],
 )
 def test_create_retrieval_409_for_non_completed_stages(
     client: TestClient,
     session: Session,
     submission: ArchiveSubmission,
-    stage: JobStage,
+    stage: ArchiveJobStage,
 ) -> None:
     """Any non-COMPLETED submission stage results in 409."""
     submission.stage = stage
@@ -183,7 +182,7 @@ def test_create_retrieval_409_when_manifest_key_missing(
     submission: ArchiveSubmission,
 ) -> None:
     """Returns 409 when submission is COMPLETED but archive_manifest_key is absent."""
-    submission.stage = JobStage.COMPLETED
+    submission.stage = ArchiveJobStage.COMPLETED
     submission.archive_manifest_key = None
     session.add(submission)
     session.commit()

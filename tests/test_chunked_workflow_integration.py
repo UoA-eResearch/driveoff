@@ -19,8 +19,7 @@ from sqlmodel.pool import StaticPool
 
 from workers.submission_worker import generate_ro_crate
 from models.common import DataClassification
-from models.submission import ArchiveSubmission, JobStage
-
+from models.submission import ArchiveSubmission, ArchiveJobStage
 
 class _ProjectDbStub:
     def get_project(self, pid: int, expand=None):  # noqa: ANN001
@@ -65,7 +64,7 @@ def _create_submission(engine, drive_name: str, project_id: int = 123) -> int:
             retention_period_years=7,
             retention_period_justification="Standard retention",
             data_classification=DataClassification.SENSITIVE,
-            stage=JobStage.QUEUED,
+            stage=ArchiveJobStage.QUEUED,
             started_timestamp=datetime.now(),
             last_updated_timestamp=datetime.now(),
         )
@@ -151,7 +150,7 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     with Session(test_engine) as session:
         submission = session.get(ArchiveSubmission, submission_id)
         assert submission is not None
-        assert submission.stage == JobStage.COMPLETED
+        assert submission.stage == ArchiveJobStage.COMPLETED
         assert submission.archive_part_count is not None
         assert submission.archive_part_count > 0
         assert submission.archive_object_prefix == f"{drive_name}/"
@@ -242,13 +241,13 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     with Session(test_engine) as session:
         submission = session.get(ArchiveSubmission, submission_id)
         assert submission is not None
-        assert submission.stage == JobStage.FAILED
+        assert submission.stage == ArchiveJobStage.FAILED
         first_run_keys = json.loads(submission.archive_part_keys_json or "[]")
         assert len(first_run_keys) == 1
         assert first_run_keys[0] in first_run_uploaded
 
         # Simulate retry endpoint behavior.
-        submission.stage = JobStage.QUEUED
+        submission.stage = ArchiveJobStage.QUEUED
         submission.failure_reason = None
         submission.failed_timestamp = None
         submission.last_updated_timestamp = datetime.now()
@@ -286,7 +285,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     with Session(test_engine) as session:
         submission = session.get(ArchiveSubmission, submission_id)
         assert submission is not None
-        assert submission.stage == JobStage.COMPLETED
+        assert submission.stage == ArchiveJobStage.COMPLETED
         assert submission.archive_manifest_key == f"{drive_name}/archive-manifest.json"
         final_part_keys = json.loads(submission.archive_part_keys_json or "[]")
         assert submission.archive_part_count is not None

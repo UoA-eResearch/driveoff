@@ -14,13 +14,13 @@ from api.dependencies import ProjectDbDep, SessionDep
 from api.routers import _get_submission_or_404
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
-from models.request import CreateSubmissionRequest
+from models.request import CreateSubmissionRequest, PatchSubmissionRequest
 from models.response import CreateSubmissionResponse, ErrorResponse, SubmissionResponse
 from models.submission import (
     ACTIVE_STAGES,
     RETRYABLE_STAGES,
+    ArchiveJobStage,
     ArchiveSubmission,
-    JobStage,
 )
 from service.projectdb_client import ProjectDBClient
 from utils.logging import log_event
@@ -136,7 +136,7 @@ def _upsert_submission(
         )
 
     now = datetime.now()
-    submission.stage = JobStage.QUEUED
+    submission.stage = ArchiveJobStage.QUEUED
     submission.started_timestamp = now
     submission.last_updated_timestamp = now
     submission.completed_timestamp = None
@@ -216,7 +216,7 @@ async def create_submission(
 
     if (
         existing_submission
-        and existing_submission.stage == JobStage.COMPLETED
+        and existing_submission.stage == ArchiveJobStage.COMPLETED
         and not request.force
     ):
         raise HTTPException(
@@ -229,7 +229,7 @@ async def create_submission(
 
     if (
         existing_submission
-        and existing_submission.stage == JobStage.COMPLETED
+        and existing_submission.stage == ArchiveJobStage.COMPLETED
         and request.force
     ):
         log_event(
@@ -355,7 +355,7 @@ async def retry_submission(
             ),
         )
 
-    if submission.stage == JobStage.COMPLETED and not force:
+    if submission.stage == ArchiveJobStage.COMPLETED and not force:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -365,7 +365,7 @@ async def retry_submission(
         )
 
     if submission.stage not in RETRYABLE_STAGES and not (
-        force and submission.stage == JobStage.COMPLETED
+        force and submission.stage == ArchiveJobStage.COMPLETED
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -375,7 +375,7 @@ async def retry_submission(
             ),
         )
 
-    if force and submission.stage == JobStage.COMPLETED:
+    if force and submission.stage == ArchiveJobStage.COMPLETED:
         log_event(
             logging.WARNING,
             "submission.force_rerun",
@@ -392,7 +392,7 @@ async def retry_submission(
         raise _as_bad_request_for_archive_path(drive_name, e) from e
 
     now = datetime.now()
-    submission.stage = JobStage.QUEUED
+    submission.stage = ArchiveJobStage.QUEUED
     submission.failure_reason = None
     submission.failed_timestamp = None
     submission.retry_count = (submission.retry_count or 0) + 1
@@ -462,26 +462,61 @@ async def get_submission(
             detail=f"No archive submission found for drive {drive_name}",
         )
 
-    return SubmissionResponse(
-        drive_id=submission.drive_id,
-        project_id=submission.project_id,
-        drive_name=submission.drive_name,
-        retention_period_years=submission.retention_period_years,
-        retention_period_justification=submission.retention_period_justification,
-        data_classification=submission.data_classification,
-        stage=submission.stage,
-        failure_reason=submission.failure_reason,
-        failed_timestamp=submission.failed_timestamp,
-        started_timestamp=submission.started_timestamp,
-        last_updated_timestamp=submission.last_updated_timestamp,
-        completed_timestamp=submission.completed_timestamp,
-        retry_count=submission.retry_count,
-        cleanup_succeeded=submission.cleanup_succeeded,
-        cleanup_error=submission.cleanup_error,
-        archive_file_key=submission.archive_file_key,
-        archive_object_prefix=submission.archive_object_prefix,
-        archive_manifest_key=submission.archive_manifest_key,
-        archive_part_keys_json=submission.archive_part_keys_json,
-        archive_part_count=submission.archive_part_count,
-        archive_total_bytes=submission.archive_total_bytes,
-    )
+    return SubmissionResponse.model_validate(submission)
+
+
+@router.patch(
+    "/submission/{submission_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=SubmissionResponse,
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        404: {
+            "model": ErrorResponse,
+            "description": "No archive submission found for drive",
+        },
+    },
+)
+async def patch_submission(
+    submission_id: int,
+    patch: PatchSubmissionRequest,
+    session: SessionDep,
+    api_key: ApiKey = Security(validate_api_key),
+) -> SubmissionResponse:
+    """Partially update an archive submission record.
+
+    This is intended for internal use by worker processes to report stage
+    transitions and progress. Only fields present in the request body are
+    applied; omitted fields are left unchanged. Timestamps are managed
+    server-side based on the resulting stage value.
+    """
+    validate_permissions("PATCH", api_key)
+
+    submission = session.get(ArchiveSubmission, submission_id)
+    if submission is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No archive submission found with id {submission_id}.",
+        )
+
+    for field, value in patch.model_dump(exclude_unset=True).items():
+        if hasattr(submission, field):
+            setattr(submission, field, value)
+
+    submission.last_updated_timestamp = datetime.now()
+
+    if submission.stage == ArchiveJobStage.COMPLETED:
+        submission.completed_timestamp = datetime.now()
+        submission.failed_timestamp = None
+    elif submission.stage == ArchiveJobStage.FAILED:
+        submission.failed_timestamp = datetime.now()
+        submission.completed_timestamp = None
+    else:
+        submission.completed_timestamp = None
+        submission.failed_timestamp = None
+
+    session.add(submission)
+    session.commit()
+    session.refresh(submission)
+
+    return SubmissionResponse.model_validate(submission)

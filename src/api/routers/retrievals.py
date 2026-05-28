@@ -20,7 +20,7 @@ from models.retrieval import (
     ArchiveRetrieval,
     RetrievalJobStage,
 )
-from models.submission import JobStage
+from models.submission import ArchiveJobStage
 from utils.logging import log_event
 from utils.paths import validate_destination_path
 from workers.retrieval_worker import run_archive_retrieval
@@ -65,7 +65,7 @@ async def create_retrieval(
     # 1. Verify a completed archive submission exists for this drive.
     submission = _get_submission_or_404(session, drive_name)
 
-    if submission.stage != JobStage.COMPLETED:
+    if submission.stage != ArchiveJobStage.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(

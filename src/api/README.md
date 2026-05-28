@@ -108,7 +108,7 @@ src/
 │   ├── common.py               # Shared types (ResearchDriveName, etc.)
 │   ├── request.py              # API request bodies
 │   ├── response.py             # API response models
-│   ├── submission.py           # ArchiveSubmission SQLModel table + JobStage enum
+│   ├── submission.py           # ArchiveSubmission SQLModel table + ArchiveJobStage enum
 │   └── retrieval.py            # ArchiveRetrieval SQLModel table + RetrievalJobStage enum
 ├── crate/
 │   ├── ro_builder.py           # RO-Crate construction

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from api.main import app
-from models.submission import ArchiveSubmission, JobStage
+from models.submission import ArchiveSubmission, ArchiveJobStage
 from service.projectdb import get_projectdb_client
 
 
@@ -88,7 +88,7 @@ def test_post_submission_rejects_completed_drive(
     submission: ArchiveSubmission,
 ) -> None:
     """A drive that is already successfully archived cannot be resubmitted."""
-    submission.stage = JobStage.COMPLETED
+    submission.stage = ArchiveJobStage.COMPLETED
     session.add(submission)
     session.commit()
 
@@ -159,7 +159,7 @@ def test_get_submission_returns_archive_record(
     submission: ArchiveSubmission,
 ) -> None:
     """Test retrieving an archive submission"""
-    submission.stage = JobStage.QUEUED
+    submission.stage = ArchiveJobStage.QUEUED
     submission.retry_count = 0
     session.add(submission)
     session.commit()
@@ -276,7 +276,7 @@ def test_retry_submission_rejects_active_stage(
     submission: ArchiveSubmission,
 ) -> None:
     """Retry endpoint returns 409 for active-stage jobs."""
-    submission.stage = JobStage.PACKAGING
+    submission.stage = ArchiveJobStage.PACKAGING
     submission.last_updated_timestamp = datetime.now()
     session.add(submission)
     session.commit()
@@ -292,7 +292,7 @@ def test_retry_submission_rejects_completed_stage(
     submission: ArchiveSubmission,
 ) -> None:
     """Retry endpoint returns 409 for completed jobs."""
-    submission.stage = JobStage.COMPLETED
+    submission.stage = ArchiveJobStage.COMPLETED
     session.add(submission)
     session.commit()
 
@@ -307,7 +307,7 @@ def test_retry_submission_requeues_failed_job(
     submission: ArchiveSubmission,
 ) -> None:
     """Retry endpoint should queue a failed job and increment retry_count."""
-    submission.stage = JobStage.FAILED
+    submission.stage = ArchiveJobStage.FAILED
     submission.failure_reason = "Archive upload failed"
     submission.retry_count = 0
     session.add(submission)
@@ -323,7 +323,7 @@ def test_retry_submission_requeues_failed_job(
         )
     ).first()
     assert refreshed is not None
-    assert refreshed.stage == JobStage.QUEUED
+    assert refreshed.stage == ArchiveJobStage.QUEUED
     assert refreshed.failure_reason is None
     assert refreshed.failed_timestamp is None
     assert refreshed.retry_count == 1
@@ -335,7 +335,7 @@ def test_post_submission_force_reruns_completed_job(
     submission: ArchiveSubmission,
 ) -> None:
     """force=true on POST /submission allows re-running a completed archive job."""
-    submission.stage = JobStage.COMPLETED
+    submission.stage = ArchiveJobStage.COMPLETED
     session.add(submission)
     session.commit()
 
@@ -360,7 +360,118 @@ def test_post_submission_force_reruns_completed_job(
         )
     ).first()
     assert refreshed is not None
-    assert refreshed.stage == JobStage.QUEUED
+    assert refreshed.stage == ArchiveJobStage.QUEUED
+
+
+# ---------------------------------------------------------------------------
+# PATCH /submission/{submission_id} – update submission record
+# ---------------------------------------------------------------------------
+
+
+def test_patch_submission_updates_stage(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """PATCH with a new stage returns 200 and reflects the updated stage."""
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.UPLOADING.value},
+    )
+    assert response.status_code == 200
+    assert response.json()["stage"] == ArchiveJobStage.UPLOADING.value
+
+
+def test_patch_submission_sets_completed_timestamp(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Transitioning to COMPLETED sets completed_timestamp and clears failed_timestamp."""
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.COMPLETED.value},
+    )
+    assert response.status_code == 200
+    session.refresh(submission)
+    assert submission.completed_timestamp is not None
+    assert submission.failed_timestamp is None
+
+
+def test_patch_submission_sets_failed_timestamp(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Transitioning to FAILED sets failed_timestamp and clears completed_timestamp."""
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.FAILED.value, "failure_reason": "disk full"},
+    )
+    assert response.status_code == 200
+    session.refresh(submission)
+    assert submission.failed_timestamp is not None
+    assert submission.completed_timestamp is None
+    assert submission.failure_reason == "disk full"
+
+
+def test_patch_submission_excludes_unset_fields(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Fields absent from the request body are not overwritten."""
+    submission.archive_manifest_key = "some/key.json"
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.UPLOADING.value},
+    )
+    assert response.status_code == 200
+    session.refresh(submission)
+    assert submission.archive_manifest_key == "some/key.json"
+
+
+def test_patch_submission_sets_last_updated_timestamp(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """PATCH always refreshes last_updated_timestamp server-side."""
+    original_ts = submission.started_timestamp
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.PACKAGING.value},
+    )
+    assert response.status_code == 200
+    session.refresh(submission)
+    assert submission.last_updated_timestamp != original_ts
+
+
+def test_patch_submission_404_when_not_found(
+    client: TestClient,
+) -> None:
+    """Returns 404 when no submission exists with the given ID."""
+    response = client.patch(
+        "/api/v1/submission/99999",
+        json={"stage": ArchiveJobStage.UPLOADING.value},
+    )
+    assert response.status_code == 404
+    assert "No archive submission found" in response.json()["detail"]
 
 
 def test_retry_submission_force_reruns_completed_job(
@@ -369,7 +480,7 @@ def test_retry_submission_force_reruns_completed_job(
     submission: ArchiveSubmission,
 ) -> None:
     """force=true on retry endpoint allows re-running a completed archive job."""
-    submission.stage = JobStage.COMPLETED
+    submission.stage = ArchiveJobStage.COMPLETED
     submission.retry_count = 0
     session.add(submission)
     session.commit()
@@ -386,5 +497,5 @@ def test_retry_submission_force_reruns_completed_job(
         )
     ).first()
     assert refreshed is not None
-    assert refreshed.stage == JobStage.QUEUED
+    assert refreshed.stage == ArchiveJobStage.QUEUED
     assert refreshed.retry_count == 1
