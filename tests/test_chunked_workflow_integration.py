@@ -107,6 +107,7 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         archive_chunk_size_bytes=1024,
         archive_chunk_manifest_file_name="archive-manifest.json",
         activescale_upload_timeout=60,
+        activescale_bucket_name="research-archive-test",
     )
     monkeypatch.setattr("api.main.get_settings", lambda: settings)
 
@@ -198,6 +199,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         archive_chunk_size_bytes=100,  # small enough to produce multiple parts after gzip
         archive_chunk_manifest_file_name="archive-manifest.json",
         activescale_upload_timeout=60,
+        activescale_bucket_name="research-archive-test",
     )
     monkeypatch.setattr("api.main.get_settings", lambda: settings)
 

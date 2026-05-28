@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # Chunked tar packaging settings for very large archives. Defaults to 512 MiB.
     archive_chunk_size_bytes: int = 512 * 1024 * 1024
     archive_chunk_manifest_file_name: str = "archive-manifest.json"
+    # ActiveScale bucket used for all archive storage
+    activescale_bucket_name: str = "research-archive-test"
+    # Number of days to request an object restore for (tape/archival tier)
+    activescale_restore_days: int = 3
+    # How often to poll for restore completion, in seconds
+    activescale_restore_poll_interval_seconds: int = 60
+    # Maximum total time to wait for a restore to complete, in seconds (default 24 h)
+    activescale_restore_poll_max_seconds: int = 86400
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 
