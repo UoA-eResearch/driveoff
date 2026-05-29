@@ -96,13 +96,14 @@ When `MODE=production` is set, ensure your production `api_keys.json` is properl
 src/
 ├── config.py                   # Application settings (pydantic-settings)
 ├── api/
-│   ├── main.py                 # FastAPI app, all endpoints, background tasks
-│   ├── activescale.py          # ActiveScale / S3 client (upload, download, restore)
-│   ├── archive_chunks.py       # Chunked tar packaging for large archives
-│   ├── archive_reassembly.py   # Reassembly of downloaded archive parts
-│   ├── manifests.py            # BagIt bag creation and validation
+│   ├── main.py                 # FastAPI app entry point and lifespan setup
+│   ├── dependencies.py         # FastAPI dependency providers and DB engine setup
 │   ├── security.py             # API key validation and authentication
 │   ├── cors.py                 # CORS configuration
+│   ├── routers/
+│   │   ├── drives.py           # Drive info endpoint
+│   │   ├── submissions.py      # Archive submission endpoints
+│   │   └── retrievals.py       # Archive retrieval endpoints
 │   └── README.md               # This file
 ├── models/
 │   ├── common.py               # Shared types (ResearchDriveName, etc.)
@@ -110,12 +111,24 @@ src/
 │   ├── response.py             # API response models
 │   ├── submission.py           # ArchiveSubmission SQLModel table + ArchiveJobStage enum
 │   └── retrieval.py            # ArchiveRetrieval SQLModel table + RetrievalJobStage enum
-├── crate/
-│   ├── ro_builder.py           # RO-Crate construction
-│   └── ro_loader.py            # RO-Crate loading/writing
-└── service/
-    ├── projectdb.py            # ProjectDB FastAPI dependency + initialisation
-    └── projectdb_client.py     # ProjectDB HTTP client
+├── packaging/
+│   ├── archive_chunks.py       # Chunked tar packaging for large archives
+│   ├── archive_reassembly.py   # Reassembly of downloaded archive parts
+│   ├── manifests.py            # BagIt bag creation and validation
+│   └── crate/
+│       ├── ro_builder.py       # RO-Crate construction
+│       └── ro_loader.py        # RO-Crate loading/writing
+├── service/
+│   ├── activescale.py          # ActiveScale / S3 client (upload, download, restore)
+│   ├── projectdb.py            # ProjectDB FastAPI dependency + initialisation
+│   ├── projectdb_client.py     # ProjectDB HTTP client
+│   └── projectdb_helpers.py    # ProjectDB response projection helpers
+├── utils/
+│   ├── logging.py              # Structured logging helpers
+│   └── paths.py                # Filesystem path resolution and validation
+└── workers/
+    ├── submission_worker.py    # Background task: archive packaging and upload
+    └── retrieval_worker.py     # Background task: archive restore and extraction
 ```
 
 ## Archive Submission Workflow
