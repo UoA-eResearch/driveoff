@@ -25,7 +25,7 @@ from utils.logging import log_event
 from utils.paths import validate_destination_path
 from workers.retrieval_worker import run_archive_retrieval
 
-router = APIRouter()
+router = APIRouter(tags=["retrievals"])
 
 
 @router.post(
@@ -47,7 +47,7 @@ router = APIRouter()
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def create_retrieval(
+def create_retrieval(
     drive_name: ResearchDriveName,
     request: CreateRetrievalRequest,
     session: SessionDep,
@@ -180,7 +180,7 @@ async def create_retrieval(
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def get_retrieval(
+def get_retrieval(
     drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
@@ -211,7 +211,7 @@ async def get_retrieval(
         422: {"description": "Validation error"},
     },
 )
-async def patch_retrieval(
+def patch_retrieval(
     retrieval_id: int,
     patch: PatchRetrievalRequest,
     session: SessionDep,

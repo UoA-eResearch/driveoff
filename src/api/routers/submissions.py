@@ -27,7 +27,7 @@ from utils.logging import log_event
 from utils.paths import validate_archive_path_access
 from workers.submission_worker import generate_ro_crate
 
-router = APIRouter()
+router = APIRouter(tags=["submissions"])
 
 
 # ── HTTP-layer helpers ────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ def _as_bad_request_for_archive_path(
         },
     },
 )
-async def create_submission(
+def create_submission(
     request: CreateSubmissionRequest,
     session: SessionDep,
     background_tasks: BackgroundTasks,
@@ -330,7 +330,7 @@ async def create_submission(
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def retry_submission(
+def retry_submission(
     drive_name: ResearchDriveName,
     session: SessionDep,
     background_tasks: BackgroundTasks,
@@ -445,7 +445,7 @@ async def retry_submission(
         },
     },
 )
-async def get_submission(
+def get_submission(
     drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
@@ -477,7 +477,7 @@ async def get_submission(
         },
     },
 )
-async def patch_submission(
+def patch_submission(
     submission_id: int,
     patch: PatchSubmissionRequest,
     session: SessionDep,

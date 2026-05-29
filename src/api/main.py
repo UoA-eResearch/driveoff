@@ -13,10 +13,12 @@ from api.dependencies import create_db_and_tables, engine
 from api.routers import drives, retrievals, submissions
 from service.activescale import init_activescale
 from service.projectdb import init_projectdb
+from utils.job_reconciliation import (
+    reconcile_interrupted_archiving_jobs,
+    reconcile_interrupted_retrieval_jobs,
+)
 from utils.logging import configure_logging, log_event
 from utils.paths import validate_archive_path_configuration
-from workers.retrieval_worker import _reconcile_interrupted_retrievals
-from workers.submission_worker import _reconcile_interrupted_jobs
 
 configure_logging()
 
@@ -37,7 +39,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
     init_activescale(app_instance)
 
     try:
-        _reconcile_interrupted_jobs()
+        reconcile_interrupted_archiving_jobs()
     except Exception as e:  # pylint: disable=broad-exception-caught
         log_event(
             logging.WARNING,
@@ -47,7 +49,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     try:
-        _reconcile_interrupted_retrievals()
+        reconcile_interrupted_retrieval_jobs()
     except Exception as e:  # pylint: disable=broad-exception-caught
         log_event(
             logging.WARNING,

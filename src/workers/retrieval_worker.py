@@ -9,17 +9,12 @@ import shutil
 import tarfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from api.dependencies import engine
 from config import get_settings
-from models.retrieval import (
-    ACTIVE_RETRIEVAL_STAGES,
-    ArchiveRetrieval,
-    RetrievalJobStage,
-)
+from models.retrieval import ArchiveRetrieval, RetrievalJobStage
 from models.submission import ArchiveSubmission
 from packaging.archive_reassembly import (
     load_archive_manifest,
@@ -390,44 +385,3 @@ async def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many
                 error=str(e),
                 exc_info=True,
             )
-
-
-def _reconcile_interrupted_retrievals() -> None:
-    """Mark any retrieval jobs that were active when the process last exited as failed.
-
-    FastAPI BackgroundTasks are volatile; if the process restarts while a retrieval
-    is in an active stage the work is permanently lost.  We surface this as 'failed'
-    so operators know to re-submit a retrieval request.
-    """
-    with Session(engine) as session:
-        active_stage_values = [s.value for s in ACTIVE_RETRIEVAL_STAGES]
-        stage_column = cast(Any, ArchiveRetrieval.stage)
-        interrupted = session.exec(
-            select(ArchiveRetrieval).where(stage_column.in_(active_stage_values))
-        ).all()
-        if not interrupted:
-            return
-        now = datetime.now()
-        for retrieval in interrupted:
-            previous_stage = retrieval.stage
-            log_event(
-                logging.WARNING,
-                "retrieval.abandoned_on_startup",
-                retrieval_id=retrieval.id,
-                drive_name=retrieval.drive_name,
-                previous_stage=previous_stage.value,
-            )
-            retrieval.stage = RetrievalJobStage.FAILED
-            retrieval.failure_reason = (
-                f"Process restarted while retrieval was in stage '{previous_stage.value}'."
-                " Re-submit a retrieval request to restart."
-            )
-            retrieval.failed_timestamp = now
-            retrieval.last_updated_timestamp = now
-            session.add(retrieval)
-        session.commit()
-        log_event(
-            logging.WARNING,
-            "startup.retrieval_reconciliation_complete",
-            failed_count=len(interrupted),
-        )

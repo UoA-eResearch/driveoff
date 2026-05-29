@@ -8,14 +8,14 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from api.dependencies import engine
 from config import get_settings
 from models.common import calculate_retention_end_date
-from models.submission import ACTIVE_STAGES, ArchiveJobStage, ArchiveSubmission
+from models.submission import ArchiveJobStage, ArchiveSubmission
 from packaging.archive_chunks import build_chunked_tar_archive
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import ROLoader
@@ -638,44 +638,3 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                 exc_info=True,
                 elapsed_ms=elapsed_ms(started_at),
             )
-
-
-def _reconcile_interrupted_jobs() -> None:
-    """Mark any jobs that were active when the process last exited as abandoned.
-
-    FastAPI BackgroundTasks are volatile; if the process restarts while a job
-    is in an active stage (queued/running/uploading/cleanup) that work is lost.
-    We surface this to operators as 'abandoned' so they can trigger a manual retry.
-    """
-    with Session(engine) as session:
-        active_stage_values = [s.value for s in ACTIVE_STAGES]
-        stage_column = cast(Any, ArchiveSubmission.stage)
-        interrupted = session.exec(
-            select(ArchiveSubmission).where(stage_column.in_(active_stage_values))
-        ).all()
-        if not interrupted:
-            return
-        now = datetime.now()
-        for submission in interrupted:
-            previous_stage = submission.stage
-            log_event(
-                logging.WARNING,
-                "submission.abandoned_on_startup",
-                submission_id=submission.id,
-                drive_name=submission.drive_name,
-                previous_stage=previous_stage,
-            )
-            submission.stage = ArchiveJobStage.ABANDONED
-            submission.failure_reason = (
-                f"Process restarted while job was in stage '{previous_stage.value}'."
-                " Retry this job to resume."
-            )
-            submission.failed_timestamp = now
-            submission.last_updated_timestamp = now
-            session.add(submission)
-        session.commit()
-        log_event(
-            logging.WARNING,
-            "startup.reconciliation_complete",
-            abandoned_count=len(interrupted),
-        )

@@ -22,7 +22,7 @@ from service.projectdb_helpers import (
     filter_member_identities,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["driveinfo"])
 
 
 @router.get(
@@ -34,7 +34,7 @@ router = APIRouter()
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def get_drive_info(
+def get_drive_info(
     drive_name: ResearchDriveName,
     projectdb: ProjectDbDep,
     api_key: ApiKey = Security(validate_api_key),
