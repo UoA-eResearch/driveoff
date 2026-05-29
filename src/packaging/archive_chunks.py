@@ -30,7 +30,7 @@ class ChunkedArchiveResult:
     manifest_path: Path
 
 
-class _SplitPartWriter:
+class _SplitPartWriter:  # pylint: disable=too-many-instance-attributes
     """Write byte streams into sequentially numbered part files."""
 
     def __init__(self, output_dir: Path, base_name: str, part_size_bytes: int) -> None:

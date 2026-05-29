@@ -5,7 +5,7 @@ from pathlib import Path
 
 from conftest import ROCRATEHelpers
 
-from crate.ro_builder import ROBuilder
+from packaging.crate.ro_builder import ROBuilder
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
 

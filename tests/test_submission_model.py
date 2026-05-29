@@ -80,12 +80,12 @@ def test_submission_with_failed_upload(
     submission_data: dict[str, Any],
 ) -> None:
     """Tests submission with failed upload state."""
-    from models.submission import JobStage
+    from models.submission import ArchiveJobStage
 
-    submission_data["stage"] = JobStage.FAILED
+    submission_data["stage"] = ArchiveJobStage.FAILED
     submission_data["failure_reason"] = "Archive upload failed"
     submission_data["failed_timestamp"] = datetime(2024, 10, 14)
     instance = ArchiveSubmission.model_validate(submission_data)
-    assert instance.stage == JobStage.FAILED
+    assert instance.stage == ArchiveJobStage.FAILED
     assert instance.failure_reason == "Archive upload failed"
     assert instance.failed_timestamp == datetime(2024, 10, 14)

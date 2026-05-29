@@ -700,11 +700,11 @@ def initiate_object_restore(
             file_key=file_key,
         )
         raise RuntimeError(f"Failed to initiate restore for '{file_key}': {e}") from e
-    except EndpointConnectionError:
+    except EndpointConnectionError as exc:
         _log_endpoint_connection_error(bucket_name=bucket_name, file_key=file_key)
         raise RuntimeError(
             f"Endpoint connection error initiating restore for '{file_key}'"
-        )
+        ) from exc
     except (BotoCoreError, OSError) as e:
         _log_unexpected_error(
             "s3.object.restore.unexpected_error",
@@ -739,7 +739,7 @@ def is_object_ready_for_download(
     """
     try:
         response = client.head_object(Bucket=bucket_name, Key=file_key)
-        restore_header: str | None = response.get("Restore")  # type: ignore[assignment]
+        restore_header: str | None = response.get("Restore")
         if restore_header is None:
             # No Restore header: object lives in active (non-archival) storage.
             return True
@@ -795,14 +795,14 @@ def download_file_to_disk(
     Returns:
         True if the download completed successfully, False otherwise.
     """
-    _CHUNK_SIZE = 8 * 1024 * 1024  # 8 MiB
+    chunk_size = 8 * 1024 * 1024  # 8 MiB
     try:
         response = client.get_object(Bucket=bucket_name, Key=file_key)
         total_bytes = response.get("ContentLength", 0)
         body = response["Body"]
         bytes_written = 0
         with open(dest_path, "wb") as dest_file:
-            for chunk in body.iter_chunks(chunk_size=_CHUNK_SIZE):
+            for chunk in body.iter_chunks(chunk_size=chunk_size):
                 dest_file.write(chunk)
                 bytes_written += len(chunk)
         _log_event(

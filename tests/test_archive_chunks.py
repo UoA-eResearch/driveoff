@@ -6,7 +6,7 @@ import json
 import tarfile
 from pathlib import Path
 
-from api.archive_chunks import build_chunked_tar_archive
+from packaging.archive_chunks import build_chunked_tar_archive
 
 
 def _write_file(path: Path, size: int) -> None:

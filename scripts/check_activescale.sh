@@ -73,7 +73,7 @@ from botocore.exceptions import ClientError
 
 sys.path.insert(0, str(pathlib.Path.cwd() / "src"))
 
-from api.activescale import _create_activescale_session, verify_connection
+from service.activescale import _create_activescale_session, verify_connection
 from config import get_settings
 
 bucket = sys.argv[1]

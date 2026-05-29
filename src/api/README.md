@@ -96,26 +96,39 @@ When `MODE=production` is set, ensure your production `api_keys.json` is properl
 src/
 ├── config.py                   # Application settings (pydantic-settings)
 ├── api/
-│   ├── main.py                 # FastAPI app, all endpoints, background tasks
-│   ├── activescale.py          # ActiveScale / S3 client (upload, download, restore)
-│   ├── archive_chunks.py       # Chunked tar packaging for large archives
-│   ├── archive_reassembly.py   # Reassembly of downloaded archive parts
-│   ├── manifests.py            # BagIt bag creation and validation
+│   ├── main.py                 # FastAPI app entry point and lifespan setup
+│   ├── dependencies.py         # FastAPI dependency providers and DB engine setup
 │   ├── security.py             # API key validation and authentication
 │   ├── cors.py                 # CORS configuration
+│   ├── routers/
+│   │   ├── drives.py           # Drive info endpoint
+│   │   ├── submissions.py      # Archive submission endpoints
+│   │   └── retrievals.py       # Archive retrieval endpoints
 │   └── README.md               # This file
 ├── models/
 │   ├── common.py               # Shared types (ResearchDriveName, etc.)
 │   ├── request.py              # API request bodies
 │   ├── response.py             # API response models
-│   ├── submission.py           # ArchiveSubmission SQLModel table + JobStage enum
+│   ├── submission.py           # ArchiveSubmission SQLModel table + ArchiveJobStage enum
 │   └── retrieval.py            # ArchiveRetrieval SQLModel table + RetrievalJobStage enum
-├── crate/
-│   ├── ro_builder.py           # RO-Crate construction
-│   └── ro_loader.py            # RO-Crate loading/writing
-└── service/
-    ├── projectdb.py            # ProjectDB FastAPI dependency + initialisation
-    └── projectdb_client.py     # ProjectDB HTTP client
+├── packaging/
+│   ├── archive_chunks.py       # Chunked tar packaging for large archives
+│   ├── archive_reassembly.py   # Reassembly of downloaded archive parts
+│   ├── manifests.py            # BagIt bag creation and validation
+│   └── crate/
+│       ├── ro_builder.py       # RO-Crate construction
+│       └── ro_loader.py        # RO-Crate loading/writing
+├── service/
+│   ├── activescale.py          # ActiveScale / S3 client (upload, download, restore)
+│   ├── projectdb.py            # ProjectDB FastAPI dependency + initialisation
+│   ├── projectdb_client.py     # ProjectDB HTTP client
+│   └── projectdb_helpers.py    # ProjectDB response projection helpers
+├── utils/
+│   ├── logging.py              # Structured logging helpers
+│   └── paths.py                # Filesystem path resolution and validation
+└── workers/
+    ├── submission_worker.py    # Background task: archive packaging and upload
+    └── retrieval_worker.py     # Background task: archive restore and extraction
 ```
 
 ## Archive Submission Workflow
@@ -134,7 +147,7 @@ Send a `POST /api/v1/submission` request with the drive name, data classificatio
 
 ## Archive Retrieval Workflow
 
-Send a `POST /api/v1/submission/{drive_name}/retrieve` request with a `destination_path` body field. The API validates the request synchronously (completed submission exists, no active retrieval in progress, destination path is writable) and immediately returns `201`. The actual retrieval runs as a background task through four stages:
+Send a `POST /api/v1/retrieval/{drive_name}` request with a `destination_path` body field. The API validates the request synchronously (completed submission exists, no active retrieval in progress, destination path is writable) and immediately returns `201`. The actual retrieval runs as a background task through four stages:
 
 **RESTORING** — The archive manifest and all chunked archive parts are requested from tape/archival storage. If any are on tape, the task polls until they are thawed (up to 24 h by default, configurable via `activescale_restore_poll_max_seconds`). Files already in active storage skip the restore step.
 
