@@ -78,9 +78,12 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
     return members
 
 
-def get_project_owner_email(members: Any) -> str:
-    """Get the project owner's email from the members list."""
+def get_project_owner_emails(members: Any) -> list[str]:
+    """Get the project owner emails from the members list."""
+    owner_emails = []
     for member in members:
         if member["role"]["name"] == "Project Owner":
-            return member["person"]["email"] or "Unknown"
-    return "Unknown"
+            email = member["person"]["email"]
+            if email:
+                owner_emails.append(email)
+    return owner_emails or ["Unknown"]

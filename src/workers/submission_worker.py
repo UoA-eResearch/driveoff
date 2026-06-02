@@ -26,7 +26,7 @@ from service.activescale import (
     upload_file,
 )
 from service.projectdb_client import ProjectDBClient
-from service.projectdb_helpers import filter_member_identities, get_project_owner_email
+from service.projectdb_helpers import filter_member_identities, get_project_owner_emails
 from utils.logging import elapsed_ms, log_event
 from utils.paths import resolve_archive_output_location, resolve_drive_path_for_archive
 from workers import parse_part_keys_json
@@ -476,7 +476,7 @@ async def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-stateme
                         timeout=settings.activescale_upload_timeout,
                         metadata={
                             "cer_project_id": str(project_data.get("id", "")),
-                            "project_owner": get_project_owner_email(members_list),
+                            "project_owners": json.dumps(get_project_owner_emails(members_list)),
                             "division": project_data.get("division") or "Unknown",
                             "data_classification": submission.data_classification
                             or "Unknown",
