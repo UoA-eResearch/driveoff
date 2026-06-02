@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -139,12 +138,11 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
     monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
 
-    asyncio.run(
-        generate_ro_crate(
-            drive={"id": 1, "name": drive_name},
-            submission_id=submission_id,
-            projectdb_client=_ProjectDbStub(),
-        )
+    
+    generate_ro_crate(
+        drive={"id": 1, "name": drive_name},
+        submission_id=submission_id,
+        projectdb_client=_ProjectDbStub(),
     )
 
     with Session(test_engine) as session:
@@ -230,12 +228,10 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     monkeypatch.setattr("workers.submission_worker.upload_file", fail_on_second_part)
     monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
 
-    asyncio.run(
-        generate_ro_crate(
-            drive={"id": 1, "name": drive_name},
-            submission_id=submission_id,
-            projectdb_client=_ProjectDbStub(),
-        )
+    generate_ro_crate(
+        drive={"id": 1, "name": drive_name},
+        submission_id=submission_id,
+        projectdb_client=_ProjectDbStub(),
     )
 
     with Session(test_engine) as session:
@@ -274,12 +270,10 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
 
     monkeypatch.setattr("workers.submission_worker.object_exists", exists_if_previously_uploaded)
 
-    asyncio.run(
-        generate_ro_crate(
-            drive={"id": 1, "name": drive_name},
-            submission_id=submission_id,
-            projectdb_client=_ProjectDbStub(),
-        )
+    generate_ro_crate(
+        drive={"id": 1, "name": drive_name},
+        submission_id=submission_id,
+        projectdb_client=_ProjectDbStub(),
     )
 
     with Session(test_engine) as session:
