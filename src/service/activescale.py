@@ -520,6 +520,69 @@ def object_exists(
         return False, None
 
 
+def verify_uploaded_part_size(
+    client: S3Client,
+    bucket_name: str,
+    file_key: str,
+    expected_size: int,
+) -> bool:
+    """Verify that an uploaded object's size matches the local file size.
+
+    Issues a ``head_object`` call and compares ``ContentLength`` against
+    *expected_size*.
+
+    Args:
+        client: An initialized S3 client.
+        bucket_name: Name of the S3 bucket.
+        file_key: Object key to verify.
+        expected_size: Expected size in bytes (as recorded in the archive manifest).
+
+    Returns:
+        True if ``ContentLength`` equals *expected_size*, False otherwise
+        (including on any error, so callers can treat False as a hard failure).
+    """
+    try:
+        response = client.head_object(Bucket=bucket_name, Key=file_key)
+        actual_size = response.get("ContentLength", -1)
+        if actual_size != expected_size:
+            _log_event(
+                logging.ERROR,
+                "s3.object.size_mismatch",
+                file_key=file_key,
+                bucket_name=bucket_name,
+                expected_size=expected_size,
+                actual_size=actual_size,
+            )
+            return False
+        _log_event(
+            logging.INFO,
+            "s3.object.size_verified",
+            file_key=file_key,
+            bucket_name=bucket_name,
+            size_bytes=actual_size,
+        )
+        return True
+    except ClientError as e:
+        _log_client_error(
+            "s3.object.size_verify.client_error",
+            e,
+            file_key=file_key,
+            bucket_name=bucket_name,
+        )
+        return False
+    except EndpointConnectionError:
+        _log_endpoint_connection_error(file_key=file_key, bucket_name=bucket_name)
+        return False
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
+        _log_unexpected_error(
+            "s3.object.size_verify.unexpected_error",
+            e,
+            file_key=file_key,
+            bucket_name=bucket_name,
+        )
+        return False
+
+
 def create_bucket(
     client: S3Client,
     bucket_name: str,

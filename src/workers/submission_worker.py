@@ -15,7 +15,7 @@ from api.dependencies import engine
 from config import get_settings
 from models.common import calculate_retention_end_date
 from models.submission import ArchiveJobStage, ArchiveSubmission
-from packaging.archive_chunks import build_chunked_tar_archive
+from packaging.archive_chunks import ArchivePartInfo, build_chunked_tar_archive
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import ROLoader
 from packaging.manifests import bag_directory, bagit_exists, create_manifests_directory
@@ -23,6 +23,7 @@ from service.activescale import (
     get_activescale_client_context,
     object_exists,
     upload_file,
+    verify_uploaded_part_size,
 )
 from service.projectdb_client import ProjectDBClient
 from service.projectdb_helpers import filter_member_identities, get_project_owner_emails
@@ -103,6 +104,7 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     bucket_name: str,
     object_prefix: str,
     archive_parts_dir: Path,
+    archive_parts: list[ArchivePartInfo],
     timeout_seconds: int,
 ) -> tuple[bool, list[str]]:
     """Upload chunked archive part files with resume support.
@@ -113,6 +115,7 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     """
     part_files = sorted(archive_parts_dir.glob("*.tar.gz.part-*"))
     uploaded_keys = parse_part_keys_json(submission.archive_part_keys_json)
+    manifest_sizes: dict[str, int] = {p.file_name: p.size_bytes for p in archive_parts}
 
     for part_file in part_files:
         part_key = f"{object_prefix}{part_file.name}"
@@ -143,6 +146,18 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
                 submission_id=submission.id,
                 drive_name=submission.drive_name,
                 part_key=part_key,
+            )
+            return False, uploaded_keys
+
+        expected_size = manifest_sizes.get(part_file.name, part_file.stat().st_size)
+        if not verify_uploaded_part_size(client, bucket_name, part_key, expected_size):
+            log_event(
+                logging.ERROR,
+                "crate.upload.part.size_mismatch",
+                submission_id=submission.id,
+                drive_name=submission.drive_name,
+                part_key=part_key,
+                expected_size=expected_size,
             )
             return False, uploaded_keys
 
@@ -438,6 +453,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     bucket_name=bucket_name,
                     object_prefix=object_prefix,
                     archive_parts_dir=archive_parts_dir,
+                    archive_parts=chunk_result.parts,
                     timeout_seconds=settings.activescale_upload_timeout,
                 )
 
