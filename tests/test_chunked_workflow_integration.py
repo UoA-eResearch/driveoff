@@ -137,8 +137,8 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
     monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
 
-    
     generate_ro_crate(
         drive={"id": 1, "name": drive_name},
         submission_id=submission_id,
@@ -227,6 +227,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fail_on_second_part)
     monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
 
     generate_ro_crate(
         drive={"id": 1, "name": drive_name},
@@ -264,6 +265,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         return True
 
     monkeypatch.setattr("workers.submission_worker.upload_file", upload_all)
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
 
     def exists_if_previously_uploaded(_client, _bucket: str, key: str):
         return (key in first_run_uploaded), None

@@ -15,7 +15,7 @@ from api.dependencies import engine
 from config import get_settings
 from models.common import calculate_retention_end_date
 from models.submission import ArchiveJobStage, ArchiveSubmission
-from packaging.archive_chunks import ArchivePartInfo, build_chunked_tar_archive
+from packaging.archive_chunks import ArchivePartInfo, build_chunked_tar_archive, verify_tar_parts_stream
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import ROLoader
 from packaging.manifests import bag_directory, bagit_exists, create_manifests_directory
@@ -410,6 +410,26 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 manifest_path=str(chunk_result.manifest_path),
                 stage=submission.stage.value,
                 retry_count=submission.retry_count,
+                elapsed_ms=elapsed_ms(started_at),
+            )
+
+            log_event(
+                logging.INFO,
+                "crate.package.tar_verify.start",
+                submission_id=submission_id,
+                drive_name=drive_name,
+                part_count=len(chunk_result.parts),
+                elapsed_ms=elapsed_ms(started_at),
+            )
+            verify_tar_parts_stream(
+                parts=chunk_result.parts,
+                parts_dir=archive_parts_dir,
+            )
+            log_event(
+                logging.INFO,
+                "crate.package.tar_verify.completed",
+                submission_id=submission_id,
+                drive_name=drive_name,
                 elapsed_ms=elapsed_ms(started_at),
             )
 
