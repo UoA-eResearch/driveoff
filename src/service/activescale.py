@@ -112,8 +112,8 @@ def _create_activescale_session() -> boto3.Session:
             "ActiveScale credentials are not fully set in environment variables."
         )
 
-    if settings.log_level == logging.DEBUG:
-        boto3.set_stream_logger('')
+    if settings.log_level.upper() == "DEBUG":
+        boto3.set_stream_logger("")
 
     session = boto3.Session(
         aws_access_key_id=access_key,

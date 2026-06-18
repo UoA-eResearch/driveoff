@@ -15,7 +15,11 @@ from api.dependencies import engine
 from config import get_settings
 from models.common import calculate_retention_end_date
 from models.submission import ArchiveJobStage, ArchiveSubmission
-from packaging.archive_chunks import ArchivePartInfo, build_chunked_tar_archive, verify_tar_parts_stream
+from packaging.archive_chunks import (
+    ArchivePartInfo,
+    build_chunked_tar_archive,
+    verify_tar_parts_stream,
+)
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import ROLoader
 from packaging.manifests import bag_directory, bagit_exists, create_manifests_directory
@@ -506,7 +510,9 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                         timeout=settings.activescale_upload_timeout,
                         metadata={
                             "cer_project_id": str(project_data.get("id", "")),
-                            "project_owners": json.dumps(get_project_owner_emails(members_list)),
+                            "project_owners": json.dumps(
+                                get_project_owner_emails(members_list)
+                            ),
                             "division": project_data.get("division") or "Unknown",
                             "data_classification": submission.data_classification
                             or "Unknown",
