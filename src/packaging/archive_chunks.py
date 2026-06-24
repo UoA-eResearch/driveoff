@@ -166,6 +166,96 @@ class _SplitPartWriter:  # pylint: disable=too-many-instance-attributes
         self._current_size = 0
 
 
+class _ChainReader:
+    """Read sequentially across an ordered list of part files without loading them into memory.
+
+    Presents a file-like ``read()`` interface so the concatenated byte stream
+    can be passed directly to :func:`tarfile.open` without first assembling a
+    single file on disk.
+    """
+
+    def __init__(self, parts: list[ArchivePartInfo], parts_dir: Path) -> None:
+        self._paths = [
+            parts_dir / p.file_name for p in sorted(parts, key=lambda p: p.index)
+        ]
+        self._file_index = 0
+        self._current_fp: BinaryIO | None = None
+
+    def read(self, size: int = -1) -> bytes:
+        """Read up to *size* bytes across part boundaries, or all remaining bytes if -1."""
+        if size == 0:
+            return b""
+
+        buf = bytearray()
+        remaining = size  # -1 means read everything
+
+        while True:
+            if self._current_fp is None:
+                if self._file_index >= len(self._paths):
+                    break
+                self._current_fp = (
+                    open(  # noqa: SIM115  # pylint: disable=consider-using-with
+                        self._paths[self._file_index], "rb"
+                    )
+                )
+                self._file_index += 1
+
+            chunk = self._current_fp.read(remaining if remaining != -1 else -1)
+            if chunk:
+                buf.extend(chunk)
+                if remaining != -1:
+                    remaining -= len(chunk)
+                    if remaining == 0:
+                        break
+            else:
+                # Current file exhausted — move to next
+                self._current_fp.close()
+                self._current_fp = None
+
+        return bytes(buf)
+
+    def close(self) -> None:
+        """Close any open file handle."""
+        if self._current_fp is not None:
+            self._current_fp.close()
+            self._current_fp = None
+
+    def __enter__(self) -> _ChainReader:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+
+def verify_tar_parts_stream(parts: list[ArchivePartInfo], parts_dir: Path) -> None:
+    """Verify the integrity of a chunked tar.gz archive by streaming all parts.
+
+    Chains the ordered part files into a single logical byte stream and passes
+    it to :func:`tarfile.open` in streaming read mode (``r|gz``).  Iterating
+    :meth:`~tarfile.TarFile.getmembers` forces full decompression and gzip CRC
+    validation without writing anything to disk.
+
+    Raises:
+        FileNotFoundError: If any part file is missing.
+        tarfile.TarError: If the gzip stream is corrupt or the tar structure is invalid.
+    """
+    for part in parts:
+        part_path = parts_dir / part.file_name
+        if not part_path.exists():
+            raise FileNotFoundError(f"Archive part file not found: {part_path}")
+
+    with _ChainReader(parts, parts_dir) as chain:
+        with tarfile.open(fileobj=cast(BinaryIO, chain), mode="r|gz") as tar:
+            member_count = 0
+            for _ in tar:
+                member_count += 1
+
+    if member_count == 0:
+        raise tarfile.TarError(
+            "Tar stream contained no members — archive may be empty or corrupt"
+        )
+
+
 def build_chunked_tar_archive(
     source_dir: Path,
     output_dir: Path,

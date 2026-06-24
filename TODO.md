@@ -1,23 +1,17 @@
 # TODO
 
 ## Scale and Performance
-- [ ] Add configurable limits for archive jobs (for example max files, max bytes, max runtime) and enforce them in backend checks.
-- [ ] Optimise for large drives and high file counts (streaming, batching, incremental processing or splitting into multiple RO-Crates). Max file size for ActiveScale is 50TB.
-- [ ] Reassess background execution approach; replace FastAPI `BackgroundTasks` with a durable queue (such as Celery or RQ) if reliability requirements increase.
+- [ ] Add configurable limits for archive jobs (for example max files, max bytes, max runtime) and enforce them in backend checks. Especially once we know the limit of whatever the prod infrastructure will be.
+- [ ] Reassess background execution approach; replace FastAPI `BackgroundTasks` with a durable queue (such as Celery or RQ) if reliability requirements increase. OR make it so only one archiving job can be run at a time to avoid concurrency issues with the current implementation.
 
-## Large Archive Datamodel and API (Draft)
-- [x] Extend `ArchiveSubmission` schema to track archive transport metadata (`archive_part_count`, byte sizes, object prefix, manifest key, and ordered part keys).
-- [x] Extend `JobStage` vocabulary for chunked archive workflow (`packaging`, `uploading`, `writing_manifest`) while retaining legacy stage values for compatibility.
-- [x] Extend `GET /api/v1/submission` response payload with new archive transport fields.
-- [x] Implement chunked archive writer (single logical tar split into ordered parts below ActiveScale object limit).
-- [x] Upload each part as a separate object under a deterministic prefix and persist uploaded part keys incrementally.
-- [x] Write sidecar archive manifest file (`archive-manifest.json`) during packaging with part ordering, per-part checksum, and total byte count.
-- [x] Upload sidecar archive manifest object to ActiveScale alongside uploaded parts.
-- [x] Replace single-object upload call in archive worker with chunked upload pipeline.
-- [x] Add retry/resume support to skip already uploaded parts and continue from persisted metadata.
-- [x] Add archive retrieval/reassembly utility using persisted part ordering from manifest.
-- [x] Add integration tests for chunked upload success, interrupted upload resume, and manifest integrity checks.
 
 ## Quality and Validation
 - [ ] Improve end-to-end tests that cover submission -> manifest -> RO-Crate build -> upload flow.
-- [ ] Validate generated RO-Crate output against the profile as part of CI.
+- [ ] Validate generated RO-Crate output against the profile.
+- [ ] Improved object and Tar integrity checks (e.g. validate checksums of uploaded parts, verify manifest integrity, and ensure reassembled archive matches original input).
+- [ ] Question: should custom s3 metadata be added on every uploaded object/prat of the archive? Currently just the archive manifest object has the metadata added.
+
+## Features and Enhancements
+- [ ] Notifications module to send slack messages to admins when jobs complete or fail
+- [ ] Logging to a durable store (e.g. file, database, or logging service) instead of just stdout for better traceability and debugging.
+- [ ] Add workflow for deleting the original drive data after successful archive. Key steps would be: flagging the source data as ready for deletion, running a separate cleanup job that verifies the archive integrity, and verifies the object exists before deleting, and handling any edge cases (e.g. what if the archive is corrupted?). It would also need to retain a copy of the archive manifest, and location of the stored archive, in the research drive (the drives/views/shares themselves will not be deleted). This may be a separate workflow from the archiving process, but could be triggered from the same API endpoint by adding an additional parameter to indicate whether deletion should be performed after archiving.

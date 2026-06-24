@@ -8,7 +8,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.14"
-fastapi = {extras = ["standard"], version = "^0.136.3"}
+fastapi = {extras = ["standard"], version = "^0.137.1"}
 sqlmodel = "^0.0.22"
 sqlalchemy = "^2.0.36"
 bagit = "^1.8.1"
@@ -80,3 +80,4 @@ fix = [
        "black-fix"
        ]
 coverage-report = "python -m coverage report -m"
+dev = "fastapi dev src/api/main.py"

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -107,6 +106,9 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         archive_chunk_manifest_file_name="archive-manifest.json",
         activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
+        activescale_enable_object_retention=False,
+        activescale_default_retention_years=6,
+        activescale_retention_override_days=None,
     )
     monkeypatch.setattr("workers.submission_worker.get_settings", lambda: settings)
 
@@ -138,13 +140,12 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
     monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
 
-    asyncio.run(
-        generate_ro_crate(
-            drive={"id": 1, "name": drive_name},
-            submission_id=submission_id,
-            projectdb_client=_ProjectDbStub(),
-        )
+    generate_ro_crate(
+        drive={"id": 1, "name": drive_name},
+        submission_id=submission_id,
+        projectdb_client=_ProjectDbStub(),
     )
 
     with Session(test_engine) as session:
@@ -199,6 +200,9 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         archive_chunk_manifest_file_name="archive-manifest.json",
         activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
+        activescale_enable_object_retention=False,
+        activescale_default_retention_years=6,
+        activescale_retention_override_days=None,
     )
     monkeypatch.setattr("workers.submission_worker.get_settings", lambda: settings)
 
@@ -229,13 +233,12 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fail_on_second_part)
     monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
 
-    asyncio.run(
-        generate_ro_crate(
-            drive={"id": 1, "name": drive_name},
-            submission_id=submission_id,
-            projectdb_client=_ProjectDbStub(),
-        )
+    generate_ro_crate(
+        drive={"id": 1, "name": drive_name},
+        submission_id=submission_id,
+        projectdb_client=_ProjectDbStub(),
     )
 
     with Session(test_engine) as session:
@@ -268,18 +271,17 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         return True
 
     monkeypatch.setattr("workers.submission_worker.upload_file", upload_all)
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
 
     def exists_if_previously_uploaded(_client, _bucket: str, key: str):
         return (key in first_run_uploaded), None
 
     monkeypatch.setattr("workers.submission_worker.object_exists", exists_if_previously_uploaded)
 
-    asyncio.run(
-        generate_ro_crate(
-            drive={"id": 1, "name": drive_name},
-            submission_id=submission_id,
-            projectdb_client=_ProjectDbStub(),
-        )
+    generate_ro_crate(
+        drive={"id": 1, "name": drive_name},
+        submission_id=submission_id,
+        projectdb_client=_ProjectDbStub(),
     )
 
     with Session(test_engine) as session:

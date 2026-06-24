@@ -10,3 +10,5 @@ api_keys.json
 venv
 
 vite.config.ts.timestamp*
+
+data_examples/*

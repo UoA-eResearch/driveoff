@@ -6,8 +6,9 @@ import json
 import tarfile
 from pathlib import Path
 
-from packaging.archive_chunks import build_chunked_tar_archive
+import pytest
 
+from packaging.archive_chunks import build_chunked_tar_archive, verify_tar_parts_stream
 
 def _write_file(path: Path, size: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,3 +69,79 @@ def test_chunked_parts_reassemble_into_valid_tar(tmp_path: Path) -> None:
 
     assert any(name.endswith("source/one.txt") for name in names)
     assert any(name.endswith("source/two.txt") for name in names)
+
+
+# ── verify_tar_parts_stream ──────────────────────────────────────────────────
+
+
+def test_verify_tar_parts_stream_passes_for_valid_archive(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    _write_file(source_dir / "a.txt", 1000)
+    _write_file(source_dir / "b.txt", 1000)
+
+    output_dir = tmp_path / "output"
+    result = build_chunked_tar_archive(
+        source_dir=source_dir,
+        output_dir=output_dir,
+        base_name="drive-archive",
+        part_size_bytes=500,
+    )
+
+    # Should not raise
+    verify_tar_parts_stream(parts=result.parts, parts_dir=output_dir)
+
+
+def test_verify_tar_parts_stream_raises_on_missing_part(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    _write_file(source_dir / "a.txt", 1000)
+
+    output_dir = tmp_path / "output"
+    result = build_chunked_tar_archive(
+        source_dir=source_dir,
+        output_dir=output_dir,
+        base_name="drive-archive",
+        part_size_bytes=300,
+    )
+
+    # Delete the first part
+    (output_dir / result.parts[0].file_name).unlink()
+
+    with pytest.raises(FileNotFoundError, match="Archive part file not found"):
+        verify_tar_parts_stream(parts=result.parts, parts_dir=output_dir)
+
+
+def test_verify_tar_parts_stream_raises_on_corrupt_part(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    _write_file(source_dir / "a.txt", 2000)
+
+    output_dir = tmp_path / "output"
+    result = build_chunked_tar_archive(
+        source_dir=source_dir,
+        output_dir=output_dir,
+        base_name="drive-archive",
+        part_size_bytes=400,
+    )
+
+    # Overwrite the last part with garbage to corrupt the gzip stream
+    last_part = output_dir / result.parts[-1].file_name
+    last_part.write_bytes(b"\xff" * last_part.stat().st_size)
+
+    with pytest.raises(tarfile.TarError):
+        verify_tar_parts_stream(parts=result.parts, parts_dir=output_dir)
+
+
+def test_verify_tar_parts_stream_single_part(tmp_path: Path) -> None:
+    """Works correctly when the archive fits in a single part."""
+    source_dir = tmp_path / "source"
+    _write_file(source_dir / "small.txt", 50)
+
+    output_dir = tmp_path / "output"
+    result = build_chunked_tar_archive(
+        source_dir=source_dir,
+        output_dir=output_dir,
+        base_name="drive-archive",
+        part_size_bytes=512 * 1024 * 1024,  # 512 MB — file will be one part
+    )
+
+    assert len(result.parts) == 1
+    verify_tar_parts_stream(parts=result.parts, parts_dir=output_dir)
