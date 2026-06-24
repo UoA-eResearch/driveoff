@@ -80,3 +80,4 @@ fix = [
        "black-fix"
        ]
 coverage-report = "python -m coverage report -m"
+dev = "fastapi dev src/api/main.py"
