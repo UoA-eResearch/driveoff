@@ -106,6 +106,9 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         archive_chunk_manifest_file_name="archive-manifest.json",
         activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
+        activescale_enable_object_retention=False,
+        activescale_default_retention_years=6,
+        activescale_retention_override_days=None,
     )
     monkeypatch.setattr("workers.submission_worker.get_settings", lambda: settings)
 
@@ -197,6 +200,9 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         archive_chunk_manifest_file_name="archive-manifest.json",
         activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
+        activescale_enable_object_retention=False,
+        activescale_default_retention_years=6,
+        activescale_retention_override_days=None,
     )
     monkeypatch.setattr("workers.submission_worker.get_settings", lambda: settings)
 

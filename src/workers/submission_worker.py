@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +13,7 @@ from sqlmodel import Session
 
 from api.dependencies import engine
 from config import get_settings
-from models.common import calculate_retention_end_date
+from models.common import calculate_retention_end_date, calculate_retention_end_datetime
 from models.submission import ArchiveJobStage, ArchiveSubmission
 from packaging.archive_chunks import (
     ArchivePartInfo,
@@ -26,6 +26,7 @@ from packaging.manifests import bag_directory, bagit_exists, create_manifests_di
 from service.activescale import (
     get_activescale_client_context,
     object_exists,
+    set_object_retention,
     upload_file,
     verify_uploaded_part_size,
 )
@@ -110,12 +111,28 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     archive_parts_dir: Path,
     archive_parts: list[ArchivePartInfo],
     timeout_seconds: int,
+    retain_until: datetime | None = None,
 ) -> tuple[bool, list[str]]:
     """Upload chunked archive part files with resume support.
 
     A part key is considered already uploaded only if:
     - it appears in persisted submission state, and
     - the key currently exists in object storage.
+
+    Args:
+        session: Database session for persisting progress
+        submission: ArchiveSubmission record being processed
+        client: An initialized S3 client
+        bucket_name: Name of the S3 bucket
+        object_prefix: S3 key prefix for all parts in this submission
+        archive_parts_dir: Local directory containing the part files
+        archive_parts: List of ArchivePartInfo for all parts being uploaded
+        timeout_seconds: Timeout for each individual part upload attempt
+        retain_until: Optional datetime to set for object retention
+        (object lock COMPLIANCE mode). If None, retention will not be set.
+
+    Returns:
+        Tuple of (overall upload success, list of uploaded part keys)
     """
     part_files = sorted(archive_parts_dir.glob("*.tar.gz.part-*"))
     uploaded_keys = parse_part_keys_json(submission.archive_part_keys_json)
@@ -174,6 +191,17 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
             drive_name=submission.drive_name,
             part_key=part_key,
         )
+
+        if retain_until is not None:
+            if not set_object_retention(client, bucket_name, part_key, retain_until):
+                log_event(
+                    logging.ERROR,
+                    "crate.upload.part.retention_failed",
+                    submission_id=submission.id,
+                    drive_name=submission.drive_name,
+                    part_key=part_key,
+                )
+                return False, uploaded_keys
 
     return True, uploaded_keys
 
@@ -467,6 +495,30 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 elapsed_ms=elapsed_ms(started_at),
             )
 
+            # Compute the object retention date once for all objects in this job.
+            retain_until: datetime | None = None
+            if settings.activescale_enable_object_retention:
+                now_utc = datetime.now(tz=timezone.utc)
+                if settings.activescale_retention_override_days is not None:
+                    retain_until = now_utc + timedelta(
+                        days=settings.activescale_retention_override_days
+                    )
+                else:
+                    retention_years = (
+                        submission.retention_period_years
+                        or settings.activescale_default_retention_years
+                    )
+                    retain_until = calculate_retention_end_datetime(
+                        now_utc, retention_years
+                    )
+                log_event(
+                    logging.INFO,
+                    "crate.upload.retention.computed",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    retain_until=retain_until.isoformat(),
+                )
+
             with get_activescale_client_context() as client:
                 bucket_name = settings.activescale_bucket_name
 
@@ -479,6 +531,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     archive_parts_dir=archive_parts_dir,
                     archive_parts=chunk_result.parts,
                     timeout_seconds=settings.activescale_upload_timeout,
+                    retain_until=retain_until,
                 )
 
                 if upload_success:
@@ -535,6 +588,19 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     submission.archive_part_keys_json = json.dumps(uploaded_part_keys)
                     session.add(submission)
                     session.commit()
+
+                    if upload_success and retain_until is not None:
+                        if not set_object_retention(
+                            client, bucket_name, file_key, retain_until
+                        ):
+                            log_event(
+                                logging.ERROR,
+                                "crate.upload.manifest.retention_failed",
+                                submission_id=submission_id,
+                                drive_name=drive_name,
+                                file_key=file_key,
+                            )
+                            upload_success = False
 
             # Transition: uploading → cleanup
             previous_stage = submission.stage

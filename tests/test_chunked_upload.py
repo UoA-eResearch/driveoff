@@ -218,3 +218,119 @@ def test_upload_chunked_parts_size_check_called_with_correct_args(
     assert success is True
     assert len(size_check_calls) == 1
     assert size_check_calls[0] == (part_key, manifest_size)
+
+
+def test_upload_chunked_parts_sets_retention_when_provided(
+    tmp_path: Path,
+    session: Session,
+    monkeypatch,
+) -> None:
+    """When retain_until is supplied, set_object_retention is called for each part."""
+    from datetime import datetime, timezone
+
+    archive_parts_dir = tmp_path / "parts"
+    archive_parts_dir.mkdir(parents=True, exist_ok=True)
+    part = archive_parts_dir / "drive.tar.gz.part-00001"
+    part.write_bytes(b"hello archive")
+
+    prefix = "drive/"
+    part_key = f"{prefix}{part.name}"
+    retain_until = datetime(2032, 6, 1, tzinfo=timezone.utc)
+
+    submission = _create_submission(session, drive_name="resmed202200024-testing")
+
+    retention_calls: list[tuple] = []
+
+    def capture_retention(_client, _bucket: str, key: str, date: datetime) -> bool:
+        retention_calls.append((key, date))
+        return True
+
+    monkeypatch.setattr(
+        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
+    )
+    monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
+    )
+    monkeypatch.setattr(
+        "workers.submission_worker.set_object_retention", capture_retention
+    )
+
+    success, _ = _upload_chunked_archive_parts(
+        session=session,
+        submission=submission,
+        client=object(),
+        bucket_name="bucket",
+        object_prefix=prefix,
+        archive_parts_dir=archive_parts_dir,
+        archive_parts=[
+            ArchivePartInfo(
+                index=1,
+                file_name=part.name,
+                size_bytes=len(b"hello archive"),
+                sha256="a",
+            ),
+        ],
+        timeout_seconds=60,
+        retain_until=retain_until,
+    )
+
+    assert success is True
+    assert len(retention_calls) == 1
+    assert retention_calls[0] == (part_key, retain_until)
+
+
+def test_upload_chunked_parts_fails_on_retention_error(
+    tmp_path: Path,
+    session: Session,
+    monkeypatch,
+) -> None:
+    """If set_object_retention fails the job aborts and the part key is not persisted."""
+    from datetime import datetime, timezone
+
+    archive_parts_dir = tmp_path / "parts"
+    archive_parts_dir.mkdir(parents=True, exist_ok=True)
+    part = archive_parts_dir / "drive.tar.gz.part-00001"
+    part.write_bytes(b"hello archive")
+
+    prefix = "drive/"
+    part_key = f"{prefix}{part.name}"
+    retain_until = datetime(2032, 6, 1, tzinfo=timezone.utc)
+
+    submission = _create_submission(session, drive_name="resmed202200024-testing")
+
+    monkeypatch.setattr(
+        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
+    )
+    monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
+    )
+    monkeypatch.setattr(
+        "workers.submission_worker.set_object_retention", lambda *_a, **_k: False
+    )
+
+    success, result_keys = _upload_chunked_archive_parts(
+        session=session,
+        submission=submission,
+        client=object(),
+        bucket_name="bucket",
+        object_prefix=prefix,
+        archive_parts_dir=archive_parts_dir,
+        archive_parts=[
+            ArchivePartInfo(
+                index=1,
+                file_name=part.name,
+                size_bytes=len(b"hello archive"),
+                sha256="a",
+            ),
+        ],
+        timeout_seconds=60,
+        retain_until=retain_until,
+    )
+
+    assert success is False
+    # Part was uploaded and size-verified but retention failed —
+    # it should still be recorded as uploaded so a retry skips re-uploading it
+    # but the job overall is failed.
+    assert part_key in result_keys

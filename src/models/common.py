@@ -1,7 +1,7 @@
 """Classes common to other models."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated
 
@@ -22,6 +22,20 @@ def validate_resdrive_name(drive_name: str) -> str:
     return drive_name
 
 
+def calculate_retention_end_datetime(
+    start_date: datetime, retention_years: int
+) -> datetime:
+    """Return the UTC-aware datetime on which retained data may be deleted.
+
+    Args:
+        start_date: The starting datetime (will be treated as UTC if naive).
+        retention_years: Number of full years to add.
+    """
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+    return start_date + relativedelta(years=retention_years)
+
+
 def calculate_retention_end_date(start_date: datetime, retention_years: int) -> str:
     """Return the date on which retained data may be deleted.
 
@@ -29,7 +43,9 @@ def calculate_retention_end_date(start_date: datetime, retention_years: int) -> 
         start_date: The starting date (typically project end date or today).
         retention_years: Number of full years to add.
     """
-    return (start_date + relativedelta(years=retention_years)).strftime("%Y-%m-%d")
+    return calculate_retention_end_datetime(start_date, retention_years).strftime(
+        "%Y-%m-%d"
+    )
 
 
 ResearchDriveName = Annotated[str, AfterValidator(validate_resdrive_name)]

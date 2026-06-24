@@ -11,6 +11,7 @@ import logging
 import threading
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, cast
 
@@ -576,6 +577,68 @@ def verify_uploaded_part_size(
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
         _log_unexpected_error(
             "s3.object.size_verify.unexpected_error",
+            e,
+            file_key=file_key,
+            bucket_name=bucket_name,
+        )
+        return False
+
+
+def set_object_retention(
+    client: S3Client,
+    bucket_name: str,
+    file_key: str,
+    retain_until: datetime,
+) -> bool:
+    """Apply an S3 object lock retention policy in COMPLIANCE mode to an object.
+
+    Requires the bucket to have been created with ``ObjectLockEnabledForBucket=True``.
+    In COMPLIANCE mode the retention date cannot be shortened or removed — not even
+    by an admin — until *retain_until* has passed.
+
+    Args:
+        client: An initialized S3 client.
+        bucket_name: Name of the S3 bucket.
+        file_key: Object key to protect.
+        retain_until: UTC-aware datetime after which the object may be deleted.
+
+    Returns:
+        True if the retention was set successfully, False otherwise.
+    """
+    if retain_until.tzinfo is None:
+        retain_until = retain_until.replace(tzinfo=timezone.utc)
+
+    try:
+        client.put_object_retention(
+            Bucket=bucket_name,
+            Key=file_key,
+            Retention={
+                "Mode": "COMPLIANCE",
+                "RetainUntilDate": retain_until,
+            },
+        )
+        _log_event(
+            logging.INFO,
+            "s3.object.retention.set",
+            file_key=file_key,
+            bucket_name=bucket_name,
+            retain_until=retain_until.isoformat(),
+        )
+        return True
+    except ClientError as e:
+        _log_client_error(
+            "s3.object.retention.client_error",
+            e,
+            file_key=file_key,
+            bucket_name=bucket_name,
+        )
+        return False
+    except EndpointConnectionError:
+        _log_endpoint_connection_error(file_key=file_key, bucket_name=bucket_name)
+        return False
+    except (BotoCoreError, OSError, ValueError, TypeError) as e:
+        _log_unexpected_error(
+            "s3.object.retention.unexpected_error",
             e,
             file_key=file_key,
             bucket_name=bucket_name,
