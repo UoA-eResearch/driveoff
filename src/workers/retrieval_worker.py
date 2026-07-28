@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import shutil
 import tarfile
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -70,7 +70,7 @@ def _persist_retrieved_part_keys(
     session.commit()
 
 
-async def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-locals,too-many-branches
+def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-locals,too-many-branches
     retrieval_id: int,
 ) -> None:
     """Background task: restore, download, and extract a completed archive.
@@ -85,10 +85,6 @@ async def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many
                       clean up temp files.
       4. COMPLETED / FAILED - Final state written to the ArchiveRetrieval record.
     """
-    # Yield to the event loop so uvicorn can flush the HTTP response to the client
-    # before this blocking-heavy task begins.
-    await asyncio.sleep(0)
-
     started_at = datetime.now()
     settings = get_settings()
 
@@ -183,7 +179,7 @@ async def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many
                             poll_interval_seconds=poll_interval,
                             elapsed_ms=elapsed_ms(started_at),
                         )
-                        await asyncio.sleep(poll_interval)
+                        time.sleep(poll_interval)
 
                 with get_activescale_client_context() as client:
                     if not download_file_to_disk(
@@ -252,7 +248,7 @@ async def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many
                         poll_interval_seconds=poll_interval,
                         elapsed_ms=elapsed_ms(started_at),
                     )
-                    await asyncio.sleep(poll_interval)
+                    time.sleep(poll_interval)
 
             # ─── Phase 2: DOWNLOADING ─────────────────────────────────────────
             _transition_retrieval_stage(

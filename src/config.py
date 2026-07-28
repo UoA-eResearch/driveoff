@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     activescale_restore_poll_interval_seconds: int = 60
     # Maximum total time to wait for a restore to complete, in seconds (default 24 h)
     activescale_restore_poll_max_seconds: int = 86400
+    # Object retention (object lock COMPLIANCE mode) - (default True).
+    # Set to False in TEST environments so objects can be deleted quickly.
+    activescale_enable_object_retention: bool = True
+    # Fallback retention in years when retention_period_years is not set on a submission.
+    activescale_default_retention_years: int = 10
+    # Override: when set, use this many days as the retention period instead of the
+    # years-based calculation. Intended for TEST environments so objects expire quickly.
+    activescale_retention_override_days: int | None = None
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 
