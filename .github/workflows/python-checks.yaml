@@ -41,7 +41,7 @@ jobs:
         run: uv run ruff check src tests
 
       - name: mypy - static type checking
-        run: uv run mypy --install-types --non-interactive
+        run: uv run mypy
 
       - name: pytest - run the tests
         run: uv run pytest -v --cov=src/ tests/

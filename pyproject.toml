@@ -33,6 +33,9 @@ dev = [
     "coverage>=7.6.1,<8.0.0",
     "setuptools>=78.1.1,<79.0.0",
     "ruff>=0.11.0,<1.0.0",
+    "types-python-dateutil>=2.9.0,<3.0.0",
+    "types-PyYAML>=6.0.4,<7.0.0",
+    "types-simplejson>=3.10.0,<4.0.0",
 ]
 test = [
     "pytest>=8.3.3,<10.0.0",
