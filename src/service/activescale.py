@@ -114,6 +114,7 @@ def _create_activescale_session() -> boto3.Session:
         )
 
     if settings.log_level.upper() == "DEBUG":
+        # Enable detailed logging for boto3 when log level is DEBUG
         boto3.set_stream_logger("")
 
     session = boto3.Session(
