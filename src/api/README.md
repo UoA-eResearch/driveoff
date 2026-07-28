@@ -5,8 +5,8 @@ A FastAPI-based REST API server for managing project offboarding and archival wo
 ## Quick start
 
 ### Prerequisites
-- Python 3.8+
-- FastAPI and Uvicorn (see [Installation](#installation))
+- Python 3.14+
+- uv for dependency management (see [Installing uv](https://docs.astral.sh/uv/getting-started/installation/))
 
 ### Installation
 

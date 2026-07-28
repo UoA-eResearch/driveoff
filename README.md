@@ -52,12 +52,3 @@ Auto-fix formatting and import ordering:
 uv run ruff format src tests
 uv run ruff check --fix src tests
 ```
-
-Run an individual task:
-
-```bash
-uv run ruff format --check src tests
-uv run ruff check src tests
-uv run mypy --install-types --non-interactive
-uv run pytest -v --cov=src/ tests/
-```
