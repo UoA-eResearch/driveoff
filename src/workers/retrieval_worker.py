@@ -104,16 +104,12 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
 
             submission = session.get(ArchiveSubmission, retrieval.submission_id)
             if submission is None:
-                raise RuntimeError(
-                    f"ArchiveSubmission {retrieval.submission_id} not found in database"
-                )
+                raise RuntimeError(f"ArchiveSubmission {retrieval.submission_id} not found in database")
 
             drive_name = submission.drive_name
             manifest_key = submission.archive_manifest_key
             if not manifest_key:
-                raise RuntimeError(
-                    "Submission has no archive_manifest_key; archive may not have uploaded completely"
-                )
+                raise RuntimeError("Submission has no archive_manifest_key; archive may not have uploaded completely")
 
             object_prefix = submission.archive_object_prefix or f"{drive_name}/"
             bucket_name = settings.activescale_bucket_name
@@ -134,9 +130,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
             )
 
             # ─── Phase 1: RESTORING ───────────────────────────────────────────
-            _transition_retrieval_stage(
-                session, retrieval, RetrievalJobStage.RESTORING, started_at
-            )
+            _transition_retrieval_stage(session, retrieval, RetrievalJobStage.RESTORING, started_at)
 
             manifest_local = download_dir / settings.archive_chunk_manifest_file_name
             poll_interval = settings.activescale_restore_poll_interval_seconds
@@ -159,9 +153,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                     deadline = datetime.now() + timedelta(seconds=max_wait)
                     while True:
                         with get_activescale_client_context() as client:
-                            ready = is_object_ready_for_download(
-                                client, bucket_name, manifest_key
-                            )
+                            ready = is_object_ready_for_download(client, bucket_name, manifest_key)
                         if ready:
                             break
                         if datetime.now() >= deadline:
@@ -181,12 +173,8 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                         time.sleep(poll_interval)
 
                 with get_activescale_client_context() as client:
-                    if not download_file_to_disk(
-                        client, bucket_name, manifest_key, manifest_local
-                    ):
-                        raise RuntimeError(
-                            f"Failed to download archive manifest: {manifest_key}"
-                        )
+                    if not download_file_to_disk(client, bucket_name, manifest_key, manifest_local):
+                        raise RuntimeError(f"Failed to download archive manifest: {manifest_key}")
 
             manifest_data = load_archive_manifest(manifest_local)
             part_keys = ordered_part_object_keys(object_prefix, manifest_data)
@@ -220,10 +208,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
 
                 while True:
                     with get_activescale_client_context() as client:
-                        all_ready = all(
-                            is_object_ready_for_download(client, bucket_name, k)
-                            for k in needs_restore
-                        )
+                        all_ready = all(is_object_ready_for_download(client, bucket_name, k) for k in needs_restore)
                     if all_ready:
                         log_event(
                             logging.INFO,
@@ -250,13 +235,9 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                     time.sleep(poll_interval)
 
             # ─── Phase 2: DOWNLOADING ─────────────────────────────────────────
-            _transition_retrieval_stage(
-                session, retrieval, RetrievalJobStage.DOWNLOADING, started_at
-            )
+            _transition_retrieval_stage(session, retrieval, RetrievalJobStage.DOWNLOADING, started_at)
 
-            already_downloaded = parse_part_keys_json(
-                retrieval.retrieved_part_keys_json
-            )
+            already_downloaded = parse_part_keys_json(retrieval.retrieved_part_keys_json)
 
             with get_activescale_client_context() as client:
                 for part_key in part_keys:
@@ -283,17 +264,13 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                     )
 
                     if not download_file_to_disk(client, bucket_name, part_key, dest):
-                        raise RuntimeError(
-                            f"Failed to download archive part: {part_key}"
-                        )
+                        raise RuntimeError(f"Failed to download archive part: {part_key}")
 
                     already_downloaded.append(part_key)
                     _persist_retrieved_part_keys(session, retrieval, already_downloaded)
 
             # ─── Phase 3: EXTRACTING ──────────────────────────────────────────
-            _transition_retrieval_stage(
-                session, retrieval, RetrievalJobStage.EXTRACTING, started_at
-            )
+            _transition_retrieval_stage(session, retrieval, RetrievalJobStage.EXTRACTING, started_at)
 
             reassembled_tar = download_dir / f"{drive_name}.tar.gz"
             reassemble_archive_from_manifest(

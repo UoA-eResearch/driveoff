@@ -73,9 +73,7 @@ def test_upload_chunked_parts_resumes_skipping_existing(
 
     monkeypatch.setattr("workers.submission_worker.object_exists", fake_exists)
     monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,
@@ -85,12 +83,8 @@ def test_upload_chunked_parts_resumes_skipping_existing(
         object_prefix=prefix,
         archive_parts_dir=archive_parts_dir,
         archive_parts=[
-            ArchivePartInfo(
-                index=1, file_name=first.name, size_bytes=len(b"part1"), sha256="a"
-            ),
-            ArchivePartInfo(
-                index=2, file_name=second.name, size_bytes=len(b"part2"), sha256="b"
-            ),
+            ArchivePartInfo(index=1, file_name=first.name, size_bytes=len(b"part1"), sha256="a"),
+            ArchivePartInfo(index=2, file_name=second.name, size_bytes=len(b"part2"), sha256="b"),
         ],
         timeout_seconds=60,
     )
@@ -120,9 +114,7 @@ def test_upload_chunked_parts_stops_on_failure(
         "workers.submission_worker.object_exists",
         lambda *_args, **_kwargs: (False, None),
     )
-    monkeypatch.setattr(
-        "workers.submission_worker.upload_file", lambda *_args, **_kwargs: False
-    )
+    monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_args, **_kwargs: False)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,
@@ -132,9 +124,7 @@ def test_upload_chunked_parts_stops_on_failure(
         object_prefix=prefix,
         archive_parts_dir=archive_parts_dir,
         archive_parts=[
-            ArchivePartInfo(
-                index=1, file_name=first.name, size_bytes=len(b"part1"), sha256="a"
-            ),
+            ArchivePartInfo(index=1, file_name=first.name, size_bytes=len(b"part1"), sha256="a"),
         ],
         timeout_seconds=60,
     )
@@ -160,13 +150,9 @@ def test_upload_chunked_parts_fails_on_size_mismatch(
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
 
-    monkeypatch.setattr(
-        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
-    )
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_a, **_k: (False, None))
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: False
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: False)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,
@@ -176,9 +162,7 @@ def test_upload_chunked_parts_fails_on_size_mismatch(
         object_prefix=prefix,
         archive_parts_dir=archive_parts_dir,
         archive_parts=[
-            ArchivePartInfo(
-                index=1, file_name=part.name, size_bytes=len(b"part1"), sha256="a"
-            ),
+            ArchivePartInfo(index=1, file_name=part.name, size_bytes=len(b"part1"), sha256="a"),
         ],
         timeout_seconds=60,
     )
@@ -211,17 +195,11 @@ def test_upload_chunked_parts_size_check_called_with_correct_args(
         size_check_calls.append((key, expected_size))
         return True
 
-    manifest_size = (
-        999  # deliberately different from len(part_content) to prove manifest wins
-    )
+    manifest_size = 999  # deliberately different from len(part_content) to prove manifest wins
 
-    monkeypatch.setattr(
-        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
-    )
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_a, **_k: (False, None))
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", capture_size_check
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", capture_size_check)
 
     success, _ = _upload_chunked_archive_parts(
         session=session,
@@ -231,9 +209,7 @@ def test_upload_chunked_parts_size_check_called_with_correct_args(
         object_prefix=prefix,
         archive_parts_dir=archive_parts_dir,
         archive_parts=[
-            ArchivePartInfo(
-                index=1, file_name=part.name, size_bytes=manifest_size, sha256="a"
-            ),
+            ArchivePartInfo(index=1, file_name=part.name, size_bytes=manifest_size, sha256="a"),
         ],
         timeout_seconds=60,
     )
@@ -268,16 +244,10 @@ def test_upload_chunked_parts_sets_retention_when_provided(
         retention_calls.append((key, date))
         return True
 
-    monkeypatch.setattr(
-        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
-    )
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_a, **_k: (False, None))
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
-    )
-    monkeypatch.setattr(
-        "workers.submission_worker.set_object_retention", capture_retention
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True)
+    monkeypatch.setattr("workers.submission_worker.set_object_retention", capture_retention)
 
     success, _ = _upload_chunked_archive_parts(
         session=session,
@@ -322,16 +292,10 @@ def test_upload_chunked_parts_fails_on_retention_error(
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
 
-    monkeypatch.setattr(
-        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
-    )
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_a, **_k: (False, None))
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
-    )
-    monkeypatch.setattr(
-        "workers.submission_worker.set_object_retention", lambda *_a, **_k: False
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True)
+    monkeypatch.setattr("workers.submission_worker.set_object_retention", lambda *_a, **_k: False)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,

@@ -32,9 +32,7 @@ def validate_archive_path_configuration() -> None:
 
     mount_base = settings.smb_linux_mount_base_path.strip()
     if not mount_base:
-        raise RuntimeError(
-            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when SMB_DRIVE_BASE_PATH is a UNC path."
-        )
+        raise RuntimeError("SMB_LINUX_MOUNT_BASE_PATH is required on Linux when SMB_DRIVE_BASE_PATH is a UNC path.")
 
     mount_path = Path(mount_base)
     if not mount_path.exists() or not mount_path.is_dir():
@@ -66,9 +64,7 @@ def resolve_drive_path_for_archive(drive_name: str) -> Path:
 
     mount_base = settings.smb_linux_mount_base_path.strip()
     if not mount_base:
-        raise RuntimeError(
-            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when SMB_DRIVE_BASE_PATH is a UNC path."
-        )
+        raise RuntimeError("SMB_LINUX_MOUNT_BASE_PATH is required on Linux when SMB_DRIVE_BASE_PATH is a UNC path.")
 
     mounted_drive_path = Path(mount_base) / drive_name
     if not mounted_drive_path.exists():
@@ -87,9 +83,7 @@ def validate_archive_path_access(drive_name: str) -> Path:
     drive_path = resolve_drive_path_for_archive(drive_name)
 
     if not drive_path.exists() or not drive_path.is_dir():
-        raise FileNotFoundError(
-            f"Drive path does not exist or is not a directory: {drive_path}"
-        )
+        raise FileNotFoundError(f"Drive path does not exist or is not a directory: {drive_path}")
 
     # Read probe to validate source permissions
     try:
@@ -115,9 +109,7 @@ def validate_archive_path_access(drive_name: str) -> Path:
             f.write(b"ok")
         temp_probe.unlink(missing_ok=True)
     except Exception as e:
-        raise PermissionError(
-            f"Cannot write to local archive temp base {temp_base}: {e}"
-        ) from e
+        raise PermissionError(f"Cannot write to local archive temp base {temp_base}: {e}") from e
 
     return drive_path
 
@@ -137,9 +129,7 @@ def validate_destination_path(destination_path: str) -> Path:
     """
     dest = Path(destination_path)
     if not dest.exists() or not dest.is_dir():
-        raise FileNotFoundError(
-            f"Destination path does not exist or is not a directory: {dest}"
-        )
+        raise FileNotFoundError(f"Destination path does not exist or is not a directory: {dest}")
     probe_file = dest / ".driveoff_dest_probe"
     try:
         with open(probe_file, "wb") as f:

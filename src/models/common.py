@@ -22,9 +22,7 @@ def validate_resdrive_name(drive_name: str) -> str:
     return drive_name
 
 
-def calculate_retention_end_datetime(
-    start_date: datetime, retention_years: int
-) -> datetime:
+def calculate_retention_end_datetime(start_date: datetime, retention_years: int) -> datetime:
     """Return the UTC-aware datetime on which retained data may be deleted.
 
     Args:
@@ -43,9 +41,7 @@ def calculate_retention_end_date(start_date: datetime, retention_years: int) -> 
         start_date: The starting date (typically project end date or today).
         retention_years: Number of full years to add.
     """
-    return calculate_retention_end_datetime(start_date, retention_years).strftime(
-        "%Y-%m-%d"
-    )
+    return calculate_retention_end_datetime(start_date, retention_years).strftime("%Y-%m-%d")
 
 
 ResearchDriveName = Annotated[str, AfterValidator(validate_resdrive_name)]

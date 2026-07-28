@@ -12,9 +12,7 @@ METADATA_FILE_NAME = "ro-crate-metadata.json"
 BAG_DIR_NAME = "data"
 
 
-def test_generate_crate_builder(
-    test_ro_builder: ROBuilder, ro_crate_helpers: ROCRATEHelpers
-) -> None:
+def test_generate_crate_builder(test_ro_builder: ROBuilder, ro_crate_helpers: ROCRATEHelpers) -> None:
     """Test RO-Crate generation with builder"""
     project_dict = {
         "id": 123,

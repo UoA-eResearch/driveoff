@@ -45,9 +45,7 @@ class _ProjectDbStub:
 @pytest.fixture()
 def test_engine() -> Generator[Engine, Any]:
     """Provide a fresh in-memory SQLite engine, disposed after each test."""
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     SQLModel.metadata.create_all(engine)
     try:
         yield engine
@@ -107,9 +105,7 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     )
 
     # Avoid heavy crate generation internals; this test focuses on chunked workflow.
-    monkeypatch.setattr(
-        "workers.submission_worker.build_crate_contents", lambda **_kwargs: None
-    )
+    monkeypatch.setattr("workers.submission_worker.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=1024,
@@ -126,9 +122,7 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     def fake_client_context():
         yield object()
 
-    monkeypatch.setattr(
-        "workers.submission_worker.get_activescale_client_context", fake_client_context
-    )
+    monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
 
     upload_calls: list[dict[str, object]] = []
 
@@ -218,9 +212,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         "workers.submission_worker._cleanup_job_artifacts",
         lambda *_args, **_kwargs: (True, None),
     )
-    monkeypatch.setattr(
-        "workers.submission_worker.build_crate_contents", lambda **_kwargs: None
-    )
+    monkeypatch.setattr("workers.submission_worker.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=100,  # small enough to produce multiple parts after gzip
@@ -237,9 +229,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     def fake_client_context():
         yield object()
 
-    monkeypatch.setattr(
-        "workers.submission_worker.get_activescale_client_context", fake_client_context
-    )
+    monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
 
     first_run_uploaded: set[str] = set()
 
@@ -314,9 +304,7 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     def exists_if_previously_uploaded(_client, _bucket: str, key: str):
         return (key in first_run_uploaded), None
 
-    monkeypatch.setattr(
-        "workers.submission_worker.object_exists", exists_if_previously_uploaded
-    )
+    monkeypatch.setattr("workers.submission_worker.object_exists", exists_if_previously_uploaded)
 
     generate_ro_crate(
         drive={"id": 1, "name": drive_name},
@@ -334,8 +322,4 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         assert len(final_part_keys) == submission.archive_part_count
 
     # Resume should not re-upload first successfully uploaded part.
-    assert all(
-        key not in first_run_uploaded
-        for key in second_run_uploaded
-        if "part-00001" in key
-    )
+    assert all(key not in first_run_uploaded for key in second_run_uploaded if "part-00001" in key)

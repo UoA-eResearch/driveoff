@@ -71,9 +71,7 @@ class ROBuilder:
 
         # Add project identifiers (codes)
         if codes and codes.get("items"):
-            project_properties["identifier"] = [
-                code.get("code") for code in codes.get("items", []) if code.get("code")
-            ]
+            project_properties["identifier"] = [code.get("code") for code in codes.get("items", []) if code.get("code")]
 
         # Add archive metadata properties to the dataset
         archive_properties = {
@@ -92,9 +90,7 @@ class ROBuilder:
         )
 
         # Add members to project (pass project_id for member ID generation)
-        project_people = [
-            self.add_member(member, project_id=project_id) for member in members
-        ]
+        project_people = [self.add_member(member, project_id=project_id) for member in members]
         project_entity.append_to("member", project_people)
 
         # Add research drive service reference
@@ -184,9 +180,7 @@ class ROBuilder:
         # Fallback
         return "NoRole"
 
-    def add_member(
-        self, member: dict[str, Any], project_id: int | None = None
-    ) -> ContextEntity:
+    def add_member(self, member: dict[str, Any], project_id: int | None = None) -> ContextEntity:
         """Add a member to the crate from raw ProjectDB member dict.
 
         Args:
@@ -289,9 +283,7 @@ class ROBuilder:
         # Parse project end date if it's a string
         if isinstance(project_end_date, str):
             try:
-                retention_start = datetime.fromisoformat(
-                    project_end_date.replace("Z", "+00:00")
-                )
+                retention_start = datetime.fromisoformat(project_end_date.replace("Z", "+00:00"))
             except Exception:
                 retention_start = datetime.now()
         else:

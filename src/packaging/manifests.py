@@ -93,9 +93,7 @@ def create_manifests_directory(
         output_location = drive_path.parent
     manifests = get_manifests_in_bag(drive_path)
     if not manifests:
-        raise ValueError(
-            "No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate"
-        )
+        raise ValueError("No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate")
     manifest_dir = output_location / (drive_name + "_manifests")
     manifest_dir.mkdir(parents=True, exist_ok=True)
     for manifest in manifests:

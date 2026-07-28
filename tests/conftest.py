@@ -34,9 +34,7 @@ THIS_DIR = Path(__file__).absolute().parent
 @pytest.fixture(name="session")
 def session_fixture() -> Generator[Session, Any]:
     """scoped session for each unit test"""
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     SQLModel.metadata.create_all(engine)
     try:
         with Session(engine) as session:
@@ -58,9 +56,7 @@ def client_fixture(session: Session) -> Generator[TestClient, Any]:
     test_api_key: str = str(uuid.uuid4())
 
     def read_api_keys_override():
-        api_key_obj = ApiKey(
-            value=test_api_key, actions=["GET", "PUT", "POST", "PATCH"]
-        )
+        api_key_obj = ApiKey(value=test_api_key, actions=["GET", "PUT", "POST", "PATCH"])
         return {test_api_key: api_key_obj}
 
     # Mock ProjectDB client for API tests
@@ -293,9 +289,7 @@ class ROCRATEHelpers:
             assert data_entity_ids.issubset([_["@id"] for _ in root["hasPart"]])
 
     @classmethod
-    def check_crate_contains(
-        cls, json_entities: dict[str, Any], ro_crate_entities: list[RO_Entity]
-    ) -> None:
+    def check_crate_contains(cls, json_entities: dict[str, Any], ro_crate_entities: list[RO_Entity]) -> None:
         """Check specific entities have been created within the RO-Crate json"""
         for entity in ro_crate_entities:
             assert json_entities[entity.id] is not None

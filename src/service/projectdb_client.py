@@ -50,9 +50,7 @@ class ProjectDBClient:
         """GET /researchdrive/{drive_name}"""
         return self._get(f"/researchdrive/{drive_name}")
 
-    def get_research_drive_projects(
-        self, drive_id: int, expand: list[str] | None = None
-    ) -> Any:
+    def get_research_drive_projects(self, drive_id: int, expand: list[str] | None = None) -> Any:
         """GET /researchdrive/{drive_id}/project"""
         return self._get(
             f"/researchdrive/{drive_id}/project",
@@ -66,9 +64,7 @@ class ProjectDBClient:
             self._build_expand_params(expand),
         )
 
-    def get_project_members(
-        self, project_id: int, expand: list[str] | None = None
-    ) -> Any:
+    def get_project_members(self, project_id: int, expand: list[str] | None = None) -> Any:
         """GET /project/{project_id}/member"""
         return self._get(
             f"/project/{project_id}/member",

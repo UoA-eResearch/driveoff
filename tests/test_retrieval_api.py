@@ -96,9 +96,7 @@ def test_create_retrieval_persists_record(
 
     assert response.status_code == 201
 
-    row = session.exec(
-        select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == _DRIVE_NAME)
-    ).first()
+    row = session.exec(select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == _DRIVE_NAME)).first()
 
     assert row is not None
     assert row.stage == RetrievalJobStage.QUEUED
@@ -129,9 +127,7 @@ def test_create_retrieval_schedules_background_task(
     mock_task.assert_called_once()
 
     # The task should have been called with the retrieval record's ID.
-    row = session.exec(
-        select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == _DRIVE_NAME)
-    ).first()
+    row = session.exec(select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == _DRIVE_NAME)).first()
     assert row is not None
     call_args = mock_task.call_args
     assert call_args.args[0] == row.id
@@ -378,9 +374,7 @@ def test_create_retrieval_422_when_destination_path_missing(
 
 
 @pytest.fixture(name="queued_retrieval")
-def queued_retrieval_fixture(
-    session: Session, completed_submission: ArchiveSubmission
-) -> ArchiveRetrieval:
+def queued_retrieval_fixture(session: Session, completed_submission: ArchiveSubmission) -> ArchiveRetrieval:
     """A QUEUED ArchiveRetrieval persisted to the test database."""
     retrieval = ArchiveRetrieval(
         drive_name=_DRIVE_NAME,

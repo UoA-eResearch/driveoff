@@ -46,14 +46,10 @@ class ArchiveRetrieval(SQLModel, table=True):
 
     # Which archive this retrieval is for
     drive_name: str = Field(index=True)
-    submission_id: int = Field(
-        description="ID of the ArchiveSubmission record that holds the archive metadata"
-    )
+    submission_id: int = Field(description="ID of the ArchiveSubmission record that holds the archive metadata")
 
     # Where to extract the restored archive
-    destination_path: str = Field(
-        description="Filesystem path of the Vast view to extract the archive into"
-    )
+    destination_path: str = Field(description="Filesystem path of the Vast view to extract the archive into")
 
     # Lifecycle stage
     stage: RetrievalJobStage = Field(default=RetrievalJobStage.QUEUED)
