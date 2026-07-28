@@ -66,8 +66,7 @@ def _resolve_project_id(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
-                "ProjectDB request failed while fetching projects"
-                f" for drive {request.drive_name}: {e}"
+                f"ProjectDB request failed while fetching projects for drive {request.drive_name}: {e}"
             ),
         ) from e
 
@@ -222,8 +221,7 @@ def create_submission(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Drive {request.drive_name} has already been successfully archived."
-                " Use force=true to re-run."
+                f"Drive {request.drive_name} has already been successfully archived. Use force=true to re-run."
             ),
         )
 
@@ -310,8 +308,7 @@ def create_submission(
         raise HTTPException(
             status_code=500,
             detail=(
-                "An error occurred while creating archive submission"
-                f" for {request.drive_name}."
+                f"An error occurred while creating archive submission for {request.drive_name}."
             ),
         ) from e
 
@@ -337,9 +334,7 @@ def retry_submission(
     projectdb: ProjectDbDep,
     api_key: ApiKey = Security(validate_api_key),
     force: bool = False,
-) -> (
-    CreateSubmissionResponse
-):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+) -> CreateSubmissionResponse:  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Retry a failed or abandoned archive job for a research drive."""
     validate_permissions("POST", api_key)
 
@@ -359,8 +354,7 @@ def retry_submission(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Drive {drive_name} has already been successfully archived."
-                " Use force=true to re-run."
+                f"Drive {drive_name} has already been successfully archived. Use force=true to re-run."
             ),
         )
 
@@ -370,8 +364,7 @@ def retry_submission(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Drive {drive_name} submission is in stage '{submission.stage.value}'"
-                " which cannot be retried."
+                f"Drive {drive_name} submission is in stage '{submission.stage.value}' which cannot be retried."
             ),
         )
 

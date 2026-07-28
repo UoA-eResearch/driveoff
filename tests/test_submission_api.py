@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from api.main import app
-from models.submission import ArchiveSubmission, ArchiveJobStage
+from models.submission import ArchiveJobStage, ArchiveSubmission
 from service.projectdb import get_projectdb_client
 
 
@@ -124,9 +124,7 @@ def test_post_submission_returns_502_when_projectdb_project_lookup_fails(
                 "used_gb": 0.0,
             }
 
-        def get_research_drive_projects(
-            self, drive_id: int, expand=None
-        ):  # noqa: ANN001
+        def get_research_drive_projects(self, drive_id: int, expand=None):  # noqa: ANN001
             raise requests.exceptions.Timeout("upstream timeout")
 
     original_projectdb_override = app.dependency_overrides.get(get_projectdb_client)

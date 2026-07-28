@@ -60,8 +60,7 @@ def get_drive_info(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
-                "ProjectDB request failed while fetching drive"
-                f" {drive_name}: {str(e)}"
+                f"ProjectDB request failed while fetching drive {drive_name}: {str(e)}"
             ),
         ) from e
 
@@ -74,8 +73,7 @@ def get_drive_info(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
-                "ProjectDB request failed while fetching projects"
-                f" for drive {drive_name}: {str(e)}"
+                f"ProjectDB request failed while fetching projects for drive {drive_name}: {str(e)}"
             ),
         ) from e
 
@@ -98,8 +96,7 @@ def get_drive_info(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
-                "ProjectDB request failed while fetching project"
-                f" {project_id}: {str(e)}"
+                f"ProjectDB request failed while fetching project {project_id}: {str(e)}"
             ),
         ) from e
 
@@ -114,8 +111,7 @@ def get_drive_info(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
-                "ProjectDB request failed while fetching members"
-                f" for project {project_id}: {str(e)}"
+                f"ProjectDB request failed while fetching members for project {project_id}: {str(e)}"
             ),
         ) from e
 

@@ -79,8 +79,7 @@ def create_retrieval(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Archive submission for drive {drive_name} has no manifest key."
-                " The archive may be incomplete."
+                f"Archive submission for drive {drive_name} has no manifest key. The archive may be incomplete."
             ),
         )
 
@@ -98,8 +97,7 @@ def create_retrieval(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"A retrieval job for drive {drive_name} is already active"
-                f" (stage: '{active_retrieval.stage.value}')."
+                f"A retrieval job for drive {drive_name} is already active (stage: '{active_retrieval.stage.value}')."
             ),
         )
 
@@ -160,8 +158,7 @@ def create_retrieval(
 
     return CreateRetrievalResponse(
         message=(
-            f"Archive retrieval job created for {drive_name}."
-            f" Restoring archive to {request.destination_path}."
+            f"Archive retrieval job created for {drive_name}. Restoring archive to {request.destination_path}."
         )
     )
 

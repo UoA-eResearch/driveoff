@@ -42,10 +42,7 @@ def reconcile_interrupted_archiving_jobs() -> None:
                 previous_stage=previous_stage,
             )
             submission.stage = ArchiveJobStage.ABANDONED
-            submission.failure_reason = (
-                f"Process restarted while job was in stage '{previous_stage.value}'."
-                " Retry this job to resume."
-            )
+            submission.failure_reason = f"Process restarted while job was in stage '{previous_stage.value}'. Retry this job to resume."
             submission.failed_timestamp = now
             submission.last_updated_timestamp = now
             session.add(submission)

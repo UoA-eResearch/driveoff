@@ -33,15 +33,13 @@ def validate_archive_path_configuration() -> None:
     mount_base = settings.smb_linux_mount_base_path.strip()
     if not mount_base:
         raise RuntimeError(
-            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when "
-            "SMB_DRIVE_BASE_PATH is a UNC path."
+            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when SMB_DRIVE_BASE_PATH is a UNC path."
         )
 
     mount_path = Path(mount_base)
     if not mount_path.exists() or not mount_path.is_dir():
         raise RuntimeError(
-            "Configured SMB_LINUX_MOUNT_BASE_PATH is invalid: "
-            f"{mount_path}. Ensure the CIFS mount parent exists."
+            f"Configured SMB_LINUX_MOUNT_BASE_PATH is invalid: {mount_path}. Ensure the CIFS mount parent exists."
         )
 
     log_event(
@@ -69,15 +67,13 @@ def resolve_drive_path_for_archive(drive_name: str) -> Path:
     mount_base = settings.smb_linux_mount_base_path.strip()
     if not mount_base:
         raise RuntimeError(
-            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when "
-            "SMB_DRIVE_BASE_PATH is a UNC path."
+            "SMB_LINUX_MOUNT_BASE_PATH is required on Linux when SMB_DRIVE_BASE_PATH is a UNC path."
         )
 
     mounted_drive_path = Path(mount_base) / drive_name
     if not mounted_drive_path.exists():
         raise FileNotFoundError(
-            "Configured mounted drive path does not exist: "
-            f"{mounted_drive_path}. Ensure the CIFS mount is available."
+            f"Configured mounted drive path does not exist: {mounted_drive_path}. Ensure the CIFS mount is available."
         )
     return mounted_drive_path
 

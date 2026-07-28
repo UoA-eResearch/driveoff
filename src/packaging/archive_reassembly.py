@@ -10,7 +10,7 @@ from typing import Any
 
 def load_archive_manifest(manifest_path: Path) -> dict[str, Any]:
     """Load and validate a chunked archive manifest JSON file."""
-    with open(manifest_path, "r", encoding="utf-8") as manifest_file:
+    with open(manifest_path, encoding="utf-8") as manifest_file:
         manifest = json.load(manifest_file)
 
     if not isinstance(manifest, dict):
@@ -112,8 +112,7 @@ def reassemble_archive_from_manifest(
         actual_total_bytes = output_tar_path.stat().st_size
         if actual_total_bytes != expected_total_bytes:
             raise ValueError(
-                "Reassembled tar size mismatch: "
-                f"expected {expected_total_bytes}, got {actual_total_bytes}"
+                f"Reassembled tar size mismatch: expected {expected_total_bytes}, got {actual_total_bytes}"
             )
 
     return output_tar_path

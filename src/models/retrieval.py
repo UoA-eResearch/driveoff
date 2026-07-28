@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import Field, SQLModel
 
 
-class RetrievalJobStage(str, Enum):
+class RetrievalJobStage(StrEnum):
     """Lifecycle stages for an archive retrieval job.
 
     State transitions:

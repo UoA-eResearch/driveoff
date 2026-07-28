@@ -10,10 +10,11 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Generator, cast
+from typing import Any, cast
 
 import boto3
 from botocore.config import Config
@@ -162,7 +163,7 @@ def get_activescale_client(request: Request) -> S3Client:
 
 
 @contextmanager
-def get_activescale_client_context() -> Generator[S3Client, None, None]:
+def get_activescale_client_context() -> Generator[S3Client]:
     """Context manager for creating a temporary ActiveScale S3 client.
 
     Use this in background tasks or other contexts where you don't have access to the
@@ -607,7 +608,7 @@ def set_object_retention(
         True if the retention was set successfully, False otherwise.
     """
     if retain_until.tzinfo is None:
-        retain_until = retain_until.replace(tzinfo=timezone.utc)
+        retain_until = retain_until.replace(tzinfo=UTC)
 
     try:
         client.put_object_retention(

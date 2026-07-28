@@ -29,34 +29,35 @@ Linux note for SMB archive jobs:
 - Archive output artifacts (tar + manifests) are written to local temp storage under `ARCHIVE_TEMP_BASE_PATH` (defaults to the OS temp directory).
 
 ## Local Python Tasks
-This project defines local developer tasks in `pyproject.toml` using `poethepoet`.
+This project uses `uv` for Python dependency management and `ruff` for formatting, import sorting, and linting.
 
 Install dependencies first:
 
 ```bash
-poetry install
+uv sync --group dev --group test
 ```
 
 Run all CI-style checks locally:
 
 ```bash
-poetry run poe check
+uv run ruff format --check src tests
+uv run ruff check src tests
+uv run mypy --install-types --non-interactive
+uv run pytest -v --cov=src/ tests/
 ```
 
-Run auto-fix formatting tasks:
+Auto-fix formatting and import ordering:
 
 ```bash
-poetry run poe fix
+uv run ruff format src tests
+uv run ruff check --fix src tests
 ```
 
 Run an individual task:
 
 ```bash
-poetry run poe isort-check
-poetry run poe black-check
-poetry run poe isort-fix
-poetry run poe black-fix
-poetry run poe pylint-check
-poetry run poe mypy-check
-poetry run poe pytest-check
+uv run ruff format --check src tests
+uv run ruff check src tests
+uv run mypy --install-types --non-interactive
+uv run pytest -v --cov=src/ tests/
 ```

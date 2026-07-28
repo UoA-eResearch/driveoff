@@ -112,8 +112,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
             manifest_key = submission.archive_manifest_key
             if not manifest_key:
                 raise RuntimeError(
-                    "Submission has no archive_manifest_key; archive may not have"
-                    " uploaded completely"
+                    "Submission has no archive_manifest_key; archive may not have uploaded completely"
                 )
 
             object_prefix = submission.archive_object_prefix or f"{drive_name}/"

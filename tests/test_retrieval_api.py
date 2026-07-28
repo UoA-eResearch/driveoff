@@ -9,8 +9,12 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from models.common import DataClassification
-from models.retrieval import ACTIVE_RETRIEVAL_STAGES, ArchiveRetrieval, RetrievalJobStage
-from models.submission import ArchiveSubmission, ArchiveJobStage
+from models.retrieval import (
+    ACTIVE_RETRIEVAL_STAGES,
+    ArchiveRetrieval,
+    RetrievalJobStage,
+)
+from models.submission import ArchiveJobStage, ArchiveSubmission
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -55,8 +59,12 @@ def test_create_retrieval_returns_201(
     completed_submission: ArchiveSubmission,
 ) -> None:
     """A valid retrieval request returns 201 with a message."""
-    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
-        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
+    with (
+        patch("api.routers.retrievals.run_archive_retrieval"),
+        patch(
+            "api.routers.retrievals.validate_destination_path",
+            return_value=Path(_DEST_PATH),
+        ),
     ):
         response = client.post(
             f"/api/v1/retrieval/{_DRIVE_NAME}",
@@ -74,8 +82,12 @@ def test_create_retrieval_persists_record(
     completed_submission: ArchiveSubmission,
 ) -> None:
     """A retrieval record is written to the database with the correct fields."""
-    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
-        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
+    with (
+        patch("api.routers.retrievals.run_archive_retrieval"),
+        patch(
+            "api.routers.retrievals.validate_destination_path",
+            return_value=Path(_DEST_PATH),
+        ),
     ):
         response = client.post(
             f"/api/v1/retrieval/{_DRIVE_NAME}",
@@ -101,8 +113,12 @@ def test_create_retrieval_schedules_background_task(
     completed_submission: ArchiveSubmission,
 ) -> None:
     """The background task is invoked with the new retrieval record's ID."""
-    with patch("api.routers.retrievals.run_archive_retrieval") as mock_task, patch(
-        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
+    with (
+        patch("api.routers.retrievals.run_archive_retrieval") as mock_task,
+        patch(
+            "api.routers.retrievals.validate_destination_path",
+            return_value=Path(_DEST_PATH),
+        ),
     ):
         response = client.post(
             f"/api/v1/retrieval/{_DRIVE_NAME}",
@@ -220,7 +236,8 @@ def test_create_retrieval_409_when_active_retrieval_exists(
     session.commit()
 
     with patch(
-        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
+        "api.routers.retrievals.validate_destination_path",
+        return_value=Path(_DEST_PATH),
     ):
         response = client.post(
             f"/api/v1/retrieval/{_DRIVE_NAME}",
@@ -250,8 +267,12 @@ def test_create_retrieval_allows_new_job_after_completed_retrieval(
     session.add(previous)
     session.commit()
 
-    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
-        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
+    with (
+        patch("api.routers.retrievals.run_archive_retrieval"),
+        patch(
+            "api.routers.retrievals.validate_destination_path",
+            return_value=Path(_DEST_PATH),
+        ),
     ):
         response = client.post(
             f"/api/v1/retrieval/{_DRIVE_NAME}",
@@ -278,8 +299,12 @@ def test_create_retrieval_allows_new_job_after_failed_retrieval(
     session.add(previous)
     session.commit()
 
-    with patch("api.routers.retrievals.run_archive_retrieval"), patch(
-        "api.routers.retrievals.validate_destination_path", return_value=Path(_DEST_PATH)
+    with (
+        patch("api.routers.retrievals.run_archive_retrieval"),
+        patch(
+            "api.routers.retrievals.validate_destination_path",
+            return_value=Path(_DEST_PATH),
+        ),
     ):
         response = client.post(
             f"/api/v1/retrieval/{_DRIVE_NAME}",

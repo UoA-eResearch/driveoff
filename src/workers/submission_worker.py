@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -498,7 +498,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Compute the object retention date once for all objects in this job.
             retain_until: datetime | None = None
             if settings.activescale_enable_object_retention:
-                now_utc = datetime.now(tz=timezone.utc)
+                now_utc = datetime.now(tz=UTC)
                 if settings.activescale_retention_override_days is not None:
                     retain_until = now_utc + timedelta(
                         days=settings.activescale_retention_override_days

@@ -21,18 +21,18 @@ from sqlmodel.pool import StaticPool
 from api.dependencies import get_session
 from api.main import app
 from api.security import ApiKey, read_api_keys
+from models.common import DataClassification
+from models.submission import ArchiveSubmission
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import PROFILE as ARCHIVE_PROFILE
 from packaging.crate.ro_loader import ROLoader
 from service.projectdb import get_projectdb_client
-from models.common import DataClassification
-from models.submission import ArchiveSubmission
 
 THIS_DIR = Path(__file__).absolute().parent
 
 
 @pytest.fixture(name="session")
-def session_fixture() -> Generator[Session, Any, None]:
+def session_fixture() -> Generator[Session, Any]:
     """scoped session for each unit test"""
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -47,7 +47,7 @@ def session_fixture() -> Generator[Session, Any, None]:
 
 
 @pytest.fixture(name="client")
-def client_fixture(session: Session) -> Generator[TestClient, Any, None]:
+def client_fixture(session: Session) -> Generator[TestClient, Any]:
     """test client with mocked dependencies"""
     from unittest.mock import MagicMock
 
@@ -265,7 +265,7 @@ class ROCRATEHelpers:
     def read_json_entities(cls, crate_base_path: Path) -> dict[str, Any]:
         """Read entities from RO-Crate json into a dictionary"""
         metadata_path = crate_base_path / cls.METADATA_FILE_NAME
-        with open(metadata_path, "rt", encoding="utf8") as f:
+        with open(metadata_path, encoding="utf8") as f:
             json_data = json.load(f)
         return {_["@id"]: _ for _ in json_data["@graph"]}
 

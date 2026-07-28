@@ -193,10 +193,8 @@ class _ChainReader:
             if self._current_fp is None:
                 if self._file_index >= len(self._paths):
                     break
-                self._current_fp = (
-                    open(  # noqa: SIM115  # pylint: disable=consider-using-with
-                        self._paths[self._file_index], "rb"
-                    )
+                self._current_fp = open(  # noqa: SIM115  # pylint: disable=consider-using-with
+                    self._paths[self._file_index], "rb"
                 )
                 self._file_index += 1
 

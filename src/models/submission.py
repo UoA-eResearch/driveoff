@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import Field, SQLModel
 
 from models.common import DataClassification
 
 
-class ArchiveJobStage(str, Enum):
+class ArchiveJobStage(StrEnum):
     """Lifecycle stages for an archive job.
 
     State transitions:

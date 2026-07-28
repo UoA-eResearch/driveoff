@@ -7,8 +7,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from sqlalchemy import create_engine
@@ -16,9 +16,10 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel
 from sqlmodel.pool import StaticPool
 
-from workers.submission_worker import generate_ro_crate
 from models.common import DataClassification
-from models.submission import ArchiveSubmission, ArchiveJobStage
+from models.submission import ArchiveJobStage, ArchiveSubmission
+from workers.submission_worker import generate_ro_crate
+
 
 class _ProjectDbStub:
     def get_project(self, pid: int, expand=None):  # noqa: ANN001
@@ -42,7 +43,7 @@ class _ProjectDbStub:
 
 
 @pytest.fixture()
-def test_engine() -> Generator[Engine, Any, None]:
+def test_engine() -> Generator[Engine, Any]:
     """Provide a fresh in-memory SQLite engine, disposed after each test."""
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -92,14 +93,23 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     submission_id = _create_submission(test_engine, drive_name)
 
     monkeypatch.setattr("workers.submission_worker.engine", test_engine)
-    monkeypatch.setattr("workers.submission_worker.resolve_drive_path_for_archive", lambda _name: drive_path)
     monkeypatch.setattr(
-        "workers.submission_worker.resolve_archive_output_location", lambda _name: output_path
+        "workers.submission_worker.resolve_drive_path_for_archive",
+        lambda _name: drive_path,
     )
-    monkeypatch.setattr("workers.submission_worker._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
+    monkeypatch.setattr(
+        "workers.submission_worker.resolve_archive_output_location",
+        lambda _name: output_path,
+    )
+    monkeypatch.setattr(
+        "workers.submission_worker._cleanup_job_artifacts",
+        lambda *_args, **_kwargs: (True, None),
+    )
 
     # Avoid heavy crate generation internals; this test focuses on chunked workflow.
-    monkeypatch.setattr("workers.submission_worker.build_crate_contents", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        "workers.submission_worker.build_crate_contents", lambda **_kwargs: None
+    )
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=1024,
@@ -116,7 +126,9 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     def fake_client_context():
         yield object()
 
-    monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
+    monkeypatch.setattr(
+        "workers.submission_worker.get_activescale_client_context", fake_client_context
+    )
 
     upload_calls: list[dict[str, object]] = []
 
@@ -139,8 +151,14 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         return True
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
-    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
-    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "workers.submission_worker.object_exists",
+        lambda *_args, **_kwargs: (False, None),
+    )
+    monkeypatch.setattr(
+        "workers.submission_worker.verify_uploaded_part_size",
+        lambda *_args, **_kwargs: True,
+    )
 
     generate_ro_crate(
         drive={"id": 1, "name": drive_name},
@@ -164,7 +182,7 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     manifest_upload = upload_calls[-1]
     assert str(manifest_upload["key"]).endswith("archive-manifest.json")
 
-    with open(Path(str(manifest_upload["file_path"])), "r", encoding="utf-8") as mf:
+    with open(Path(str(manifest_upload["file_path"])), encoding="utf-8") as mf:
         manifest = json.load(mf)
     assert manifest["part_count"] == submission.archive_part_count
     assert manifest["total_bytes"] == submission.archive_total_bytes
@@ -188,12 +206,21 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     submission_id = _create_submission(test_engine, drive_name)
 
     monkeypatch.setattr("workers.submission_worker.engine", test_engine)
-    monkeypatch.setattr("workers.submission_worker.resolve_drive_path_for_archive", lambda _name: drive_path)
     monkeypatch.setattr(
-        "workers.submission_worker.resolve_archive_output_location", lambda _name: output_path
+        "workers.submission_worker.resolve_drive_path_for_archive",
+        lambda _name: drive_path,
     )
-    monkeypatch.setattr("workers.submission_worker._cleanup_job_artifacts", lambda *_args, **_kwargs: (True, None))
-    monkeypatch.setattr("workers.submission_worker.build_crate_contents", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        "workers.submission_worker.resolve_archive_output_location",
+        lambda _name: output_path,
+    )
+    monkeypatch.setattr(
+        "workers.submission_worker._cleanup_job_artifacts",
+        lambda *_args, **_kwargs: (True, None),
+    )
+    monkeypatch.setattr(
+        "workers.submission_worker.build_crate_contents", lambda **_kwargs: None
+    )
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=100,  # small enough to produce multiple parts after gzip
@@ -210,7 +237,9 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
     def fake_client_context():
         yield object()
 
-    monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
+    monkeypatch.setattr(
+        "workers.submission_worker.get_activescale_client_context", fake_client_context
+    )
 
     first_run_uploaded: set[str] = set()
 
@@ -232,8 +261,14 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         return True
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fail_on_second_part)
-    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
-    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "workers.submission_worker.object_exists",
+        lambda *_args, **_kwargs: (False, None),
+    )
+    monkeypatch.setattr(
+        "workers.submission_worker.verify_uploaded_part_size",
+        lambda *_args, **_kwargs: True,
+    )
 
     generate_ro_crate(
         drive={"id": 1, "name": drive_name},
@@ -271,12 +306,17 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         return True
 
     monkeypatch.setattr("workers.submission_worker.upload_file", upload_all)
-    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "workers.submission_worker.verify_uploaded_part_size",
+        lambda *_args, **_kwargs: True,
+    )
 
     def exists_if_previously_uploaded(_client, _bucket: str, key: str):
         return (key in first_run_uploaded), None
 
-    monkeypatch.setattr("workers.submission_worker.object_exists", exists_if_previously_uploaded)
+    monkeypatch.setattr(
+        "workers.submission_worker.object_exists", exists_if_previously_uploaded
+    )
 
     generate_ro_crate(
         drive={"id": 1, "name": drive_name},
@@ -294,4 +334,8 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         assert len(final_part_keys) == submission.archive_part_count
 
     # Resume should not re-upload first successfully uploaded part.
-    assert all(key not in first_run_uploaded for key in second_run_uploaded if "part-00001" in key)
+    assert all(
+        key not in first_run_uploaded
+        for key in second_run_uploaded
+        if "part-00001" in key
+    )
