@@ -26,7 +26,7 @@ ENDPOINT_PREFIX = "/api/v1"
 
 
 @asynccontextmanager
-async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None]:
     """Lifecycle method for the API.
 
     Creates DB tables and initialises service clients during application startup

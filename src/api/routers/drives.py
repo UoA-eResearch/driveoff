@@ -59,24 +59,16 @@ def get_drive_info(
     except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "ProjectDB request failed while fetching drive"
-                f" {drive_name}: {str(e)}"
-            ),
+            detail=(f"ProjectDB request failed while fetching drive {drive_name}: {str(e)}"),
         ) from e
 
     # Resolve project from drive
     try:
-        drive_projects = projectdb.get_research_drive_projects(
-            drive_data["id"], expand=["project"]
-        )
+        drive_projects = projectdb.get_research_drive_projects(drive_data["id"], expand=["project"])
     except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "ProjectDB request failed while fetching projects"
-                f" for drive {drive_name}: {str(e)}"
-            ),
+            detail=(f"ProjectDB request failed while fetching projects for drive {drive_name}: {str(e)}"),
         ) from e
 
     if not drive_projects or len(drive_projects) == 0:
@@ -97,10 +89,7 @@ def get_drive_info(
     except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "ProjectDB request failed while fetching project"
-                f" {project_id}: {str(e)}"
-            ),
+            detail=(f"ProjectDB request failed while fetching project {project_id}: {str(e)}"),
         ) from e
 
     # Fetch members
@@ -113,10 +102,7 @@ def get_drive_info(
     except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "ProjectDB request failed while fetching members"
-                f" for project {project_id}: {str(e)}"
-            ),
+            detail=(f"ProjectDB request failed while fetching members for project {project_id}: {str(e)}"),
         ) from e
 
     # Build drive response, preferring service-level data (has first_day/last_day)

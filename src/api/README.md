@@ -5,14 +5,14 @@ A FastAPI-based REST API server for managing project offboarding and archival wo
 ## Quick start
 
 ### Prerequisites
-- Python 3.8+
-- FastAPI and Uvicorn (see [Installation](#installation))
+- Python 3.14+
+- uv for dependency management (see [Installing uv](https://docs.astral.sh/uv/getting-started/installation/))
 
 ### Installation
 
 1. **Install dependencies** from the project root:
    ```bash
-   poetry install --with dev,test
+   uv sync --group dev --group test
    ```
    This installs the `driveoff` package and all required dependencies including FastAPI, and development/test dependencies.
 
@@ -20,7 +20,7 @@ A FastAPI-based REST API server for managing project offboarding and archival wo
 
 3. **Run the server** in development mode:
    ```bash
-   poetry run fastapi dev src/api/main.py
+   uv run fastapi dev src/api/main.py
    ```
    The server will start on `http://localhost:8000` by default.
 
@@ -177,6 +177,6 @@ Send a `POST /api/v1/retrieval/{drive_name}` request with a `destination_path` b
 - Confirm the request includes the key via query parameter or `x-api-key` header
 
 ### Server fails to start
-- Ensure FastAPI and dependencies are installed: `poetry install`
+- Ensure FastAPI and dependencies are installed: `uv sync --group dev --group test`
 - Check that port 8000 is not already in use (change with `--port` flag if needed)
 - Review error messages in the terminal output

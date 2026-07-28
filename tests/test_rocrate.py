@@ -1,21 +1,18 @@
 """Test creation and writing of RO-Crates"""
 
 from datetime import datetime
-from pathlib import Path
 
 from conftest import ROCRATEHelpers
 
-from packaging.crate.ro_builder import ROBuilder
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
+from packaging.crate.ro_builder import ROBuilder
 
 METADATA_FILE_NAME = "ro-crate-metadata.json"
 BAG_DIR_NAME = "data"
 
 
-def test_generate_crate_builder(
-    test_ro_builder: ROBuilder, ro_crate_helpers: ROCRATEHelpers
-) -> None:
+def test_generate_crate_builder(test_ro_builder: ROBuilder, ro_crate_helpers: ROCRATEHelpers) -> None:
     """Test RO-Crate generation with builder"""
     project_dict = {
         "id": 123,
@@ -109,4 +106,3 @@ def test_crate_metadata_present(test_ro_builder: ROBuilder) -> None:
     # Check that crate has metadata
     assert test_ro_builder.crate.metadata is not None
     assert ro_project is not None
-

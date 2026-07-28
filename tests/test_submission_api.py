@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from api.main import app
-from models.submission import ArchiveSubmission, ArchiveJobStage
+from models.submission import ArchiveJobStage, ArchiveSubmission
 from service.projectdb import get_projectdb_client
 
 
@@ -71,9 +71,7 @@ def test_post_submission_rejects_duplicate_active_job(
 
     # Verify only the original submission row exists
     rows = session.exec(
-        select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == "restst000000001-testing"
-        )
+        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == "restst000000001-testing")
     ).all()
     assert len(rows) == 1
     # Original values should be unchanged
@@ -124,9 +122,7 @@ def test_post_submission_returns_502_when_projectdb_project_lookup_fails(
                 "used_gb": 0.0,
             }
 
-        def get_research_drive_projects(
-            self, drive_id: int, expand=None
-        ):  # noqa: ANN001
+        def get_research_drive_projects(self, drive_id: int, expand=None):  # noqa: ANN001
             raise requests.exceptions.Timeout("upstream timeout")
 
     original_projectdb_override = app.dependency_overrides.get(get_projectdb_client)
@@ -164,9 +160,7 @@ def test_get_submission_returns_archive_record(
     session.add(submission)
     session.commit()
 
-    response = client.get(
-        "/api/v1/submission", params={"drive_name": "restst000000001-testing"}
-    )
+    response = client.get("/api/v1/submission", params={"drive_name": "restst000000001-testing"})
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, dict)
@@ -174,10 +168,7 @@ def test_get_submission_returns_archive_record(
     assert data["project_id"] == submission.project_id
     assert data["drive_name"] == submission.drive_name
     assert data["retention_period_years"] == submission.retention_period_years
-    assert (
-        data["retention_period_justification"]
-        == submission.retention_period_justification
-    )
+    assert data["retention_period_justification"] == submission.retention_period_justification
     assert data["data_classification"] == submission.data_classification.value
     assert data["stage"] == submission.stage.value
     assert data["failure_reason"] is None
@@ -318,9 +309,7 @@ def test_retry_submission_requeues_failed_job(
     assert "queued for retry" in response.json()["message"]
 
     refreshed = session.exec(
-        select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == submission.drive_name
-        )
+        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == submission.drive_name)
     ).first()
     assert refreshed is not None
     assert refreshed.stage == ArchiveJobStage.QUEUED
@@ -355,9 +344,7 @@ def test_post_submission_force_reruns_completed_job(
     assert "Archive submission updated" in response.json()["message"]
 
     refreshed = session.exec(
-        select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == "restst000000001-testing"
-        )
+        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == "restst000000001-testing")
     ).first()
     assert refreshed is not None
     assert refreshed.stage == ArchiveJobStage.QUEUED
@@ -485,16 +472,12 @@ def test_retry_submission_force_reruns_completed_job(
     session.add(submission)
     session.commit()
 
-    response = client.post(
-        f"/api/v1/submission/{submission.drive_name}/retry", params={"force": "true"}
-    )
+    response = client.post(f"/api/v1/submission/{submission.drive_name}/retry", params={"force": "true"})
     assert response.status_code == 200
     assert "queued for retry" in response.json()["message"]
 
     refreshed = session.exec(
-        select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == submission.drive_name
-        )
+        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == submission.drive_name)
     ).first()
     assert refreshed is not None
     assert refreshed.stage == ArchiveJobStage.QUEUED

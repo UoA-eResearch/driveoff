@@ -175,9 +175,7 @@ class _ChainReader:
     """
 
     def __init__(self, parts: list[ArchivePartInfo], parts_dir: Path) -> None:
-        self._paths = [
-            parts_dir / p.file_name for p in sorted(parts, key=lambda p: p.index)
-        ]
+        self._paths = [parts_dir / p.file_name for p in sorted(parts, key=lambda p: p.index)]
         self._file_index = 0
         self._current_fp: BinaryIO | None = None
 
@@ -193,10 +191,8 @@ class _ChainReader:
             if self._current_fp is None:
                 if self._file_index >= len(self._paths):
                     break
-                self._current_fp = (
-                    open(  # noqa: SIM115  # pylint: disable=consider-using-with
-                        self._paths[self._file_index], "rb"
-                    )
+                self._current_fp = open(  # noqa: SIM115  # pylint: disable=consider-using-with
+                    self._paths[self._file_index], "rb"
                 )
                 self._file_index += 1
 
@@ -251,9 +247,7 @@ def verify_tar_parts_stream(parts: list[ArchivePartInfo], parts_dir: Path) -> No
                 member_count += 1
 
     if member_count == 0:
-        raise tarfile.TarError(
-            "Tar stream contained no members — archive may be empty or corrupt"
-        )
+        raise tarfile.TarError("Tar stream contained no members — archive may be empty or corrupt")
 
 
 def build_chunked_tar_archive(
@@ -270,14 +264,10 @@ def build_chunked_tar_archive(
     in index order and then extracting the resulting ``.tar.gz``.
     """
     if not source_dir.exists() or not source_dir.is_dir():
-        raise FileNotFoundError(
-            f"source_dir does not exist or is not a directory: {source_dir}"
-        )
+        raise FileNotFoundError(f"source_dir does not exist or is not a directory: {source_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    with _SplitPartWriter(
-        output_dir=output_dir, base_name=base_name, part_size_bytes=part_size_bytes
-    ) as writer:
+    with _SplitPartWriter(output_dir=output_dir, base_name=base_name, part_size_bytes=part_size_bytes) as writer:
         with tarfile.open(
             fileobj=cast(BinaryIO, writer),
             mode="w|gz",

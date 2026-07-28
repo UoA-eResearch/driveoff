@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +37,7 @@ from utils.paths import resolve_archive_output_location, resolve_drive_path_for_
 from workers import parse_part_keys_json
 
 
-def _cleanup_job_artifacts(
-    drive_name: str, output_location: Path | None
-) -> tuple[bool, str | None]:
+def _cleanup_job_artifacts(drive_name: str, output_location: Path | None) -> tuple[bool, str | None]:
     """Delete generated local archive artifacts for a submission.
 
     This intentionally only removes generated artifacts in the archive output
@@ -229,9 +227,7 @@ def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positi
     ro_crate_builder = ROBuilder(ro_crate_loader.crate)
 
     # Add project to crate with archive metadata
-    project_entity = ro_crate_builder.add_project(
-        project_data, members_list, submission, drive
-    )
+    project_entity = ro_crate_builder.add_project(project_data, members_list, submission, drive)
 
     # Add drive service as main entity
     drive_entity = ro_crate_builder.add_research_drive_service(drive)
@@ -423,9 +419,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             submission.archive_part_count = len(chunk_result.parts)
             submission.archive_total_bytes = chunk_result.total_bytes
             submission.archive_object_prefix = object_prefix
-            submission.archive_manifest_key = (
-                f"{object_prefix}{chunk_result.manifest_path.name}"
-            )
+            submission.archive_manifest_key = f"{object_prefix}{chunk_result.manifest_path.name}"
             if submission.archive_part_keys_json is None:
                 submission.archive_part_keys_json = "[]"
             submission.last_updated_timestamp = datetime.now()
@@ -498,19 +492,12 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Compute the object retention date once for all objects in this job.
             retain_until: datetime | None = None
             if settings.activescale_enable_object_retention:
-                now_utc = datetime.now(tz=timezone.utc)
+                now_utc = datetime.now(tz=UTC)
                 if settings.activescale_retention_override_days is not None:
-                    retain_until = now_utc + timedelta(
-                        days=settings.activescale_retention_override_days
-                    )
+                    retain_until = now_utc + timedelta(days=settings.activescale_retention_override_days)
                 else:
-                    retention_years = (
-                        submission.retention_period_years
-                        or settings.activescale_default_retention_years
-                    )
-                    retain_until = calculate_retention_end_datetime(
-                        now_utc, retention_years
-                    )
+                    retention_years = submission.retention_period_years or settings.activescale_default_retention_years
+                    retain_until = calculate_retention_end_datetime(now_utc, retention_years)
                 log_event(
                     logging.INFO,
                     "crate.upload.retention.computed",
@@ -563,16 +550,10 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                         timeout=settings.activescale_upload_timeout,
                         metadata={
                             "cer_project_id": str(project_data.get("id", "")),
-                            "project_owners": json.dumps(
-                                get_project_owner_emails(members_list)
-                            ),
+                            "project_owners": json.dumps(get_project_owner_emails(members_list)),
                             "division": project_data.get("division") or "Unknown",
-                            "data_classification": submission.data_classification
-                            or "Unknown",
-                            "retention_period_years": str(
-                                submission.retention_period_years
-                            )
-                            or "Unknown",
+                            "data_classification": submission.data_classification or "Unknown",
+                            "retention_period_years": str(submission.retention_period_years) or "Unknown",
                             "review_date": (
                                 calculate_retention_end_date(
                                     datetime.now(),
@@ -590,9 +571,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     session.commit()
 
                     if upload_success and retain_until is not None:
-                        if not set_object_retention(
-                            client, bucket_name, file_key, retain_until
-                        ):
+                        if not set_object_retention(client, bucket_name, file_key, retain_until):
                             log_event(
                                 logging.ERROR,
                                 "crate.upload.manifest.retention_failed",
@@ -621,9 +600,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 elapsed_ms=elapsed_ms(started_at),
             )
 
-            cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(
-                str(drive_name), output_location
-            )
+            cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(str(drive_name), output_location)
             submission.cleanup_succeeded = cleanup_succeeded
             submission.cleanup_error = cleanup_error
 
@@ -705,9 +682,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     elapsed_ms=elapsed_ms(started_at),
                 )
 
-                cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(
-                    str(drive_name), output_location
-                )
+                cleanup_succeeded, cleanup_error = _cleanup_job_artifacts(str(drive_name), output_location)
                 submission.cleanup_succeeded = cleanup_succeeded
                 submission.cleanup_error = cleanup_error
 
@@ -724,12 +699,8 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 drive_name=drive_name,
                 error=processing_error,
                 stage=(submission.stage.value if submission is not None else None),
-                retry_count=(
-                    submission.retry_count if submission is not None else None
-                ),
-                cleanup_succeeded=(
-                    submission.cleanup_succeeded if submission is not None else None
-                ),
+                retry_count=(submission.retry_count if submission is not None else None),
+                cleanup_succeeded=(submission.cleanup_succeeded if submission is not None else None),
                 elapsed_ms=elapsed_ms(started_at),
             )
             log_event(

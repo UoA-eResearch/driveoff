@@ -33,9 +33,7 @@ def init_projectdb(app: FastAPI) -> None:
             base_url=settings.projectdb_base_url,
         )
         if not settings.projectdb_base_url or not settings.projectdb_api_key:
-            raise ValueError(
-                "PROJECTDB_BASE_URL and PROJECTDB_API_KEY must be set in the environment."
-            )
+            raise ValueError("PROJECTDB_BASE_URL and PROJECTDB_API_KEY must be set in the environment.")
         client = ProjectDBClient(
             base_url=settings.projectdb_base_url,
             api_key=settings.projectdb_api_key,

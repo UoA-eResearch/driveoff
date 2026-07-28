@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import Field, SQLModel
 
 from models.common import DataClassification
 
 
-class ArchiveJobStage(str, Enum):
+class ArchiveJobStage(StrEnum):
     """Lifecycle stages for an archive job.
 
     State transitions:
@@ -65,14 +65,10 @@ class ArchiveSubmission(SQLModel, table=True):
     data_classification: DataClassification
 
     # Archive upload metadata (optional, only populated after upload attempt)
-    archive_file_key: str | None = Field(
-        default=None, description="S3 path where archive was uploaded"
-    )
+    archive_file_key: str | None = Field(default=None, description="S3 path where archive was uploaded")
     archive_object_prefix: str | None = Field(
         default=None,
-        description=(
-            "S3 prefix that groups all objects for this archive (used for chunked uploads)"
-        ),
+        description=("S3 prefix that groups all objects for this archive (used for chunked uploads)"),
     )
     archive_manifest_key: str | None = Field(
         default=None,

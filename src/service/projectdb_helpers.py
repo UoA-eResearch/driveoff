@@ -62,9 +62,7 @@ def filter_member_identities(members: list[dict[str, Any]]) -> list[dict[str, An
                     "identities": {
                         "items": [
                             item
-                            for item in member.get("person", {})
-                            .get("identities", {})
-                            .get("items", [])
+                            for item in member.get("person", {}).get("identities", {}).get("items", [])
                             if not item.get("username", "").endswith("@auckland.ac.nz")
                         ]
                     },

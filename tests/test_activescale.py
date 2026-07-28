@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
 
 from service.activescale import set_object_retention, verify_uploaded_part_size
 
+
 def _make_client_error(code: str) -> ClientError:
-    return ClientError(
-        {"Error": {"Code": code, "Message": "test error"}}, "HeadObject"
-    )
+    return ClientError({"Error": {"Code": code, "Message": "test error"}}, "HeadObject")
 
 
 class TestVerifyUploadedPartSize:
@@ -68,21 +67,16 @@ class TestVerifyUploadedPartSize:
 
 
 class TestSetObjectRetention:
-    _RETAIN_UNTIL = datetime(2032, 1, 1, tzinfo=timezone.utc)
+    _RETAIN_UNTIL = datetime(2032, 1, 1, tzinfo=UTC)
 
     def _make_client_error(self, code: str) -> ClientError:
-        return ClientError(
-            {"Error": {"Code": code, "Message": "test error"}}, "PutObjectRetention"
-        )
+        return ClientError({"Error": {"Code": code, "Message": "test error"}}, "PutObjectRetention")
 
     def test_returns_true_on_success(self) -> None:
         client = MagicMock()
         client.put_object_retention.return_value = {}
 
-        assert (
-            set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL)
-            is True
-        )
+        assert set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL) is True
         client.put_object_retention.assert_called_once_with(
             Bucket="bucket",
             Key="key/part-00001",
@@ -101,42 +95,24 @@ class TestSetObjectRetention:
 
     def test_returns_false_on_client_error(self) -> None:
         client = MagicMock()
-        client.put_object_retention.side_effect = self._make_client_error(
-            "AccessDenied"
-        )
+        client.put_object_retention.side_effect = self._make_client_error("AccessDenied")
 
-        assert (
-            set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL)
-            is False
-        )
+        assert set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL) is False
 
     def test_returns_false_when_object_lock_not_enabled(self) -> None:
         client = MagicMock()
-        client.put_object_retention.side_effect = self._make_client_error(
-            "InvalidRequest"
-        )
+        client.put_object_retention.side_effect = self._make_client_error("InvalidRequest")
 
-        assert (
-            set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL)
-            is False
-        )
+        assert set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL) is False
 
     def test_returns_false_on_endpoint_connection_error(self) -> None:
         client = MagicMock()
-        client.put_object_retention.side_effect = EndpointConnectionError(
-            endpoint_url="https://example.com"
-        )
+        client.put_object_retention.side_effect = EndpointConnectionError(endpoint_url="https://example.com")
 
-        assert (
-            set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL)
-            is False
-        )
+        assert set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL) is False
 
     def test_returns_false_on_botocore_error(self) -> None:
         client = MagicMock()
         client.put_object_retention.side_effect = BotoCoreError()
 
-        assert (
-            set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL)
-            is False
-        )
+        assert set_object_retention(client, "bucket", "key/part-00001", self._RETAIN_UNTIL) is False

@@ -1,8 +1,8 @@
 """Classes common to other models."""
 
 import re
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated
 
 from dateutil.relativedelta import relativedelta
@@ -22,9 +22,7 @@ def validate_resdrive_name(drive_name: str) -> str:
     return drive_name
 
 
-def calculate_retention_end_datetime(
-    start_date: datetime, retention_years: int
-) -> datetime:
+def calculate_retention_end_datetime(start_date: datetime, retention_years: int) -> datetime:
     """Return the UTC-aware datetime on which retained data may be deleted.
 
     Args:
@@ -32,7 +30,7 @@ def calculate_retention_end_datetime(
         retention_years: Number of full years to add.
     """
     if start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
+        start_date = start_date.replace(tzinfo=UTC)
     return start_date + relativedelta(years=retention_years)
 
 
@@ -43,15 +41,13 @@ def calculate_retention_end_date(start_date: datetime, retention_years: int) -> 
         start_date: The starting date (typically project end date or today).
         retention_years: Number of full years to add.
     """
-    return calculate_retention_end_datetime(start_date, retention_years).strftime(
-        "%Y-%m-%d"
-    )
+    return calculate_retention_end_datetime(start_date, retention_years).strftime("%Y-%m-%d")
 
 
 ResearchDriveName = Annotated[str, AfterValidator(validate_resdrive_name)]
 
 
-class DataClassification(str, Enum):
+class DataClassification(StrEnum):
     """Data classification labels defined in Research
     Data Management Policy."""
 

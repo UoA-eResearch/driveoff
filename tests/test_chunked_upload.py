@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlmodel import Session
 
-from workers import parse_part_keys_json
-from workers.submission_worker import _upload_chunked_archive_parts
-from packaging.archive_chunks import ArchivePartInfo
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
+from packaging.archive_chunks import ArchivePartInfo
+from workers import parse_part_keys_json
+from workers.submission_worker import _upload_chunked_archive_parts
 
 
 def _create_submission(session: Session, drive_name: str) -> ArchiveSubmission:
@@ -73,9 +73,7 @@ def test_upload_chunked_parts_resumes_skipping_existing(
 
     monkeypatch.setattr("workers.submission_worker.object_exists", fake_exists)
     monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,
@@ -112,7 +110,10 @@ def test_upload_chunked_parts_stops_on_failure(
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
 
-    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr(
+        "workers.submission_worker.object_exists",
+        lambda *_args, **_kwargs: (False, None),
+    )
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_args, **_kwargs: False)
 
     success, result_keys = _upload_chunked_archive_parts(
@@ -151,9 +152,7 @@ def test_upload_chunked_parts_fails_on_size_mismatch(
 
     monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_a, **_k: (False, None))
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: False
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: False)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,
@@ -226,7 +225,7 @@ def test_upload_chunked_parts_sets_retention_when_provided(
     monkeypatch,
 ) -> None:
     """When retain_until is supplied, set_object_retention is called for each part."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     archive_parts_dir = tmp_path / "parts"
     archive_parts_dir.mkdir(parents=True, exist_ok=True)
@@ -235,7 +234,7 @@ def test_upload_chunked_parts_sets_retention_when_provided(
 
     prefix = "drive/"
     part_key = f"{prefix}{part.name}"
-    retain_until = datetime(2032, 6, 1, tzinfo=timezone.utc)
+    retain_until = datetime(2032, 6, 1, tzinfo=UTC)
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
 
@@ -245,16 +244,10 @@ def test_upload_chunked_parts_sets_retention_when_provided(
         retention_calls.append((key, date))
         return True
 
-    monkeypatch.setattr(
-        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
-    )
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_a, **_k: (False, None))
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
-    )
-    monkeypatch.setattr(
-        "workers.submission_worker.set_object_retention", capture_retention
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True)
+    monkeypatch.setattr("workers.submission_worker.set_object_retention", capture_retention)
 
     success, _ = _upload_chunked_archive_parts(
         session=session,
@@ -286,7 +279,7 @@ def test_upload_chunked_parts_fails_on_retention_error(
     monkeypatch,
 ) -> None:
     """If set_object_retention fails the job aborts and the part key is not persisted."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     archive_parts_dir = tmp_path / "parts"
     archive_parts_dir.mkdir(parents=True, exist_ok=True)
@@ -295,20 +288,14 @@ def test_upload_chunked_parts_fails_on_retention_error(
 
     prefix = "drive/"
     part_key = f"{prefix}{part.name}"
-    retain_until = datetime(2032, 6, 1, tzinfo=timezone.utc)
+    retain_until = datetime(2032, 6, 1, tzinfo=UTC)
 
     submission = _create_submission(session, drive_name="resmed202200024-testing")
 
-    monkeypatch.setattr(
-        "workers.submission_worker.object_exists", lambda *_a, **_k: (False, None)
-    )
+    monkeypatch.setattr("workers.submission_worker.object_exists", lambda *_a, **_k: (False, None))
     monkeypatch.setattr("workers.submission_worker.upload_file", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        "workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True
-    )
-    monkeypatch.setattr(
-        "workers.submission_worker.set_object_retention", lambda *_a, **_k: False
-    )
+    monkeypatch.setattr("workers.submission_worker.verify_uploaded_part_size", lambda *_a, **_k: True)
+    monkeypatch.setattr("workers.submission_worker.set_object_retention", lambda *_a, **_k: False)
 
     success, result_keys = _upload_chunked_archive_parts(
         session=session,

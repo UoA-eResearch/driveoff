@@ -10,6 +10,7 @@ import pytest
 
 from packaging.archive_chunks import build_chunked_tar_archive, verify_tar_parts_stream
 
+
 def _write_file(path: Path, size: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as file_obj:
@@ -37,7 +38,7 @@ def test_build_chunked_tar_archive_writes_parts_and_manifest(tmp_path: Path) -> 
         assert part.size_bytes <= 100
         assert (output_dir / part.file_name).exists()
 
-    with open(result.manifest_path, "r", encoding="utf-8") as manifest_file:
+    with open(result.manifest_path, encoding="utf-8") as manifest_file:
         manifest = json.load(manifest_file)
     assert manifest["archive_name"] == "drive-archive"
     assert manifest["archive_format"] == "tar.gz"

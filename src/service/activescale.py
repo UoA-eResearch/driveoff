@@ -10,10 +10,11 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Generator, cast
+from typing import Any, cast
 
 import boto3
 from botocore.config import Config
@@ -98,20 +99,10 @@ def _create_activescale_session() -> boto3.Session:
 
     hostname = settings.activescale_hostname
     region = settings.activescale_region
-    access_key = (
-        settings.activescale_access_key.get_secret_value()
-        if settings.activescale_access_key
-        else None
-    )
-    secret_key = (
-        settings.activescale_secret_key.get_secret_value()
-        if settings.activescale_secret_key
-        else None
-    )
+    access_key = settings.activescale_access_key.get_secret_value() if settings.activescale_access_key else None
+    secret_key = settings.activescale_secret_key.get_secret_value() if settings.activescale_secret_key else None
     if not all([hostname, access_key, secret_key]):
-        raise ValueError(
-            "ActiveScale credentials are not fully set in environment variables."
-        )
+        raise ValueError("ActiveScale credentials are not fully set in environment variables.")
 
     if settings.log_level.upper() == "DEBUG":
         # Enable detailed logging for boto3 when log level is DEBUG
@@ -162,7 +153,7 @@ def get_activescale_client(request: Request) -> S3Client:
 
 
 @contextmanager
-def get_activescale_client_context() -> Generator[S3Client, None, None]:
+def get_activescale_client_context() -> Generator[S3Client]:
     """Context manager for creating a temporary ActiveScale S3 client.
 
     Use this in background tasks or other contexts where you don't have access to the
@@ -174,9 +165,7 @@ def get_activescale_client_context() -> Generator[S3Client, None, None]:
     """
     if _activescale_session is None:
         _log_event(logging.ERROR, "activescale.session.missing_global")
-        raise RuntimeError(
-            "ActiveScale session not initialized. Call init_activescale first."
-        )
+        raise RuntimeError("ActiveScale session not initialized. Call init_activescale first.")
 
     client: S3Client = cast(
         S3Client,
@@ -229,9 +218,7 @@ class ProgressTracker:  # pylint: disable=too-few-public-methods
         # Log progress every 5 seconds or every 100MB
         bytes_since_update = self.bytes_transferred - self.last_update_bytes
         if time_since_update >= 5 or bytes_since_update >= 100 * 1024 * 1024:
-            percent = (
-                (self.bytes_transferred / self.file_size * 100) if self.file_size else 0
-            )
+            percent = (self.bytes_transferred / self.file_size * 100) if self.file_size else 0
             mb_transferred = self.bytes_transferred / (1024 * 1024)
             mb_total = self.file_size / (1024 * 1024)
             _log_event(
@@ -302,9 +289,7 @@ def list_buckets(client: S3Client) -> list[str]:
     """
     try:
         response = client.list_buckets()
-        buckets = [
-            bucket["Name"] for bucket in response.get("Buckets", []) if "Name" in bucket
-        ]
+        buckets = [bucket["Name"] for bucket in response.get("Buckets", []) if "Name" in bucket]
         _log_event(logging.DEBUG, "s3.buckets.listed", bucket_count=len(buckets))
         return buckets
     except ClientError as e:
@@ -396,9 +381,7 @@ def upload_file(
                 "s3.upload.timeout",
                 file_key=file_key,
                 timeout_seconds=timeout,
-                transferred_mb=round(
-                    progress_tracker.bytes_transferred / (1024 * 1024), 1
-                ),
+                transferred_mb=round(progress_tracker.bytes_transferred / (1024 * 1024), 1),
                 total_mb=round(file_size / (1024 * 1024), 1),
             )
             return False
@@ -461,9 +444,7 @@ def download_file(client: S3Client, bucket_name: str, file_key: str) -> bytes | 
         return None
 
 
-def object_exists(
-    client: S3Client, bucket_name: str, file_key: str
-) -> tuple[bool, dict[str, Any] | None]:
+def object_exists(client: S3Client, bucket_name: str, file_key: str) -> tuple[bool, dict[str, Any] | None]:
     """Check if an object exists in an S3 bucket and return its metadata if it does.
 
     Args:
@@ -607,7 +588,7 @@ def set_object_retention(
         True if the retention was set successfully, False otherwise.
     """
     if retain_until.tzinfo is None:
-        retain_until = retain_until.replace(tzinfo=timezone.utc)
+        retain_until = retain_until.replace(tzinfo=UTC)
 
     try:
         client.put_object_retention(
@@ -687,9 +668,7 @@ def create_bucket(
         _log_endpoint_connection_error(bucket_name=bucket_name)
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_unexpected_error(
-            "s3.bucket.create.unexpected_error", e, bucket_name=bucket_name
-        )
+        _log_unexpected_error("s3.bucket.create.unexpected_error", e, bucket_name=bucket_name)
         return False
 
 
@@ -727,9 +706,7 @@ def set_bucket_policy(client: S3Client, bucket_name: str, policy_json: str) -> b
         return False
 
 
-def set_bucket_tags(
-    client: S3Client, bucket_name: str, tags: list[TagTypeDef] | None = None
-) -> bool:
+def set_bucket_tags(client: S3Client, bucket_name: str, tags: list[TagTypeDef] | None = None) -> bool:
     """Set tags for an S3 bucket.
 
     Args:
@@ -761,9 +738,7 @@ def set_bucket_tags(
         _log_endpoint_connection_error(bucket_name=bucket_name)
         return False
     except (BotoCoreError, OSError, ValueError, TypeError) as e:
-        _log_unexpected_error(
-            "s3.bucket.tags_set.unexpected_error", e, bucket_name=bucket_name
-        )
+        _log_unexpected_error("s3.bucket.tags_set.unexpected_error", e, bucket_name=bucket_name)
         return False
 
 
@@ -832,9 +807,7 @@ def initiate_object_restore(
         raise RuntimeError(f"Failed to initiate restore for '{file_key}': {e}") from e
     except EndpointConnectionError as exc:
         _log_endpoint_connection_error(bucket_name=bucket_name, file_key=file_key)
-        raise RuntimeError(
-            f"Endpoint connection error initiating restore for '{file_key}'"
-        ) from exc
+        raise RuntimeError(f"Endpoint connection error initiating restore for '{file_key}'") from exc
     except (BotoCoreError, OSError) as e:
         _log_unexpected_error(
             "s3.object.restore.unexpected_error",
@@ -842,9 +815,7 @@ def initiate_object_restore(
             bucket_name=bucket_name,
             file_key=file_key,
         )
-        raise RuntimeError(
-            f"Unexpected error initiating restore for '{file_key}': {e}"
-        ) from e
+        raise RuntimeError(f"Unexpected error initiating restore for '{file_key}': {e}") from e
 
 
 def is_object_ready_for_download(

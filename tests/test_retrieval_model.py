@@ -46,25 +46,19 @@ def test_retrieval_required_fields_raises_on_empty() -> None:
 def test_retrieval_required_field_drive_name() -> None:
     """drive_name is required."""
     with pytest.raises(Exception):
-        ArchiveRetrieval.model_validate(
-            {"submission_id": 1, "destination_path": "/tmp"}
-        )
+        ArchiveRetrieval.model_validate({"submission_id": 1, "destination_path": "/tmp"})
 
 
 def test_retrieval_required_field_submission_id() -> None:
     """submission_id is required."""
     with pytest.raises(Exception):
-        ArchiveRetrieval.model_validate(
-            {"drive_name": "restst000000001-testing", "destination_path": "/tmp"}
-        )
+        ArchiveRetrieval.model_validate({"drive_name": "restst000000001-testing", "destination_path": "/tmp"})
 
 
 def test_retrieval_required_field_destination_path() -> None:
     """destination_path is required."""
     with pytest.raises(Exception):
-        ArchiveRetrieval.model_validate(
-            {"drive_name": "restst000000001-testing", "submission_id": 1}
-        )
+        ArchiveRetrieval.model_validate({"drive_name": "restst000000001-testing", "submission_id": 1})
 
 
 def test_retrieval_job_stage_string_values() -> None:

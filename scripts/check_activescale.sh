@@ -22,8 +22,8 @@ load_env_file() {
   fi
 }
 
-if ! command -v poetry >/dev/null 2>&1; then
-  echo "Error: poetry is not installed or not on PATH."
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Error: uv is not installed or not on PATH."
   exit 1
 fi
 
@@ -56,9 +56,9 @@ if [[ "${BYPASS_PROXY}" == "1" ]]; then
 fi
 
 if command -v timeout >/dev/null 2>&1; then
-    CHECK_CMD=(timeout "${CHECK_TIMEOUT_SECONDS}" poetry run python - "${BUCKET}")
+    CHECK_CMD=(timeout "${CHECK_TIMEOUT_SECONDS}" uv run python - "${BUCKET}")
 else
-    CHECK_CMD=(poetry run python - "${BUCKET}")
+    CHECK_CMD=(uv run python - "${BUCKET}")
 fi
 
 set +e

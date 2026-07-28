@@ -59,16 +59,11 @@ def _resolve_project_id(
 ) -> Any:
     """Resolve the project_id for a drive from ProjectDB."""
     try:
-        drive_projects = projectdb.get_research_drive_projects(
-            drive["id"], expand=["project"]
-        )
+        drive_projects = projectdb.get_research_drive_projects(drive["id"], expand=["project"])
     except (requests.RequestException, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "ProjectDB request failed while fetching projects"
-                f" for drive {request.drive_name}: {e}"
-            ),
+            detail=(f"ProjectDB request failed while fetching projects for drive {request.drive_name}: {e}"),
         ) from e
 
     if not drive_projects:
@@ -112,9 +107,7 @@ def _upsert_submission(
         existing_submission.drive_id = drive["id"]
         existing_submission.project_id = project_id
         existing_submission.retention_period_years = request.retention_period_years
-        existing_submission.retention_period_justification = (
-            request.retention_period_justification
-        )
+        existing_submission.retention_period_justification = request.retention_period_justification
         existing_submission.data_classification = request.data_classification
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
@@ -209,29 +202,16 @@ def create_submission(
     """
     validate_permissions("POST", api_key)
     existing_submission = session.exec(
-        select(ArchiveSubmission).where(
-            ArchiveSubmission.drive_name == request.drive_name
-        )
+        select(ArchiveSubmission).where(ArchiveSubmission.drive_name == request.drive_name)
     ).first()
 
-    if (
-        existing_submission
-        and existing_submission.stage == ArchiveJobStage.COMPLETED
-        and not request.force
-    ):
+    if existing_submission and existing_submission.stage == ArchiveJobStage.COMPLETED and not request.force:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Drive {request.drive_name} has already been successfully archived."
-                " Use force=true to re-run."
-            ),
+            detail=(f"Drive {request.drive_name} has already been successfully archived. Use force=true to re-run."),
         )
 
-    if (
-        existing_submission
-        and existing_submission.stage == ArchiveJobStage.COMPLETED
-        and request.force
-    ):
+    if existing_submission and existing_submission.stage == ArchiveJobStage.COMPLETED and request.force:
         log_event(
             logging.WARNING,
             "submission.force_rerun",
@@ -309,10 +289,7 @@ def create_submission(
         )
         raise HTTPException(
             status_code=500,
-            detail=(
-                "An error occurred while creating archive submission"
-                f" for {request.drive_name}."
-            ),
+            detail=(f"An error occurred while creating archive submission for {request.drive_name}."),
         ) from e
 
 
@@ -337,9 +314,7 @@ def retry_submission(
     projectdb: ProjectDbDep,
     api_key: ApiKey = Security(validate_api_key),
     force: bool = False,
-) -> (
-    CreateSubmissionResponse
-):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+) -> CreateSubmissionResponse:  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """Retry a failed or abandoned archive job for a research drive."""
     validate_permissions("POST", api_key)
 
@@ -358,21 +333,13 @@ def retry_submission(
     if submission.stage == ArchiveJobStage.COMPLETED and not force:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Drive {drive_name} has already been successfully archived."
-                " Use force=true to re-run."
-            ),
+            detail=(f"Drive {drive_name} has already been successfully archived. Use force=true to re-run."),
         )
 
-    if submission.stage not in RETRYABLE_STAGES and not (
-        force and submission.stage == ArchiveJobStage.COMPLETED
-    ):
+    if submission.stage not in RETRYABLE_STAGES and not (force and submission.stage == ArchiveJobStage.COMPLETED):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Drive {drive_name} submission is in stage '{submission.stage.value}'"
-                " which cannot be retried."
-            ),
+            detail=(f"Drive {drive_name} submission is in stage '{submission.stage.value}' which cannot be retried."),
         )
 
     if force and submission.stage == ArchiveJobStage.COMPLETED:

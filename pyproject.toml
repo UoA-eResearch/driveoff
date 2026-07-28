@@ -1,83 +1,78 @@
-[tool.poetry]
+[project]
 name = "driveoff"
 version = "0.2.0"
 description = "Prototype for research drive offboarding and archiving, from IDS team."
-authors = ["Chris Seal <c.seal@auckland.ac.nz>", "Noel Zeng", "Libby Li", "James Love", "Andrew Wilson"]
+authors = [
+    { name = "Chris Seal", email = "c.seal@auckland.ac.nz" },
+    { name = "Noel Zeng" },
+    { name = "Libby Li" },
+    { name = "Jean Love" },
+    { name = "Andrew Wilson" },
+    { name = "Rose McColl"},
+]
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "fastapi[standard]>=0.137.1,<0.138.0",
+    "sqlmodel>=0.0.22,<0.1.0",
+    "sqlalchemy>=2.0.36,<2.1.0",
+    "bagit>=1.8.1,<2.0.0",
+    "rocrate>=0.14.2,<0.15.0",
+    "orjson>=3.10,<4.0.0",
+    "pydantic-settings>=2.6.1,<3.0.0",
+    "boto3>=1.42.65,<2.0.0",
+    "types-boto3-s3>=1.42.37,<2.0.0",
+    "requests>=2.31.0,<3.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.14"
-fastapi = {extras = ["standard"], version = "^0.137.1"}
-sqlmodel = "^0.0.22"
-sqlalchemy = "^2.0.36"
-bagit = "^1.8.1"
-pytest-cov = "^6.0.0"
-rocrate = "^0.14.2"
-orjson = "^3.10"
-pydantic-settings = "^2.6.1"
-boto3 = "^1.42.65"
-types-boto3-s3 = "^1.42.37"
-requests = "^2.31.0"
-
-[tool.poetry.group.dev.dependencies]
-isort = "^5.13.2"
-black = "^26.3.1"
-pylint = "^3.3.1"
-pytest = ">=8.3.3,<10.0.0"
-mypy = "^1.11.2"
-coverage = "^7.6.1"
-setuptools = "^78.1.1"
-poethepoet = "^0.31.1"
-
-[tool.poetry.group.test.dependencies]
-pytest = ">=8.3.3,<10.0.0"
-rocrate = "^0.14.2"
-orjson = "^3.10"
-bagit = "^1.8.1"
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3,<10.0.0",
+    "pytest-cov>=6.0.0,<7.0.0",
+    "mypy>=1.11.2,<2.0.0",
+    "coverage>=7.6.1,<8.0.0",
+    "setuptools>=78.1.1,<79.0.0",
+    "ruff>=0.11.0,<1.0.0",
+    "types-python-dateutil>=2.9.0,<3.0.0",
+    "types-PyYAML>=6.0.4,<7.0.0",
+    "types-simplejson>=3.10.0,<4.0.0",
+]
+test = [
+    "pytest>=8.3.3,<10.0.0",
+    "rocrate>=0.14.2,<0.15.0",
+    "orjson>=3.10,<4.0.0",
+    "bagit>=1.8.1,<2.0.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
 
 [tool.mypy]
 files = [
-       "src/**/*.py"
-	  ]
+    "src/**/*.py",
+]
 ignore_missing_imports = true
 exclude = [
-       "^tests/.*$"
-       ]
+    "^tests/.*$",
+]
 strict = true
 
 [tool.pytest.ini_options]
-pythonpath = "src tests"
-testpaths= ["tests"]
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
 
-[tool.pylint]
-extension-pkg-whitelist = ["orjson"]
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+include = ["src/**/*.py", "tests/**/*.py"]
 
-[tool.pylint.messages_control]
-disable = ["duplicate-code", "mixed-line-endings"]
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = []
 
-[tool.poe.tasks]
-isort-check = "python -m isort --check --diff --profile black src"
-black-check = "python -m black --check --diff src"
-pylint-check = "python -m pylint src/"
-mypy-check = "python -m mypy --install-types --non-interactive"
-pytest-check = "python -m pytest -v --cov=src/ tests/"
-check = [
-       "isort-check",
-       "black-check",
-       "pylint-check",
-       "mypy-check",
-       "pytest-check"
-       ]
-isort-fix = "python -m isort --profile black src"
-black-fix = "python -m black src"
-fix = [
-       "isort-fix",
-       "black-fix"
-       ]
-coverage-report = "python -m coverage report -m"
-dev = "fastapi dev src/api/main.py"
+[tool.ruff.lint.isort]
+known-first-party = ["api", "config", "models", "packaging", "service", "utils", "workers"]

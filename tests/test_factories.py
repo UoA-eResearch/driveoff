@@ -13,9 +13,7 @@ def test_submission_fixture_creation(submission: ArchiveSubmission) -> None:
     assert submission.retention_period_years == 7
 
 
-def test_submission_persists_to_db(
-    session: Session, submission: ArchiveSubmission
-) -> None:
+def test_submission_persists_to_db(session: Session, submission: ArchiveSubmission) -> None:
     """Test that submission fixture can be persisted to database"""
     session.add(submission)
     session.commit()

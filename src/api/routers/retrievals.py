@@ -78,10 +78,7 @@ def create_retrieval(
     if not submission.archive_manifest_key:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Archive submission for drive {drive_name} has no manifest key."
-                " The archive may be incomplete."
-            ),
+            detail=(f"Archive submission for drive {drive_name} has no manifest key. The archive may be incomplete."),
         )
 
     # 2. Check there is no active retrieval job already running for this drive.
@@ -98,8 +95,7 @@ def create_retrieval(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"A retrieval job for drive {drive_name} is already active"
-                f" (stage: '{active_retrieval.stage.value}')."
+                f"A retrieval job for drive {drive_name} is already active (stage: '{active_retrieval.stage.value}')."
             ),
         )
 
@@ -159,10 +155,7 @@ def create_retrieval(
     background_tasks.add_task(run_archive_retrieval, retrieval.id)
 
     return CreateRetrievalResponse(
-        message=(
-            f"Archive retrieval job created for {drive_name}."
-            f" Restoring archive to {request.destination_path}."
-        )
+        message=(f"Archive retrieval job created for {drive_name}. Restoring archive to {request.destination_path}.")
     )
 
 
@@ -188,9 +181,7 @@ def get_retrieval(
     """Check if an archive retrieval job exists for the drive and return it."""
     validate_permissions("GET", api_key)
 
-    retrieval = session.exec(
-        select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == drive_name)
-    ).first()
+    retrieval = session.exec(select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == drive_name)).first()
 
     if retrieval is None:
         raise HTTPException(
@@ -241,15 +232,9 @@ def patch_retrieval(
     now = datetime.now()
     retrieval.last_updated_timestamp = now
     if "stage" in update_data:
-        if (
-            retrieval.stage == RetrievalJobStage.COMPLETED
-            and retrieval.completed_timestamp is None
-        ):
+        if retrieval.stage == RetrievalJobStage.COMPLETED and retrieval.completed_timestamp is None:
             retrieval.completed_timestamp = now
-        elif (
-            retrieval.stage == RetrievalJobStage.FAILED
-            and retrieval.failed_timestamp is None
-        ):
+        elif retrieval.stage == RetrievalJobStage.FAILED and retrieval.failed_timestamp is None:
             retrieval.failed_timestamp = now
 
     session.add(retrieval)

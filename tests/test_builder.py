@@ -4,9 +4,9 @@ from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 
-from packaging.crate.ro_builder import RD_PREFIX, ROBuilder, as_ro_id
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
+from packaging.crate.ro_builder import RD_PREFIX, ROBuilder, as_ro_id
 
 
 def test_add_person(test_ro_builder: ROBuilder) -> None:
