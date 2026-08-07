@@ -199,7 +199,6 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
             "stage": "completed",
             "retry_count": 0,
             "extra_context": {
-                "cleanup_succeeded": True,
                 "archive_manifest_key": f"{drive_name}/archive-manifest.json",
             },
         }
@@ -315,7 +314,6 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
                 "retry_count": 0,
                 "failure_reason": "Archive upload failed",
                 "extra_context": {
-                    "cleanup_succeeded": True,
                     "archive_manifest_key": f"{drive_name}/archive-manifest.json",
                 },
             }
@@ -379,7 +377,6 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         "stage": "completed",
         "retry_count": 0,
         "extra_context": {
-            "cleanup_succeeded": True,
             "archive_manifest_key": f"{drive_name}/archive-manifest.json",
         },
     }

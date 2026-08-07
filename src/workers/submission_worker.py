@@ -637,7 +637,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     stage=submission.stage.value,
                     retry_count=submission.retry_count,
                     extra_context={
-                        "cleanup_succeeded": submission.cleanup_succeeded,
                         "archive_manifest_key": submission.archive_manifest_key,
                     },
                 )
@@ -670,7 +669,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     retry_count=submission.retry_count,
                     failure_reason=submission.failure_reason,
                     extra_context={
-                        "cleanup_succeeded": submission.cleanup_succeeded,
                         "archive_manifest_key": submission.archive_manifest_key,
                     },
                 )
@@ -730,7 +728,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     retry_count=submission.retry_count,
                     failure_reason=submission.failure_reason,
                     extra_context={
-                        "cleanup_succeeded": submission.cleanup_succeeded,
                         "archive_manifest_key": submission.archive_manifest_key,
                     },
                 )
