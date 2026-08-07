@@ -8,6 +8,15 @@ A FastAPI-based REST API server for managing project offboarding and archival wo
 - Python 3.14+
 - uv for dependency management (see [Installing uv](https://docs.astral.sh/uv/getting-started/installation/))
 
+### Notifications
+
+If you want Slack alerts for archive job completion or failure, set these environment variables in the appropriate `modes/.env.*` file or your local shell:
+
+- `notifications_enabled=true`
+- `notifications_slack_webhook_url=<incoming-webhook-url>`
+
+The alerts are sent to the `drive-offboarding-alerts` channel. In non-production modes, the message text is prefixed with the mode name so test alerts are easy to spot.
+
 ### Installation
 
 1. **Install dependencies** from the project root:

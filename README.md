@@ -23,6 +23,13 @@ Web frontend: Vite has been configured to read from `modes` directory - see `web
 
 FastAPI backend: See `src/config.py` and [pydantic-settings page](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
 
+Notifications:
+- Archive submission and retrieval success/failure alerts can be enabled with `notifications_enabled=true`.
+- Set `notifications_slack_webhook_url` to the incoming Slack webhook for the alerts channel.
+- The alert channel is `drive-offboarding-alerts`.
+- Alerts are best-effort only; notification failures are logged and do not affect the job result.
+- In non-production modes, alerts are prefixed with the mode name so they are easy to distinguish.
+
 Linux note for SMB archive jobs:
 - If `SMB_DRIVE_BASE_PATH` is configured as a UNC path (for example `//server/share`), set `SMB_LINUX_MOUNT_BASE_PATH` to the local CIFS mount parent (for example `/mnt`).
 - Drive paths are then resolved as `<SMB_LINUX_MOUNT_BASE_PATH>/<drive_name>` for bagit/RO-Crate filesystem operations.
