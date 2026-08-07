@@ -30,6 +30,7 @@ from service.activescale import (
     upload_file,
     verify_uploaded_part_size,
 )
+from service.notifications import notify_job_result
 from service.projectdb_client import ProjectDBClient
 from service.projectdb_helpers import filter_member_identities, get_project_owner_emails
 from utils.logging import elapsed_ms, log_event
@@ -627,6 +628,19 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     cleanup_succeeded=submission.cleanup_succeeded,
                     elapsed_ms=elapsed_ms(started_at),
                 )
+                notify_job_result(
+                    job_type="submission",
+                    status=submission.stage.value,
+                    drive_name=drive_name,
+                    submission_id=submission_id,
+                    project_id=project_id,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    extra_context={
+                        "cleanup_succeeded": submission.cleanup_succeeded,
+                        "archive_manifest_key": submission.archive_manifest_key,
+                    },
+                )
             else:
                 submission.stage = ArchiveJobStage.FAILED
                 submission.failure_reason = "Archive upload failed"
@@ -645,6 +659,20 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     retry_count=submission.retry_count,
                     cleanup_succeeded=submission.cleanup_succeeded,
                     elapsed_ms=elapsed_ms(started_at),
+                )
+                notify_job_result(
+                    job_type="submission",
+                    status=submission.stage.value,
+                    drive_name=drive_name,
+                    submission_id=submission_id,
+                    project_id=project_id,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    failure_reason=submission.failure_reason,
+                    extra_context={
+                        "cleanup_succeeded": submission.cleanup_succeeded,
+                        "archive_manifest_key": submission.archive_manifest_key,
+                    },
                 )
 
             log_event(
@@ -692,6 +720,20 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
+                notify_job_result(
+                    job_type="submission",
+                    status=submission.stage.value,
+                    drive_name=drive_name,
+                    submission_id=submission_id,
+                    project_id=project_id,
+                    stage=submission.stage.value,
+                    retry_count=submission.retry_count,
+                    failure_reason=submission.failure_reason,
+                    extra_context={
+                        "cleanup_succeeded": submission.cleanup_succeeded,
+                        "archive_manifest_key": submission.archive_manifest_key,
+                    },
+                )
             log_event(
                 logging.ERROR,
                 "crate.build.failed",
