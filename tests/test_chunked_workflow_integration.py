@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
-from sqlmodel import Session, SQLModel
-from sqlmodel.pool import StaticPool
+from sqlmodel import Session
 
 from models.common import DataClassification
 from models.submission import ArchiveJobStage, ArchiveSubmission
@@ -40,18 +36,6 @@ class _ProjectDbStub:
                 "role": {"name": "Project Owner"},
             }
         ]
-
-
-@pytest.fixture()
-def test_engine() -> Generator[Engine, Any]:
-    """Provide a fresh in-memory SQLite engine, disposed after each test."""
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    SQLModel.metadata.create_all(engine)
-    try:
-        yield engine
-    finally:
-        engine.dispose()
-
 
 def _create_submission(engine, drive_name: str, project_id: int = 123) -> int:
     with Session(engine) as session:
@@ -183,12 +167,34 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     assert upload_calls
     manifest_upload = upload_calls[-1]
     assert str(manifest_upload["key"]).endswith("archive-manifest.json")
+    assert manifest_upload["metadata"] is not None
 
     with open(Path(str(manifest_upload["file_path"])), encoding="utf-8") as mf:
         manifest = json.load(mf)
     assert manifest["part_count"] == submission.archive_part_count
     assert manifest["total_bytes"] == submission.archive_total_bytes
     assert len(manifest["parts"]) == submission.archive_part_count
+
+    part_uploads = [
+        call for call in upload_calls if "archive-manifest.json" not in str(call["key"])
+    ]
+    assert part_uploads
+    for upload in part_uploads:
+        metadata = upload["metadata"]
+        assert metadata is not None
+        assert metadata["cer_project_id"] == "123"
+        assert metadata["division"] == "CTRERSH"
+        assert metadata["data_classification"] == "Sensitive"
+        assert metadata["retention_period_years"] == "7"
+        assert metadata["archive_part_count"] == str(submission.archive_part_count)
+
+    manifest_metadata = manifest_upload["metadata"]
+    assert manifest_metadata is not None
+    assert manifest_metadata["cer_project_id"] == "123"
+    assert manifest_metadata["division"] == "CTRERSH"
+    assert manifest_metadata["data_classification"] == "Sensitive"
+    assert manifest_metadata["retention_period_years"] == "7"
+    assert manifest_metadata["archive_part_count"] == str(submission.archive_part_count)
     assert notifications == [
         {
             "job_type": "submission",

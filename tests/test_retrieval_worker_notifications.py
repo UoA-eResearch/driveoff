@@ -9,10 +9,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
-from sqlmodel import Session, SQLModel
-from sqlmodel.pool import StaticPool
+from sqlmodel import Session
 
 from models.common import DataClassification
 from models.retrieval import ArchiveRetrieval, RetrievalJobStage
@@ -36,11 +34,6 @@ class _FakeTarFile:
         target = path / self._drive_name
         target.mkdir(parents=True, exist_ok=True)
         (target / "restored.txt").write_text("ok", encoding="utf-8")
-
-
-def _create_engine() -> Engine:
-    return create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-
 
 def _create_submission_and_retrieval(engine: Engine, destination_path: str) -> tuple[int, int, str]:
     drive_name = "resret000000001-testing"
@@ -79,9 +72,10 @@ def _create_submission_and_retrieval(engine: Engine, destination_path: str) -> t
         return submission.id, retrieval.id, drive_name
 
 
-def test_run_archive_retrieval_sends_completed_notification(tmp_path: Path, monkeypatch) -> None:
-    engine = _create_engine()
-    SQLModel.metadata.create_all(engine)
+def test_run_archive_retrieval_sends_completed_notification(
+    tmp_path: Path, monkeypatch, test_engine: Engine
+) -> None:
+    engine = test_engine
     destination_path = tmp_path / "restored"
     destination_path.mkdir(parents=True, exist_ok=True)
     submission_id, retrieval_id, drive_name = _create_submission_and_retrieval(engine, str(destination_path))
@@ -157,9 +151,10 @@ def test_run_archive_retrieval_sends_completed_notification(tmp_path: Path, monk
     ]
 
 
-def test_run_archive_retrieval_sends_failed_notification(tmp_path: Path, monkeypatch) -> None:
-    engine = _create_engine()
-    SQLModel.metadata.create_all(engine)
+def test_run_archive_retrieval_sends_failed_notification(
+    tmp_path: Path, monkeypatch, test_engine: Engine
+) -> None:
+    engine = test_engine
     destination_path = tmp_path / "restored"
     destination_path.mkdir(parents=True, exist_ok=True)
     _, retrieval_id, drive_name = _create_submission_and_retrieval(engine, str(destination_path))

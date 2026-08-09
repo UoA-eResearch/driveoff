@@ -65,9 +65,17 @@ def test_upload_chunked_parts_resumes_skipping_existing(
     def fake_exists(_client, _bucket: str, key: str):
         return (key == first_key), None
 
-    def fake_upload(_client, _bucket: str, key: str, file_path: str, timeout: int):
+    def fake_upload(
+        _client,
+        _bucket: str,
+        key: str,
+        file_path: str,
+        timeout: int,
+        metadata: dict[str, str] | None = None,
+    ):
         assert timeout == 60
         assert Path(file_path).exists()
+        assert metadata is None
         uploaded_keys.append(key)
         return True
 

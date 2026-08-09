@@ -31,17 +31,23 @@ from service.projectdb import get_projectdb_client
 THIS_DIR = Path(__file__).absolute().parent
 
 
-@pytest.fixture(name="session")
-def session_fixture() -> Generator[Session, Any]:
-    """scoped session for each unit test"""
+@pytest.fixture(name="test_engine")
+def test_engine_fixture() -> Generator[Any, Any]:
+    """Shared in-memory sqlite engine for tests that need direct engine access."""
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     SQLModel.metadata.create_all(engine)
     try:
-        with Session(engine) as session:
-            yield session
-            session.rollback()
+        yield engine
     finally:
         engine.dispose()
+
+
+@pytest.fixture(name="session")
+def session_fixture(test_engine: Any) -> Generator[Session, Any]:
+    """scoped session for each unit test"""
+    with Session(test_engine) as session:
+        yield session
+        session.rollback()
 
 
 @pytest.fixture(name="client")
