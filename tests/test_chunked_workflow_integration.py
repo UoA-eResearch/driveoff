@@ -124,6 +124,14 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
 
     monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
 
+    notifications: list[dict[str, Any]] = []
+
+    def fake_notify_job_result(**kwargs: Any) -> bool:
+        notifications.append(kwargs)
+        return True
+
+    monkeypatch.setattr("workers.submission_worker.notify_job_result", fake_notify_job_result)
+
     upload_calls: list[dict[str, object]] = []
 
     def fake_upload(
@@ -181,6 +189,20 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     assert manifest["part_count"] == submission.archive_part_count
     assert manifest["total_bytes"] == submission.archive_total_bytes
     assert len(manifest["parts"]) == submission.archive_part_count
+    assert notifications == [
+        {
+            "job_type": "submission",
+            "status": "completed",
+            "drive_name": drive_name,
+            "submission_id": submission_id,
+            "project_id": 123,
+            "stage": "completed",
+            "retry_count": 0,
+            "extra_context": {
+                "archive_manifest_key": f"{drive_name}/archive-manifest.json",
+            },
+        }
+    ]
 
 
 def test_generate_ro_crate_resumes_after_interrupted_part_upload(
@@ -231,6 +253,14 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
 
     monkeypatch.setattr("workers.submission_worker.get_activescale_client_context", fake_client_context)
 
+    notifications: list[dict[str, Any]] = []
+
+    def fake_notify_job_result(**kwargs: Any) -> bool:
+        notifications.append(kwargs)
+        return True
+
+    monkeypatch.setattr("workers.submission_worker.notify_job_result", fake_notify_job_result)
+
     first_run_uploaded: set[str] = set()
 
     def fail_on_second_part(
@@ -273,6 +303,21 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         first_run_keys = json.loads(submission.archive_part_keys_json or "[]")
         assert len(first_run_keys) == 1
         assert first_run_keys[0] in first_run_uploaded
+        assert notifications == [
+            {
+                "job_type": "submission",
+                "status": "failed",
+                "drive_name": drive_name,
+                "submission_id": submission_id,
+                "project_id": 123,
+                "stage": "failed",
+                "retry_count": 0,
+                "failure_reason": "Archive upload failed",
+                "extra_context": {
+                    "archive_manifest_key": f"{drive_name}/archive-manifest.json",
+                },
+            }
+        ]
 
         # Simulate retry endpoint behavior.
         submission.stage = ArchiveJobStage.QUEUED
@@ -323,3 +368,15 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
 
     # Resume should not re-upload first successfully uploaded part.
     assert all(key not in first_run_uploaded for key in second_run_uploaded if "part-00001" in key)
+    assert notifications[-1] == {
+        "job_type": "submission",
+        "status": "completed",
+        "drive_name": drive_name,
+        "submission_id": submission_id,
+        "project_id": 123,
+        "stage": "completed",
+        "retry_count": 0,
+        "extra_context": {
+            "archive_manifest_key": f"{drive_name}/archive-manifest.json",
+        },
+    }

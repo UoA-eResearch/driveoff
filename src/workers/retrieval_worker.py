@@ -28,6 +28,7 @@ from service.activescale import (
     initiate_object_restore,
     is_object_ready_for_download,
 )
+from service.notifications import notify_job_result
 from utils.logging import elapsed_ms, log_event
 from workers import parse_part_keys_json
 
@@ -335,6 +336,16 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                 destination_path=retrieval.destination_path,
                 elapsed_ms=elapsed_ms(started_at),
             )
+            notify_job_result(
+                job_type="retrieval",
+                status=retrieval.stage.value,
+                drive_name=drive_name,
+                submission_id=submission.id,
+                retrieval_id=retrieval_id,
+                project_id=submission.project_id,
+                stage=retrieval.stage.value,
+                extra_context={"destination_path": retrieval.destination_path},
+            )
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             if download_dir is not None:
@@ -348,6 +359,17 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                 retrieval.last_updated_timestamp = now
                 session.add(retrieval)
                 session.commit()
+                notify_job_result(
+                    job_type="retrieval",
+                    status=retrieval.stage.value,
+                    drive_name=retrieval.drive_name,
+                    submission_id=retrieval.submission_id,
+                    retrieval_id=retrieval_id,
+                    project_id=submission.project_id if submission is not None else None,
+                    stage=retrieval.stage.value,
+                    failure_reason=retrieval.failure_reason,
+                    extra_context={"destination_path": retrieval.destination_path},
+                )
 
             log_event(
                 logging.ERROR,

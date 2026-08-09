@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     # Override: when set, use this many days as the retention period instead of the
     # years-based calculation. Intended for TEST environments so objects expire quickly.
     activescale_retention_override_days: int | None = None
+    # Notifications
+    notifications_enabled: bool = False
+    notifications_slack_webhook_url: SecretStr | None = None
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 
