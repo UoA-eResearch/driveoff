@@ -110,6 +110,7 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     archive_parts_dir: Path,
     archive_parts: list[ArchivePartInfo],
     timeout_seconds: int,
+    metadata: dict[str, str] | None = None,
     retain_until: datetime | None = None,
 ) -> tuple[bool, list[str]]:
     """Upload chunked archive part files with resume support.
@@ -158,6 +159,7 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
             part_key,
             file_path=str(part_file),
             timeout=timeout_seconds,
+            metadata=metadata,
         )
         if not success:
             log_event(
@@ -269,6 +271,31 @@ def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positi
         output_location=output_location,
         drive_name=str(submission.drive_name),
     )
+
+
+def _build_archive_object_metadata(
+    project_data: dict[str, Any],
+    members_list: list[dict[str, Any]],
+    submission: ArchiveSubmission,
+    archive_part_count: int,
+) -> dict[str, str]:
+    """Build common S3 metadata attached to archive parts and manifest."""
+    return {
+        "cer_project_id": str(project_data.get("id", "")),
+        "project_owners": json.dumps(get_project_owner_emails(members_list)),
+        "division": project_data.get("division") or "Unknown",
+        "data_classification": submission.data_classification or "Unknown",
+        "retention_period_years": str(submission.retention_period_years) or "Unknown",
+        "review_date": (
+            calculate_retention_end_date(
+                datetime.now(),
+                submission.retention_period_years,
+            )
+            if submission.retention_period_years is not None
+            else "Unknown"
+        ),
+        "archive_part_count": str(archive_part_count),
+    }
 
 
 def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
@@ -509,6 +536,12 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
 
             with get_activescale_client_context() as client:
                 bucket_name = settings.activescale_bucket_name
+                archive_metadata = _build_archive_object_metadata(
+                    project_data=project_data,
+                    members_list=members_list,
+                    submission=submission,
+                    archive_part_count=len(chunk_result.parts),
+                )
 
                 upload_success, uploaded_part_keys = _upload_chunked_archive_parts(
                     session=session,
@@ -519,6 +552,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     archive_parts_dir=archive_parts_dir,
                     archive_parts=chunk_result.parts,
                     timeout_seconds=settings.activescale_upload_timeout,
+                    metadata=archive_metadata,
                     retain_until=retain_until,
                 )
 
@@ -549,22 +583,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                         file_key,
                         file_path=str(chunk_result.manifest_path),
                         timeout=settings.activescale_upload_timeout,
-                        metadata={
-                            "cer_project_id": str(project_data.get("id", "")),
-                            "project_owners": json.dumps(get_project_owner_emails(members_list)),
-                            "division": project_data.get("division") or "Unknown",
-                            "data_classification": submission.data_classification or "Unknown",
-                            "retention_period_years": str(submission.retention_period_years) or "Unknown",
-                            "review_date": (
-                                calculate_retention_end_date(
-                                    datetime.now(),
-                                    submission.retention_period_years,
-                                )
-                                if submission.retention_period_years is not None
-                                else "Unknown"
-                            ),
-                            "archive_part_count": str(len(uploaded_part_keys)),
-                        },
+                        metadata=archive_metadata,
                     )
                     submission.archive_manifest_key = file_key
                     submission.archive_part_keys_json = json.dumps(uploaded_part_keys)
