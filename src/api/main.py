@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from time import perf_counter
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 
 from api.cors import add_cors_middleware
 from api.dependencies import create_db_and_tables, engine
@@ -63,6 +65,51 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None]:
 
 
 app = FastAPI(lifespan=lifespan, title="Research Drive Archive API", version="1.0.0")
+
+
+@app.middleware("http")
+async def request_logging_middleware(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    """Log all API requests with method, path, status code, and latency.
+
+    Also catches and logs unhandled exceptions so API-level failures have a
+    consistent JSON 500 response and a centralized log event.
+    """
+    started_at = perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception as exception:  # pylint: disable=broad-exception-caught
+        log_event(
+            logging.ERROR,
+            "api.unhandled_exception",
+            method=request.method,
+            path=request.url.path,
+            query=request.url.query,
+            client_host=(request.client.host if request.client is not None else None),
+            error=str(exception),
+            error_type=type(exception).__name__,
+            exc_info=True,
+        )
+        response = JSONResponse(
+            status_code=500, content={"detail": "Internal Server Error"}
+        )
+
+    elapsed_ms = int((perf_counter() - started_at) * 1000)
+    level = logging.INFO if response.status_code < 400 else logging.WARNING
+    log_event(
+        level,
+        "api.request.completed",
+        method=request.method,
+        path=request.url.path,
+        query=request.url.query,
+        status_code=response.status_code,
+        client_host=(request.client.host if request.client is not None else None),
+        elapsed_ms=elapsed_ms,
+    )
+    return response
+
 
 add_cors_middleware(app)
 
