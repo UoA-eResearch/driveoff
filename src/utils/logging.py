@@ -9,6 +9,8 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+from asgi_correlation_id import correlation_id
+
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -97,6 +99,9 @@ def log_event(
 ) -> None:
     """Emit a structured JSON log entry."""
     payload = {"event": event, **context}
+    request_id = correlation_id.get()
+    if request_id is not None and "request_id" not in payload:
+        payload["request_id"] = request_id
     logger.log(level, json.dumps(payload, default=str), exc_info=exc_info)
 
 
