@@ -35,6 +35,7 @@ class _FakeTarFile:
         target.mkdir(parents=True, exist_ok=True)
         (target / "restored.txt").write_text("ok", encoding="utf-8")
 
+
 def _create_submission_and_retrieval(engine: Engine, destination_path: str) -> tuple[int, int, str]:
     drive_name = "resret000000001-testing"
     with Session(engine) as session:
@@ -72,9 +73,7 @@ def _create_submission_and_retrieval(engine: Engine, destination_path: str) -> t
         return submission.id, retrieval.id, drive_name
 
 
-def test_run_archive_retrieval_sends_completed_notification(
-    tmp_path: Path, monkeypatch, test_engine: Engine
-) -> None:
+def test_run_archive_retrieval_sends_completed_notification(tmp_path: Path, monkeypatch, test_engine: Engine) -> None:
     engine = test_engine
     destination_path = tmp_path / "restored"
     destination_path.mkdir(parents=True, exist_ok=True)
@@ -151,9 +150,7 @@ def test_run_archive_retrieval_sends_completed_notification(
     ]
 
 
-def test_run_archive_retrieval_sends_failed_notification(
-    tmp_path: Path, monkeypatch, test_engine: Engine
-) -> None:
+def test_run_archive_retrieval_sends_failed_notification(tmp_path: Path, monkeypatch, test_engine: Engine) -> None:
     engine = test_engine
     destination_path = tmp_path / "restored"
     destination_path.mkdir(parents=True, exist_ok=True)

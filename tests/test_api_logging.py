@@ -22,8 +22,7 @@ def test_request_logging_middleware_logs_completed_request(client: TestClient, c
     api_events = [
         json.loads(record.message)
         for record in caplog.records
-        if record.name == "utils.logging"
-        and '"event": "api.request.completed"' in record.message
+        if record.name == "utils.logging" and '"event": "api.request.completed"' in record.message
     ]
     assert api_events
     event = api_events[-1]
@@ -55,8 +54,7 @@ def test_unhandled_exception_handler_logs_exception(client: TestClient, caplog) 
     exception_events = [
         json.loads(record.message)
         for record in caplog.records
-        if record.name == "utils.logging"
-        and '"event": "api.unhandled_exception"' in record.message
+        if record.name == "utils.logging" and '"event": "api.unhandled_exception"' in record.message
     ]
     assert exception_events
     exception_event = exception_events[-1]
@@ -66,8 +64,7 @@ def test_unhandled_exception_handler_logs_exception(client: TestClient, caplog) 
     completion_events = [
         json.loads(record.message)
         for record in caplog.records
-        if record.name == "utils.logging"
-        and '"event": "api.request.completed"' in record.message
+        if record.name == "utils.logging" and '"event": "api.request.completed"' in record.message
     ]
     assert completion_events
     completion_event = completion_events[-1]

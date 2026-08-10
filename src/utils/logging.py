@@ -30,9 +30,7 @@ class _ExcludeLoggerPrefixFilter(logging.Filter):
 
 
 def _has_stream_handler(root_logger: logging.Logger) -> bool:
-    return any(
-        isinstance(handler, logging.StreamHandler) for handler in root_logger.handlers
-    )
+    return any(isinstance(handler, logging.StreamHandler) for handler in root_logger.handlers)
 
 
 def _has_file_handler(root_logger: logging.Logger, file_path: Path) -> bool:
