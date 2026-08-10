@@ -12,3 +12,6 @@ venv
 vite.config.ts.timestamp*
 
 data_examples/*
+
+# Local runtime logs
+logs/
