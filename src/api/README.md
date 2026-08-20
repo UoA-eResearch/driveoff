@@ -17,6 +17,18 @@ If you want Slack alerts for archive job completion or failure, set these enviro
 
 The alerts are sent to the `drive-offboarding-alerts` channel. In non-production modes, the message text is prefixed with the mode name so test alerts are easy to spot.
 
+### File logging
+
+To enable rotating file logs, set these environment variables in your `modes/.env.*` file:
+
+- `log_to_file_enabled=true`
+- `log_file_path=<path-to-log-file>`
+- `log_file_rotation_when=midnight`
+- `log_file_rotation_interval=1`
+- `log_file_backup_count=14`
+
+`log_file_path` can point to a mounted VM volume (for example `/mnt/driveoff-logs/driveoff.log`) for durable local retention.
+
 ### Installation
 
 1. **Install dependencies** from the project root:

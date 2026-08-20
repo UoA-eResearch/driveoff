@@ -23,6 +23,7 @@ dependencies = [
     "boto3>=1.42.65,<2.0.0",
     "types-boto3-s3>=1.42.37,<2.0.0",
     "requests>=2.31.0,<3.0.0",
+    "asgi-correlation-id>=5.0.1",
 ]
 
 [dependency-groups]

@@ -37,6 +37,7 @@ class _ProjectDbStub:
             }
         ]
 
+
 def _create_submission(engine, drive_name: str, project_id: int = 123) -> int:
     with Session(engine) as session:
         submission = ArchiveSubmission(
@@ -175,9 +176,7 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     assert manifest["total_bytes"] == submission.archive_total_bytes
     assert len(manifest["parts"]) == submission.archive_part_count
 
-    part_uploads = [
-        call for call in upload_calls if "archive-manifest.json" not in str(call["key"])
-    ]
+    part_uploads = [call for call in upload_calls if "archive-manifest.json" not in str(call["key"])]
     assert part_uploads
     for upload in part_uploads:
         metadata = upload["metadata"]

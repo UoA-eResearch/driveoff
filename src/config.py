@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     activescale_retry_attempts: int = 2
     activescale_upload_timeout: int = 120
     log_level: str = "INFO"
+    log_to_file_enabled: bool = False
+    log_file_path: str = "logs/driveoff.log"
+    log_file_rotation_when: str = "midnight"
+    log_file_rotation_interval: int = 1
+    log_file_backup_count: int = 14
     projectdb_base_url: str = ""
     projectdb_api_key: str = ""
     smb_drive_base_path: str = ""

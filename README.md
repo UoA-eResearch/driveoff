@@ -30,6 +30,13 @@ Notifications:
 - Alerts are best-effort only; notification failures are logged and do not affect the job result.
 - In non-production modes, alerts are prefixed with the mode name so they are easy to distinguish.
 
+File logging:
+- Enable rotating file logs with `log_to_file_enabled=true`.
+- Set `log_file_path` to a local or mounted-volume path (for example `/mnt/driveoff-logs/driveoff.log`).
+- Rotation is configured with `log_file_rotation_when` and `log_file_rotation_interval` (defaults: `midnight`, `1`).
+- Retention is controlled by `log_file_backup_count` (default: `14` rotated files).
+- File logging setup is best-effort; if file handler setup fails, logging continues to stdout.
+
 Linux note for SMB archive jobs:
 - If `SMB_DRIVE_BASE_PATH` is configured as a UNC path (for example `//server/share`), set `SMB_LINUX_MOUNT_BASE_PATH` to the local CIFS mount parent (for example `/mnt`).
 - Drive paths are then resolved as `<SMB_LINUX_MOUNT_BASE_PATH>/<drive_name>` for bagit/RO-Crate filesystem operations.
