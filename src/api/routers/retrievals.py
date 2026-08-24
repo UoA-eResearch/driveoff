@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, status
@@ -21,6 +20,7 @@ from models.retrieval import (
     RetrievalJobStage,
 )
 from models.submission import ArchiveJobStage
+from utils import utc_now
 from utils.logging import log_event
 from utils.paths import validate_destination_path
 from workers.retrieval_worker import run_archive_retrieval
@@ -139,7 +139,7 @@ def create_retrieval(
             detail="Archive submission record is missing ID.",
         )
 
-    now = datetime.now()
+    now = utc_now()
     retrieval = ArchiveRetrieval(
         drive_name=drive_name,
         submission_id=submission.id,
@@ -266,7 +266,7 @@ def patch_retrieval(
     for field, value in update_data.items():
         setattr(retrieval, field, value)
 
-    now = datetime.now()
+    now = utc_now()
     retrieval.last_updated_timestamp = now
     if "stage" in update_data:
         if retrieval.stage == RetrievalJobStage.COMPLETED and retrieval.completed_timestamp is None:

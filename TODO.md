@@ -45,7 +45,7 @@ Findings from a codebase review (2026-08-24), ordered roughly by priority within
 - [ ] Consistent upstream error handling: `create_submission` does not wrap `get_research_drive_by_name` in the RequestException-to-502 handling that drives.py has, so ProjectDB being down surfaces as 500 from one endpoint and 502 from another.
 - [ ] `_resolve_project_id` silently ignores a supplied `project_id` when the drive has exactly one project; `/driveinfo` silently picks the first project for multi-project drives while submission demands disambiguation. Align these behaviours.
 - [ ] `archive_file_key` ends up storing the manifest key, duplicating `archive_manifest_key` - rename or remove.
-- [ ] Standardise on timezone-aware UTC datetimes: DB timestamps use naive local `datetime.now()` while retention maths is UTC-aware.
+- [x] Standardise on timezone-aware UTC datetimes: DB timestamps use naive local `datetime.now()` while retention maths is UTC-aware. DONE (2026-08-24): all timestamp creation goes through a shared `utc_now()` helper (`utils/__init__.py`) returning timezone-aware UTC - routers, workers, reconciliation, log timing, and RO-Crate retention fallbacks. Note: SQLite stores datetimes without the offset, so values read back from the database are naive but always represent UTC. Existing dev database rows written before this change hold local times; not worth migrating pre-production, but wipe dev DBs if the ~12h NZ offset causes confusion.
 - [ ] Threadpool starvation risk: sync endpoints and sync background tasks share the same threadpool, and a retrieval can hold a thread for up to 24 hours in its restore-polling loop. The existing "one job at a time" TODO item would largely address this.
 
 ### Tests

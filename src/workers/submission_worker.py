@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,7 @@ from service.activescale import (
 from service.notifications import notify_job_result
 from service.projectdb_client import ProjectDBClient
 from service.projectdb_helpers import filter_member_identities, get_project_owner_emails
+from utils import utc_now
 from utils.logging import elapsed_ms, log_event
 from utils.paths import resolve_archive_output_location, resolve_drive_path_for_archive
 from workers import parse_part_keys_json
@@ -95,7 +96,7 @@ def _persist_uploaded_part_keys(
     """Persist uploaded part key progress so the objects written by a run
     (including a failed one) can be identified by operators."""
     submission.archive_part_keys_json = json.dumps(uploaded_keys)
-    submission.last_updated_timestamp = datetime.now()
+    submission.last_updated_timestamp = utc_now()
     session.add(submission)
     session.commit()
 
@@ -278,7 +279,7 @@ def _build_archive_object_metadata(
         "retention_period_years": str(submission.retention_period_years) or "Unknown",
         "review_date": (
             calculate_retention_end_date(
-                datetime.now(),
+                utc_now(),
                 submission.retention_period_years,
             )
             if submission.retention_period_years is not None
@@ -311,7 +312,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
         projectdb_client: Client for interacting with ProjectDB
     """
     drive_name = drive.get("name", None)
-    started_at = datetime.now()
+    started_at = utc_now()
     if drive_name is None:
         log_event(
             logging.ERROR,
@@ -344,7 +345,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Transition: queued → packaging
             previous_stage = submission.stage
             submission.stage = ArchiveJobStage.PACKAGING
-            submission.last_updated_timestamp = datetime.now()
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -455,7 +456,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     retry_count=submission.retry_count,
                 )
             submission.archive_part_keys_json = "[]"
-            submission.last_updated_timestamp = datetime.now()
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -495,7 +496,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Transition: packaging → uploading
             previous_stage = submission.stage
             submission.stage = ArchiveJobStage.UPLOADING
-            submission.last_updated_timestamp = datetime.now()
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -525,7 +526,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Compute the object retention date once for all objects in this job.
             retain_until: datetime | None = None
             if settings.activescale_enable_object_retention:
-                now_utc = datetime.now(tz=UTC)
+                now_utc = utc_now()
                 if settings.activescale_retention_override_days is not None:
                     retain_until = now_utc + timedelta(days=settings.activescale_retention_override_days)
                 else:
@@ -565,7 +566,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     # Transition: uploading -> writing_manifest
                     previous_stage = submission.stage
                     submission.stage = ArchiveJobStage.WRITING_MANIFEST
-                    submission.last_updated_timestamp = datetime.now()
+                    submission.last_updated_timestamp = utc_now()
                     session.add(submission)
                     session.commit()
 
@@ -609,7 +610,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Transition: uploading → cleanup
             previous_stage = submission.stage
             submission.stage = ArchiveJobStage.CLEANUP
-            submission.last_updated_timestamp = datetime.now()
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -630,7 +631,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             submission.cleanup_error = cleanup_error
 
             # Update submission record with upload result
-            now = datetime.now()
+            now = utc_now()
             if upload_success:
                 submission.stage = ArchiveJobStage.COMPLETED
                 submission.failure_reason = None
@@ -711,7 +712,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
         except Exception as e:  # pylint: disable=broad-exception-caught
             processing_error = str(e)
             if submission is not None:
-                now = datetime.now()
+                now = utc_now()
 
                 # Transition to cleanup before final failed state.
                 previous_stage = submission.stage

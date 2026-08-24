@@ -12,6 +12,7 @@ from typing import Any
 from asgi_correlation_id import correlation_id
 
 from config import get_settings
+from utils import utc_now
 
 logger = logging.getLogger(__name__)
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
@@ -104,5 +105,5 @@ def log_event(
 
 
 def elapsed_ms(started_at: datetime) -> int:
-    """Compute elapsed milliseconds from a start timestamp."""
-    return int((datetime.now() - started_at).total_seconds() * 1000)
+    """Compute elapsed milliseconds from a start timestamp (UTC-aware, from utc_now)."""
+    return int((utc_now() - started_at).total_seconds() * 1000)

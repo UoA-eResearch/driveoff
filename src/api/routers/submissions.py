@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 import requests
@@ -23,6 +22,7 @@ from models.submission import (
     ArchiveSubmission,
 )
 from service.projectdb_client import ProjectDBClient
+from utils import utc_now
 from utils.logging import log_event
 from utils.paths import validate_archive_path_access
 from workers.submission_worker import generate_ro_crate
@@ -128,7 +128,7 @@ def _upsert_submission(
             data_classification=request.data_classification,
         )
 
-    now = datetime.now()
+    now = utc_now()
     submission.stage = ArchiveJobStage.QUEUED
     submission.started_timestamp = now
     submission.last_updated_timestamp = now
@@ -360,7 +360,7 @@ def retry_submission(
     except (FileNotFoundError, PermissionError, RuntimeError) as e:
         raise _as_bad_request_for_archive_path(drive_name, e) from e
 
-    now = datetime.now()
+    now = utc_now()
     submission.stage = ArchiveJobStage.QUEUED
     submission.failure_reason = None
     submission.failed_timestamp = None
@@ -498,13 +498,13 @@ def patch_submission(
         if hasattr(submission, field):
             setattr(submission, field, value)
 
-    submission.last_updated_timestamp = datetime.now()
+    submission.last_updated_timestamp = utc_now()
 
     if submission.stage == ArchiveJobStage.COMPLETED:
-        submission.completed_timestamp = datetime.now()
+        submission.completed_timestamp = utc_now()
         submission.failed_timestamp = None
     elif submission.stage == ArchiveJobStage.FAILED:
-        submission.failed_timestamp = datetime.now()
+        submission.failed_timestamp = utc_now()
         submission.completed_timestamp = None
     else:
         submission.completed_timestamp = None
