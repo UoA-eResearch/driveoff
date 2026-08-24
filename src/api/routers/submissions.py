@@ -175,6 +175,7 @@ def _as_bad_request_for_archive_path(
     responses={
         400: {"model": ErrorResponse, "description": "Invalid submission request"},
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {"model": ErrorResponse, "description": "Drive or project not found"},
         409: {
             "model": ErrorResponse,
@@ -299,6 +300,7 @@ def create_submission(
     response_model=CreateSubmissionResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {"model": ErrorResponse, "description": "No submission found for drive"},
         409: {
             "model": ErrorResponse,
@@ -406,6 +408,7 @@ def retry_submission(
     response_model=SubmissionResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
             "description": "No archive submission found for drive",
@@ -439,6 +442,7 @@ def get_submission(
     dependencies=[Depends(require_worker_patch_endpoints_enabled)],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
             "description": "No archive submission found for drive, or worker PATCH endpoints are disabled",

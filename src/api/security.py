@@ -72,9 +72,13 @@ def validate_api_key(
 
 
 def validate_permissions(action: HttpAction, key: ApiKey) -> None:
-    """Validate that an API key has permission for the given action."""
+    """Validate that an API key has permission for the given action.
+
+    Raises 403 (not 401): the key authenticated successfully but is not
+    authorised for this action.
+    """
     if action not in key.actions:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=f"API Key does not have {action} rights.",
         )

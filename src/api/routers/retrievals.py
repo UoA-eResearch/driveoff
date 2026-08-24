@@ -35,6 +35,7 @@ router = APIRouter(tags=["retrievals"])
     responses={
         400: {"model": ErrorResponse, "description": "Invalid retrieval request"},
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
             "description": "No completed archive submission found for drive",
@@ -180,6 +181,7 @@ def create_retrieval(
     response_model=list[RetrievalResponse],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
             "description": "No archive retrieval jobs found for drive",
@@ -225,6 +227,7 @@ def get_retrievals(
     dependencies=[Depends(require_worker_patch_endpoints_enabled)],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
             "description": "Retrieval job not found, or worker PATCH endpoints are disabled",

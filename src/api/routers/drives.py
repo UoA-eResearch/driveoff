@@ -30,6 +30,7 @@ router = APIRouter(tags=["driveinfo"])
     response_model=DriveInfoResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {"model": ErrorResponse, "description": "Drive or project not found"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },

@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     log_file_rotation_interval: int = 1
     log_file_backup_count: int = 14
     projectdb_base_url: str = ""
-    projectdb_api_key: str = ""
+    projectdb_api_key: SecretStr | None = None
     smb_drive_base_path: str = ""
     # Required on Linux: local parent mount path that contains per-drive folders.
     # Example: if drive is mounted at /mnt/<drive_name>, set to /mnt

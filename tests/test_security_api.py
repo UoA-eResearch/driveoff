@@ -80,7 +80,8 @@ def test_query_param_api_key_not_accepted(client: TestClient) -> None:
 
 
 def test_key_without_action_permission_is_rejected(client: TestClient) -> None:
-    """A valid key lacking the required action is rejected before any work."""
+    """A valid key lacking the required action gets 403 (authenticated but
+    not authorised), distinct from the 401 for a missing/invalid key."""
     _install_known_key(["GET"])
     bare = TestClient(app)
     response = bare.post(
@@ -92,7 +93,7 @@ def test_key_without_action_permission_is_rejected(client: TestClient) -> None:
         },
         headers={"x-api-key": _KEY_VALUE},
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
     assert "does not have POST rights" in response.json()["detail"]
 
 
