@@ -2,9 +2,9 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateRetrievalApiV1RetrievalDriveNamePostData, CreateRetrievalApiV1RetrievalDriveNamePostErrors, CreateRetrievalApiV1RetrievalDriveNamePostResponses, CreateSubmissionApiV1SubmissionPostData, CreateSubmissionApiV1SubmissionPostErrors, CreateSubmissionApiV1SubmissionPostResponses, GetDriveInfoApiV1DriveinfoGetData, GetDriveInfoApiV1DriveinfoGetErrors, GetDriveInfoApiV1DriveinfoGetResponses, GetRetrievalApiV1RetrievalDriveNameGetData, GetRetrievalApiV1RetrievalDriveNameGetErrors, GetRetrievalApiV1RetrievalDriveNameGetResponses, GetSubmissionApiV1SubmissionGetData, GetSubmissionApiV1SubmissionGetErrors, GetSubmissionApiV1SubmissionGetResponses, PatchRetrievalApiV1RetrievalRetrievalIdPatchData, PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors, PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses, PatchSubmissionApiV1SubmissionDriveNamePatchData, PatchSubmissionApiV1SubmissionDriveNamePatchErrors, PatchSubmissionApiV1SubmissionDriveNamePatchResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostData, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses } from './types.gen';
+import type { CreateRetrievalApiV1RetrievalDriveNamePostData, CreateRetrievalApiV1RetrievalDriveNamePostErrors, CreateRetrievalApiV1RetrievalDriveNamePostResponses, CreateSubmissionApiV1SubmissionPostData, CreateSubmissionApiV1SubmissionPostErrors, CreateSubmissionApiV1SubmissionPostResponses, GetDriveInfoApiV1DriveinfoGetData, GetDriveInfoApiV1DriveinfoGetErrors, GetDriveInfoApiV1DriveinfoGetResponses, GetRetrievalApiV1RetrievalDriveNameGetData, GetRetrievalApiV1RetrievalDriveNameGetErrors, GetRetrievalApiV1RetrievalDriveNameGetResponses, GetSubmissionApiV1SubmissionGetData, GetSubmissionApiV1SubmissionGetErrors, GetSubmissionApiV1SubmissionGetResponses, PatchRetrievalApiV1RetrievalRetrievalIdPatchData, PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors, PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses, PatchSubmissionApiV1SubmissionSubmissionIdPatchData, PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors, PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostData, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses } from './types.gen';
 
-export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
+export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
      * You can provide a client instance returned by `createClient()` instead of
      * individual options. This might be also useful if you want to implement a
@@ -27,11 +27,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  * and returns combined info including members and codes.
  */
 export const getDriveInfoApiV1DriveinfoGet = <ThrowOnError extends boolean = false>(options: Options<GetDriveInfoApiV1DriveinfoGetData, ThrowOnError>) => (options.client ?? client).get<GetDriveInfoApiV1DriveinfoGetResponses, GetDriveInfoApiV1DriveinfoGetErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/driveinfo',
     ...options
 });
@@ -42,11 +38,7 @@ export const getDriveInfoApiV1DriveinfoGet = <ThrowOnError extends boolean = fal
  * Retrieve archive submission record for a research drive.
  */
 export const getSubmissionApiV1SubmissionGet = <ThrowOnError extends boolean = false>(options: Options<GetSubmissionApiV1SubmissionGetData, ThrowOnError>) => (options.client ?? client).get<GetSubmissionApiV1SubmissionGetResponses, GetSubmissionApiV1SubmissionGetErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/submission',
     ...options
 });
@@ -60,11 +52,7 @@ export const getSubmissionApiV1SubmissionGet = <ThrowOnError extends boolean = f
  * and schedules RO-Crate generation as a background task.
  */
 export const createSubmissionApiV1SubmissionPost = <ThrowOnError extends boolean = false>(options: Options<CreateSubmissionApiV1SubmissionPostData, ThrowOnError>) => (options.client ?? client).post<CreateSubmissionApiV1SubmissionPostResponses, CreateSubmissionApiV1SubmissionPostErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/submission',
     ...options,
     headers: {
@@ -79,11 +67,7 @@ export const createSubmissionApiV1SubmissionPost = <ThrowOnError extends boolean
  * Retry a failed or abandoned archive job for a research drive.
  */
 export const retrySubmissionApiV1SubmissionDriveNameRetryPost = <ThrowOnError extends boolean = false>(options: Options<RetrySubmissionApiV1SubmissionDriveNameRetryPostData, ThrowOnError>) => (options.client ?? client).post<RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/submission/{drive_name}/retry',
     ...options
 });
@@ -93,18 +77,18 @@ export const retrySubmissionApiV1SubmissionDriveNameRetryPost = <ThrowOnError ex
  *
  * Partially update an archive submission record.
  *
- * This is intended for internal use by worker processes to report stage
- * transitions and progress. Only fields present in the request body are
- * applied; omitted fields are left unchanged. Timestamps are managed
- * server-side based on the resulting stage value.
+ * Reserved for the future split-worker architecture, where workers on a
+ * separate host report stage transitions and progress back to the API.
+ * Disabled (404) unless ``worker_patch_endpoints_enabled`` is set, since the
+ * current in-process workers write to the database directly.
+ *
+ * Only fields present in the request body are applied; omitted fields are
+ * left unchanged. Timestamps are managed server-side based on the resulting
+ * stage value.
  */
-export const patchSubmissionApiV1SubmissionDriveNamePatch = <ThrowOnError extends boolean = false>(options: Options<PatchSubmissionApiV1SubmissionDriveNamePatchData, ThrowOnError>) => (options.client ?? client).patch<PatchSubmissionApiV1SubmissionDriveNamePatchResponses, PatchSubmissionApiV1SubmissionDriveNamePatchErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
-    url: '/api/v1/submission/{drive_name}',
+export const patchSubmissionApiV1SubmissionSubmissionIdPatch = <ThrowOnError extends boolean = false>(options: Options<PatchSubmissionApiV1SubmissionSubmissionIdPatchData, ThrowOnError>) => (options.client ?? client).patch<PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses, PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors, ThrowOnError>({
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
+    url: '/api/v1/submission/{submission_id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -118,11 +102,7 @@ export const patchSubmissionApiV1SubmissionDriveNamePatch = <ThrowOnError extend
  * Check if an archive retrieval job exists for the drive and return it.
  */
 export const getRetrievalApiV1RetrievalDriveNameGet = <ThrowOnError extends boolean = false>(options: Options<GetRetrievalApiV1RetrievalDriveNameGetData, ThrowOnError>) => (options.client ?? client).get<GetRetrievalApiV1RetrievalDriveNameGetResponses, GetRetrievalApiV1RetrievalDriveNameGetErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/retrieval/{drive_name}',
     ...options
 });
@@ -137,11 +117,7 @@ export const getRetrievalApiV1RetrievalDriveNameGet = <ThrowOnError extends bool
  * restore, download, and extract the archive into the destination.
  */
 export const createRetrievalApiV1RetrievalDriveNamePost = <ThrowOnError extends boolean = false>(options: Options<CreateRetrievalApiV1RetrievalDriveNamePostData, ThrowOnError>) => (options.client ?? client).post<CreateRetrievalApiV1RetrievalDriveNamePostResponses, CreateRetrievalApiV1RetrievalDriveNamePostErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/retrieval/{drive_name}',
     ...options,
     headers: {
@@ -155,18 +131,18 @@ export const createRetrievalApiV1RetrievalDriveNamePost = <ThrowOnError extends 
  *
  * Partially update an archive retrieval record.
  *
- * Intended for worker processes to report stage transitions and progress.
+ * Reserved for the future split-worker architecture, where workers on a
+ * separate host report stage transitions and progress back to the API.
+ * Disabled (404) unless ``worker_patch_endpoints_enabled`` is set, since the
+ * current in-process workers write to the database directly.
+ *
  * Only fields present in the request body are applied.  Timestamps are
  * managed server-side: last_updated_timestamp is always refreshed;
  * completed_timestamp and failed_timestamp are set automatically on the
  * corresponding stage transition.
  */
 export const patchRetrievalApiV1RetrievalRetrievalIdPatch = <ThrowOnError extends boolean = false>(options: Options<PatchRetrievalApiV1RetrievalRetrievalIdPatchData, ThrowOnError>) => (options.client ?? client).patch<PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses, PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors, ThrowOnError>({
-    security: [{
-            in: 'query',
-            name: 'api-key',
-            type: 'apiKey'
-        }, { name: 'x-api-key', type: 'apiKey' }],
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/retrieval/{retrieval_id}',
     ...options,
     headers: {

@@ -708,47 +708,52 @@ export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses = {
 
 export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponse = RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses[keyof RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses];
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchData = {
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchData = {
     body: PatchSubmissionRequest;
-    path?: never;
-    query: {
+    path: {
         /**
          * Submission Id
          */
         submission_id: number;
+    };
+    query?: {
         /**
          * Path
          */
         path?: string;
     };
-    url: '/api/v1/submission/{drive_name}';
+    url: '/api/v1/submission/{submission_id}';
 };
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchErrors = {
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors = {
     /**
      * Invalid or missing API key
      */
     401: ErrorResponse;
     /**
-     * No archive submission found for drive
+     * No archive submission found for drive, or worker PATCH endpoints are disabled
      */
     404: ErrorResponse;
+    /**
+     * Requested stage transition is not allowed
+     */
+    409: ErrorResponse;
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchError = PatchSubmissionApiV1SubmissionDriveNamePatchErrors[keyof PatchSubmissionApiV1SubmissionDriveNamePatchErrors];
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchError = PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors[keyof PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors];
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchResponses = {
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses = {
     /**
      * Successful Response
      */
     200: SubmissionResponse;
 };
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchResponse = PatchSubmissionApiV1SubmissionDriveNamePatchResponses[keyof PatchSubmissionApiV1SubmissionDriveNamePatchResponses];
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchResponse = PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses[keyof PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses];
 
 export type GetRetrievalApiV1RetrievalDriveNameGetData = {
     body?: never;
@@ -875,7 +880,7 @@ export type PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors = {
      */
     401: ErrorResponse;
     /**
-     * Retrieval job not found
+     * Retrieval job not found, or worker PATCH endpoints are disabled
      */
     404: ErrorResponse;
     /**

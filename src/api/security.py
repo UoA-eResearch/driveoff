@@ -6,12 +6,14 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, HTTPException, Security, status
-from fastapi.security import APIKeyHeader, APIKeyQuery
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 HttpAction = Literal["GET", "POST", "PUT", "PATCH"]
 
-_api_key_query = APIKeyQuery(name="api-key", auto_error=False)
+# API keys are accepted from the x-api-key header ONLY. Query-parameter keys
+# are deliberately not supported: query strings end up in request logs, proxy
+# logs, and browser history, which would leak the secret.
 _api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
 
 
@@ -47,13 +49,11 @@ def read_api_keys(path: Path = API_KEY_PATH) -> dict[str, ApiKey]:
 
 def validate_api_key(
     api_keys: dict[str, ApiKey] = Depends(read_api_keys, use_cache=True),
-    api_key_query: str = Security(_api_key_query),
     api_key_header: str = Security(_api_key_header),
 ) -> ApiKey:
-    """Retrieve and validate an API key from the query parameters or HTTP header.
+    """Retrieve and validate an API key from the x-api-key HTTP header.
 
     Args:
-        api_key_query: The API key passed as a query parameter.
         api_key_header: The API key passed in the HTTP header.
 
     Returns:
@@ -62,8 +62,6 @@ def validate_api_key(
     Raises:
         HTTPException: If the API key is invalid or missing.
     """
-    if key_info := api_keys.get(api_key_query):
-        return key_info
     if key_info := api_keys.get(api_key_header):
         return key_info
 

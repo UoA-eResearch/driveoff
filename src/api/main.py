@@ -7,6 +7,7 @@ import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from time import perf_counter
+from urllib.parse import parse_qsl, urlencode
 
 from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
 from fastapi import FastAPI, Request, Response
@@ -27,6 +28,21 @@ from utils.paths import validate_archive_path_configuration
 configure_logging()
 
 ENDPOINT_PREFIX = "/api/v1"
+
+# Query parameter names whose values must never appear in logs. API keys are
+# header-only, but a client may still (incorrectly) send one as a query
+# parameter and it must not leak into the request log.
+SENSITIVE_QUERY_PARAMS = frozenset({"api-key", "api_key", "x-api-key"})
+
+
+def _redact_query(query: str) -> str:
+    """Mask sensitive parameter values in a query string before logging."""
+    if not query:
+        return query
+    pairs = parse_qsl(query, keep_blank_values=True)
+    if not any(name.lower() in SENSITIVE_QUERY_PARAMS for name, _ in pairs):
+        return query
+    return urlencode([(name, "REDACTED" if name.lower() in SENSITIVE_QUERY_PARAMS else value) for name, value in pairs])
 
 
 @asynccontextmanager
@@ -119,7 +135,7 @@ async def request_logging_middleware(
             "api.unhandled_exception",
             method=request.method,
             path=request.url.path,
-            query=request.url.query,
+            query=_redact_query(request.url.query),
             route_name=route_name,
             client_host=client_host,
             request_id=request_id,
@@ -141,7 +157,7 @@ async def request_logging_middleware(
         "api.request.completed",
         method=request.method,
         path=request.url.path,
-        query=request.url.query,
+        query=_redact_query(request.url.query),
         route_name=route_name,
         status_code=response.status_code,
         client_host=client_host,
