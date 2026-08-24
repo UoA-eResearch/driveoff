@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import Any
 
 import requests
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Security, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, status
 from sqlmodel import Session, select
 
 from api.dependencies import ProjectDbDep, SessionDep
-from api.routers import _get_submission_or_404
+from api.routers import _get_submission_or_404, require_worker_patch_endpoints_enabled
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
 from models.request import CreateSubmissionRequest, PatchSubmissionRequest
@@ -436,11 +436,16 @@ def get_submission(
     "/submission/{submission_id}",
     status_code=status.HTTP_200_OK,
     response_model=SubmissionResponse,
+    dependencies=[Depends(require_worker_patch_endpoints_enabled)],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
         404: {
             "model": ErrorResponse,
-            "description": "No archive submission found for drive",
+            "description": "No archive submission found for drive, or worker PATCH endpoints are disabled",
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "Requested stage transition is not allowed",
         },
     },
 )
@@ -452,10 +457,14 @@ def patch_submission(
 ) -> SubmissionResponse:
     """Partially update an archive submission record.
 
-    This is intended for internal use by worker processes to report stage
-    transitions and progress. Only fields present in the request body are
-    applied; omitted fields are left unchanged. Timestamps are managed
-    server-side based on the resulting stage value.
+    Reserved for the future split-worker architecture, where workers on a
+    separate host report stage transitions and progress back to the API.
+    Disabled (404) unless ``worker_patch_endpoints_enabled`` is set, since the
+    current in-process workers write to the database directly.
+
+    Only fields present in the request body are applied; omitted fields are
+    left unchanged. Timestamps are managed server-side based on the resulting
+    stage value.
     """
     validate_permissions("PATCH", api_key)
 
@@ -466,7 +475,22 @@ def patch_submission(
             detail=f"No archive submission found with id {submission_id}.",
         )
 
-    for field, value in patch.model_dump(exclude_unset=True).items():
+    update_data = patch.model_dump(exclude_unset=True)
+
+    # A submission may only be marked COMPLETED if the resulting record has a
+    # manifest key: without one there is no retrievable archive behind it.
+    resulting_stage = update_data.get("stage", submission.stage)
+    resulting_manifest_key = update_data.get("archive_manifest_key", submission.archive_manifest_key)
+    if resulting_stage == ArchiveJobStage.COMPLETED and not resulting_manifest_key:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Submission {submission_id} cannot be marked completed without an archive_manifest_key."
+                " A completed archive must have an uploaded manifest."
+            ),
+        )
+
+    for field, value in update_data.items():
         if hasattr(submission, field):
             setattr(submission, field, value)
 

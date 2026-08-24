@@ -6,11 +6,11 @@ import logging
 from datetime import datetime
 from typing import Any, cast
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Security, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, status
 from sqlmodel import select
 
 from api.dependencies import SessionDep
-from api.routers import _get_submission_or_404
+from api.routers import _get_submission_or_404, require_worker_patch_endpoints_enabled
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
 from models.request import CreateRetrievalRequest, PatchRetrievalRequest
@@ -196,9 +196,13 @@ def get_retrieval(
     "/retrieval/{retrieval_id}",
     status_code=status.HTTP_200_OK,
     response_model=RetrievalResponse,
+    dependencies=[Depends(require_worker_patch_endpoints_enabled)],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
-        404: {"model": ErrorResponse, "description": "Retrieval job not found"},
+        404: {
+            "model": ErrorResponse,
+            "description": "Retrieval job not found, or worker PATCH endpoints are disabled",
+        },
         422: {"description": "Validation error"},
     },
 )
@@ -210,7 +214,11 @@ def patch_retrieval(
 ) -> RetrievalResponse:
     """Partially update an archive retrieval record.
 
-    Intended for worker processes to report stage transitions and progress.
+    Reserved for the future split-worker architecture, where workers on a
+    separate host report stage transitions and progress back to the API.
+    Disabled (404) unless ``worker_patch_endpoints_enabled`` is set, since the
+    current in-process workers write to the database directly.
+
     Only fields present in the request body are applied.  Timestamps are
     managed server-side: last_updated_timestamp is always refreshed;
     completed_timestamp and failed_timestamp are set automatically on the

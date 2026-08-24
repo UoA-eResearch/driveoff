@@ -79,6 +79,12 @@ class Settings(BaseSettings):
     # Notifications
     notifications_enabled: bool = False
     notifications_slack_webhook_url: SecretStr | None = None
+    # Worker PATCH endpoints (PATCH /submission/{id}, PATCH /retrieval/{id}).
+    # Reserved for the future split-worker architecture where workers run on a
+    # separate host and report job stage transitions back over the API. Until
+    # then the in-process workers write to the database directly, so these
+    # endpoints are disabled by default and return 404.
+    worker_patch_endpoints_enabled: bool = False
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 

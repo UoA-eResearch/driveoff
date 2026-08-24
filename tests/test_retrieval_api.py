@@ -8,6 +8,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
+from api.main import app
+from api.routers import require_worker_patch_endpoints_enabled
 from models.common import DataClassification
 from models.retrieval import (
     ACTIVE_RETRIEVAL_STAGES,
@@ -542,6 +544,23 @@ def test_patch_retrieval_404_when_not_found(
     )
     assert response.status_code == 404
     assert "No retrieval job found" in response.json()["detail"]
+
+
+def test_patch_retrieval_disabled_returns_404(
+    client: TestClient,
+    session: Session,
+    queued_retrieval: ArchiveRetrieval,
+) -> None:
+    """With worker_patch_endpoints_enabled off (the default), PATCH is hidden."""
+    # Remove the conftest override so the real guard runs with default settings.
+    del app.dependency_overrides[require_worker_patch_endpoints_enabled]
+    response = client.patch(
+        f"/api/v1/retrieval/{queued_retrieval.id}",
+        json={"stage": RetrievalJobStage.RESTORING.value},
+    )
+    assert response.status_code == 404
+    session.refresh(queued_retrieval)
+    assert queued_retrieval.stage == RetrievalJobStage.QUEUED
 
 
 def test_patch_retrieval_returns_full_response_model(

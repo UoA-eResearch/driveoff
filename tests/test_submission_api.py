@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from api.main import app
+from api.routers import require_worker_patch_endpoints_enabled
 from models.submission import ArchiveJobStage, ArchiveSubmission
 from service.projectdb import get_projectdb_client
 
@@ -378,6 +379,7 @@ def test_patch_submission_sets_completed_timestamp(
     submission: ArchiveSubmission,
 ) -> None:
     """Transitioning to COMPLETED sets completed_timestamp and clears failed_timestamp."""
+    submission.archive_manifest_key = "restst000000001-testing/archive-manifest.json"
     session.add(submission)
     session.commit()
 
@@ -389,6 +391,67 @@ def test_patch_submission_sets_completed_timestamp(
     session.refresh(submission)
     assert submission.completed_timestamp is not None
     assert submission.failed_timestamp is None
+
+
+def test_patch_submission_rejects_completed_without_manifest_key(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """A submission with no manifest key cannot be marked COMPLETED."""
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.COMPLETED.value},
+    )
+    assert response.status_code == 409
+    assert "archive_manifest_key" in response.json()["detail"]
+    session.refresh(submission)
+    assert submission.stage != ArchiveJobStage.COMPLETED
+    assert submission.completed_timestamp is None
+
+
+def test_patch_submission_allows_completed_with_manifest_key_in_patch(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Supplying the manifest key in the same PATCH satisfies the COMPLETED guard."""
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={
+            "stage": ArchiveJobStage.COMPLETED.value,
+            "archive_manifest_key": "restst000000001-testing/archive-manifest.json",
+        },
+    )
+    assert response.status_code == 200
+    session.refresh(submission)
+    assert submission.stage == ArchiveJobStage.COMPLETED
+
+
+def test_patch_submission_disabled_returns_404(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """With worker_patch_endpoints_enabled off (the default), PATCH is hidden."""
+    session.add(submission)
+    session.commit()
+
+    # Remove the conftest override so the real guard runs with default settings.
+    del app.dependency_overrides[require_worker_patch_endpoints_enabled]
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.UPLOADING.value},
+    )
+    assert response.status_code == 404
+    session.refresh(submission)
+    assert submission.stage != ArchiveJobStage.UPLOADING
 
 
 def test_patch_submission_sets_failed_timestamp(
