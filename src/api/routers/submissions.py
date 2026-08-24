@@ -198,6 +198,10 @@ def create_submission(
 ) -> CreateSubmissionResponse:
     """Create a new archive submission for a research drive.
 
+    Precondition: all researcher access to the drive must already be removed
+    (an operational step performed outside this API), so the drive contents
+    are frozen for the duration of the archive job.
+
     Validates drive exists in ProjectDB, resolves project_id if needed,
     and schedules RO-Crate generation as a background task.
     """
@@ -317,7 +321,11 @@ def retry_submission(
     api_key: ApiKey = Security(validate_api_key),
     force: bool = False,
 ) -> CreateSubmissionResponse:  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    """Retry a failed or abandoned archive job for a research drive."""
+    """Retry a failed or abandoned archive job for a research drive.
+
+    The same precondition as submission applies: researcher access to the
+    drive must still be removed, so the drive remains a frozen snapshot.
+    """
     validate_permissions("POST", api_key)
 
     submission = _get_submission_or_404(session, drive_name)

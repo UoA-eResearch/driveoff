@@ -82,7 +82,17 @@ async def lifespan(app_instance: FastAPI) -> AsyncGenerator[None]:
     engine.dispose()
 
 
-app = FastAPI(lifespan=lifespan, title="Research Drive Archive API", version="1.0.0")
+app = FastAPI(
+    lifespan=lifespan,
+    title="Research Drive Archive API",
+    version="1.0.0",
+    description=(
+        "API for archiving research drives to long-term storage and retrieving archived data.\n\n"
+        "**Archive workflow precondition:** all researcher access to a drive must be removed "
+        "before an archive submission is made for it (an operational step performed outside "
+        "this API). The drive is treated as a frozen snapshot for the duration of the archive job."
+    ),
+)
 app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
 
 

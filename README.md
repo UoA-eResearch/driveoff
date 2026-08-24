@@ -1,6 +1,9 @@
 # driveoff
 Prototype for research drive offboarding and archiving, from IDS team.
 
+## Archive workflow precondition: access freeze
+Before an archive job is submitted for a drive, all researcher access to that drive must be removed (an operational step performed outside driveoff). This means the drive is a frozen snapshot for the duration of the archive job, which several design assumptions rely on: file contents cannot change mid-job, and checksums reflect the archived state.
+
 ## Folder structure
 ```
     src - Namespace for Python packages
