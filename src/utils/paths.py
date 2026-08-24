@@ -48,30 +48,46 @@ def validate_archive_path_configuration() -> None:
     )
 
 
-def resolve_drive_path_for_archive(drive_name: str) -> Path:
-    """Resolve a filesystem path usable by bagit/rocrate for archive operations.
+def resolve_storage_base_path() -> Path:
+    """Return the local filesystem base under which the drive storage is accessed.
 
-    On Linux, UNC paths (//server/share) are not valid local filesystem targets.
-    In that case, require SMB_LINUX_MOUNT_BASE_PATH and resolve to:
-    <mount_base>/<drive_name>.
+    This is the Vast Data storage that hosts the research drives (and the only
+    place archive retrievals may extract into). On Windows, or when
+    SMB_DRIVE_BASE_PATH is already a local path, it is SMB_DRIVE_BASE_PATH
+    itself. On Linux, UNC paths (//server/share) are not valid local
+    filesystem targets, so SMB_LINUX_MOUNT_BASE_PATH (the CIFS mount parent)
+    is used instead.
+
+    Raises:
+        RuntimeError: if the relevant setting is not configured.
     """
     settings = get_settings()
     smb_base = settings.smb_drive_base_path.strip()
-    drive_path = Path(smb_base) / drive_name
-
-    if is_windows_runtime() or not str(drive_path).startswith("//"):
-        return drive_path
+    if is_windows_runtime() or not smb_base.startswith("//"):
+        if not smb_base:
+            raise RuntimeError("SMB_DRIVE_BASE_PATH is not configured.")
+        return Path(smb_base)
 
     mount_base = settings.smb_linux_mount_base_path.strip()
     if not mount_base:
         raise RuntimeError("SMB_LINUX_MOUNT_BASE_PATH is required on Linux when SMB_DRIVE_BASE_PATH is a UNC path.")
+    return Path(mount_base)
 
-    mounted_drive_path = Path(mount_base) / drive_name
-    if not mounted_drive_path.exists():
+
+def resolve_drive_path_for_archive(drive_name: str) -> Path:
+    """Resolve a filesystem path usable by bagit/rocrate for archive operations.
+
+    Resolves to <storage_base>/<drive_name> - see resolve_storage_base_path.
+    """
+    settings = get_settings()
+    smb_base = settings.smb_drive_base_path.strip()
+    drive_path = resolve_storage_base_path() / drive_name
+
+    if not is_windows_runtime() and smb_base.startswith("//") and not drive_path.exists():
         raise FileNotFoundError(
-            f"Configured mounted drive path does not exist: {mounted_drive_path}. Ensure the CIFS mount is available."
+            f"Configured mounted drive path does not exist: {drive_path}. Ensure the CIFS mount is available."
         )
-    return mounted_drive_path
+    return drive_path
 
 
 def validate_archive_path_access(drive_name: str) -> Path:
@@ -122,19 +138,43 @@ def resolve_archive_output_location(drive_name: str) -> Path:
 
 
 def validate_destination_path(destination_path: str) -> Path:
-    """Validate that a destination path for archive retrieval exists and is writable.
+    """Validate that a retrieval destination path is allowlisted, exists, and is writable.
 
-    Raises FileNotFoundError if the path does not exist or is not a directory,
-    and PermissionError if write access is denied.
+    Retrievals may only extract into the Vast Data storage that hosts the
+    research drives: the destination must resolve to a location under the base
+    returned by resolve_storage_base_path (SMB_DRIVE_BASE_PATH on Windows, or
+    SMB_LINUX_MOUNT_BASE_PATH on Linux where the SMB base is a UNC path). The
+    path is fully resolved first, so ``..`` segments and symlinks cannot
+    escape the allowed base.
+
+    Raises:
+        RuntimeError: if the storage base settings are not configured (fail closed).
+        PermissionError: if the path is relative, resolves outside the allowed
+            base, or write access is denied.
+        FileNotFoundError: if the path does not exist or is not a directory.
     """
+    try:
+        allowed_base = resolve_storage_base_path()
+    except RuntimeError as e:
+        raise RuntimeError(f"Retrieval destinations cannot be validated: {e}") from e
+
     dest = Path(destination_path)
-    if not dest.exists() or not dest.is_dir():
-        raise FileNotFoundError(f"Destination path does not exist or is not a directory: {dest}")
-    probe_file = dest / ".driveoff_dest_probe"
+    if not dest.is_absolute():
+        raise PermissionError(f"Destination path must be absolute: {dest}")
+
+    resolved = dest.resolve()
+    if not resolved.is_relative_to(allowed_base.expanduser().resolve()):
+        raise PermissionError(
+            f"Destination path {dest} is not within the allowed retrieval location. Allowed base: {allowed_base}"
+        )
+
+    if not resolved.exists() or not resolved.is_dir():
+        raise FileNotFoundError(f"Destination path does not exist or is not a directory: {resolved}")
+    probe_file = resolved / ".driveoff_dest_probe"
     try:
         with open(probe_file, "wb") as f:
             f.write(b"ok")
         probe_file.unlink(missing_ok=True)
     except Exception as e:
-        raise PermissionError(f"Cannot write to destination path {dest}: {e}") from e
-    return dest
+        raise PermissionError(f"Cannot write to destination path {resolved}: {e}") from e
+    return resolved

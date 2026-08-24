@@ -57,7 +57,8 @@ def create_retrieval(
     """Schedule an archive retrieval job for a research drive.
 
     Validates that a completed archive exists for the drive and that the
-    destination path is accessible, then schedules a background task to
+    destination path is within an allowlisted retrieval location (the Vast
+    Data storage mount) and writable, then schedules a background task to
     restore, download, and extract the archive into the destination.
     """
     validate_permissions("POST", api_key)
@@ -99,7 +100,7 @@ def create_retrieval(
             ),
         )
 
-    # 3. Validate the destination path exists and is writable.
+    # 3. Validate the destination path is allowlisted, exists, and is writable.
     try:
         validate_destination_path(request.destination_path)
     except (FileNotFoundError, PermissionError) as e:
@@ -114,6 +115,20 @@ def create_retrieval(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Destination path validation failed: {e}",
+        ) from e
+    except RuntimeError as e:
+        # Missing allowlist configuration is a server-side problem, not a
+        # client error; fail closed until the allowlist is configured.
+        log_event(
+            logging.ERROR,
+            "retrieval.destination_allowlist_not_configured",
+            drive_name=drive_name,
+            destination_path=request.destination_path,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
         ) from e
 
     # 4. Create the retrieval record.

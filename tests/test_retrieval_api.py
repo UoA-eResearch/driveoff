@@ -357,6 +357,73 @@ def test_create_retrieval_400_when_destination_not_writable(
 # ---------------------------------------------------------------------------
 
 
+def test_create_retrieval_201_for_allowlisted_destination(
+    client: TestClient,
+    completed_submission: ArchiveSubmission,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """End-to-end: a real (unpatched) validation passes for a destination
+    under the drive storage base."""
+    from config import get_settings
+
+    base = tmp_path / "vast"
+    dest = base / _DRIVE_NAME
+    dest.mkdir(parents=True)
+    monkeypatch.setattr(get_settings(), "smb_drive_base_path", str(base))
+
+    with patch("api.routers.retrievals.run_archive_retrieval"):
+        response = client.post(
+            f"/api/v1/retrieval/{_DRIVE_NAME}",
+            json={"destination_path": str(dest)},
+        )
+    assert response.status_code == 201
+
+
+def test_create_retrieval_400_when_destination_outside_allowlist(
+    client: TestClient,
+    completed_submission: ArchiveSubmission,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A destination outside the drive storage base is rejected with 400."""
+    from config import get_settings
+
+    base = tmp_path / "vast"
+    base.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    monkeypatch.setattr(get_settings(), "smb_drive_base_path", str(base))
+
+    response = client.post(
+        f"/api/v1/retrieval/{_DRIVE_NAME}",
+        json={"destination_path": str(outside)},
+    )
+    assert response.status_code == 400
+    assert "not within the allowed retrieval location" in response.json()["detail"]
+
+
+def test_create_retrieval_500_when_allowlist_not_configured(
+    client: TestClient,
+    completed_submission: ArchiveSubmission,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """With no drive storage base configured, retrieval requests fail closed with 500."""
+    from config import get_settings
+
+    dest = tmp_path / "anywhere"
+    dest.mkdir()
+    monkeypatch.setattr(get_settings(), "smb_drive_base_path", "")
+
+    response = client.post(
+        f"/api/v1/retrieval/{_DRIVE_NAME}",
+        json={"destination_path": str(dest)},
+    )
+    assert response.status_code == 500
+    assert "SMB_DRIVE_BASE_PATH is not configured" in response.json()["detail"]
+
+
 def test_create_retrieval_422_when_destination_path_missing(
     client: TestClient,
     session: Session,

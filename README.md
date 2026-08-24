@@ -37,6 +37,11 @@ File logging:
 - Retention is controlled by `log_file_backup_count` (default: `14` rotated files).
 - File logging setup is best-effort; if file handler setup fails, logging continues to stdout.
 
+Retrieval destination allowlist:
+- Archive retrievals may only extract into a path under the drive storage base - the same Vast Data storage that hosts the research drives. The allowed base is derived from the existing settings: `SMB_DRIVE_BASE_PATH` on Windows (or when it is a local path), and `SMB_LINUX_MOUNT_BASE_PATH` on Linux when the SMB base is a UNC path.
+- If the relevant setting is not configured, retrieval requests are rejected (fail closed).
+- Destination paths are fully resolved before the check, so `..` segments and symlinks cannot escape the allowed base.
+
 Linux note for SMB archive jobs:
 - If `SMB_DRIVE_BASE_PATH` is configured as a UNC path (for example `//server/share`), set `SMB_LINUX_MOUNT_BASE_PATH` to the local CIFS mount parent (for example `/mnt`).
 - Drive paths are then resolved as `<SMB_LINUX_MOUNT_BASE_PATH>/<drive_name>` for bagit/RO-Crate filesystem operations.
