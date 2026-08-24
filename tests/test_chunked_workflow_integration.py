@@ -139,10 +139,6 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fake_upload)
     monkeypatch.setattr(
-        "workers.submission_worker.object_exists",
-        lambda *_args, **_kwargs: (False, None),
-    )
-    monkeypatch.setattr(
         "workers.submission_worker.verify_uploaded_part_size",
         lambda *_args, **_kwargs: True,
     )
@@ -210,11 +206,18 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     ]
 
 
-def test_generate_ro_crate_resumes_after_interrupted_part_upload(
+def test_generate_ro_crate_retry_reuploads_all_parts_after_failure(
     tmp_path: Path,
     monkeypatch,
     test_engine: Engine,
 ) -> None:
+    """A retry rebuilds the tar stream, so it must re-upload EVERY part.
+
+    Parts are byte-slices of a single gzip stream; skipping parts uploaded by
+    a previous attempt would mix slices of two different streams and corrupt
+    the archive (regression test for the part-mixing bug). The retry must
+    also replace the stale persisted part keys with the new run's keys.
+    """
     drive_name = "resint000000002-testing"
     drive_path = tmp_path / drive_name
     drive_path.mkdir(parents=True, exist_ok=True)
@@ -287,10 +290,6 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
 
     monkeypatch.setattr("workers.submission_worker.upload_file", fail_on_second_part)
     monkeypatch.setattr(
-        "workers.submission_worker.object_exists",
-        lambda *_args, **_kwargs: (False, None),
-    )
-    monkeypatch.setattr(
         "workers.submission_worker.verify_uploaded_part_size",
         lambda *_args, **_kwargs: True,
     )
@@ -351,11 +350,6 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         lambda *_args, **_kwargs: True,
     )
 
-    def exists_if_previously_uploaded(_client, _bucket: str, key: str):
-        return (key in first_run_uploaded), None
-
-    monkeypatch.setattr("workers.submission_worker.object_exists", exists_if_previously_uploaded)
-
     generate_ro_crate(
         drive={"id": 1, "name": drive_name},
         submission_id=submission_id,
@@ -371,8 +365,15 @@ def test_generate_ro_crate_resumes_after_interrupted_part_upload(
         assert submission.archive_part_count is not None
         assert len(final_part_keys) == submission.archive_part_count
 
-    # Resume should not re-upload first successfully uploaded part.
-    assert all(key not in first_run_uploaded for key in second_run_uploaded if "part-00001" in key)
+        # The stale key from the first attempt was replaced, not appended to:
+        # every persisted key corresponds to a part uploaded by the second run.
+        assert set(final_part_keys) <= set(second_run_uploaded)
+
+    # The retry re-uploaded every part of the rebuilt stream, including the
+    # part the first attempt had already uploaded — no parts were skipped.
+    second_run_part_uploads = [key for key in second_run_uploaded if "archive-manifest.json" not in key]
+    assert first_run_uploaded <= set(second_run_part_uploads)
+    assert len(second_run_part_uploads) == len(final_part_keys)
     assert notifications[-1] == {
         "job_type": "submission",
         "status": "completed",

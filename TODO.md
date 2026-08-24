@@ -4,21 +4,15 @@
 - [ ] Add configurable limits for archive jobs (for example max files, max bytes, max runtime) and enforce them in backend checks. Especially once we know the limit of whatever the prod infrastructure will be.
 - [ ] Reassess background execution approach; replace FastAPI `BackgroundTasks` with a durable queue (such as Celery or RQ) if reliability requirements increase. OR make it so only one archiving job can be run at a time to avoid concurrency issues with the current implementation.
 
-
 ## Quality and Validation
-- [x] Improved object and Tar integrity checks (e.g. validate checksums of uploaded parts, verify manifest integrity, and ensure reassembled archive matches original input).
 - [ ] Add minimum metadata validation for the archive job (required fields are documented in the Wiki). This should be checked upfront in the API request validation so a job fails fast if there is missing metadata. Allow force flag to override this check if needed.
 - [ ] Validate generated RO-Crate output against the profile (follows on from the previous item). This should be done after the RO-Crate is generated, but before the archive is uploaded. If the RO-Crate fails validation, the job should fail and log an error message indicating what was invalid.
 - [ ] Ensure temp files are cleaned up properly from disk after a job completes or fails. Consider sdelete for permanent deletion of data.
 - [ ] Improve end-to-end tests that cover submission -> manifest -> RO-Crate build -> upload flow.
-- [ ] Question: should custom s3 metadata be added on every uploaded object/prat of the archive? Currently just the archive manifest object has the metadata added.
 
 ## Features and Enhancements
-- [x] Set retention policies on the stored archive objects to prevent accidental deletion, and ensure long-term preservation of the archived data.
-- [x] Convert this project to use uv and replace linting etc with Ruff
-- [ ] The ProjectDB now stores data retention and classification metadata (Storage Properties table). The archive submission workflow should be updated to use this metadata from ProjectDB instead of requiring it to be provided in the API request. If values are provided in the request, they should override the ProjectDB values (but not alter the values in the ProjectDB). If the retention and classification are incorect in the projectDB they can be updated via the ProjectDB API, but driveoff s not responsible for updating ProjectDB values.
+- [ ] The ProjectDB now stores data retention and classification metadata (Storage Properties table). The archive submission workflow could be updated to use this metadata from ProjectDB instead of requiring it to be provided in the API request. If values are provided in the request, they would take priority over the ProjectDB values (but not alter the values in the ProjectDB). If the retention and classification are incorrect in the projectDB they can be updated via the ProjectDB API, but driveoff is not responsible for updating ProjectDB values. Note: will require mapping between the projectdb retention string field (e.g. "6years") and the API's retention period in years.
 - [ ] Add workflow for deleting the original drive data after successful archive. Key steps would be: flagging the source data as ready for deletion, running a separate cleanup job that verifies the archive integrity, and verifies the object exists before deleting, and handling any edge cases (e.g. what if the archive is corrupted?). It would also need to retain a copy of the archive manifest, and location of the stored archive, in the research drive (the drives/views/shares themselves will not be deleted). This may be a completely separate workflow from the archiving process, OR could be triggered from the archive submission API endpoint by adding an additional parameter to indicate whether deletion should be performed after archiving - design decision needed.
-- [ ] Notifications module to send slack messages to admins when jobs complete or fail
 
 ## Infrastructure and Deployment
 - [ ] Update the ProjectDB to store the archive submission and retrieval records, instead of using local SQLite database.
@@ -26,4 +20,38 @@
 - [ ] Setup autofs for auto mount and unmount of drives (if we will use linux)
 - [ ] Setup secrets management service - investigate options (Barbican, AWS Parameter Store, Hashicorp Vault, etc.).
 - [ ] Following on from the above item, set up a better solution for storing and managing API keys for the driveoff service. Currently, the allowed keys are stored in a JSON file, but a more secure and manageable solution should be implemented (e.g. using a secrets management service or encrypted storage).
-- [ ] Setup a monitoring tool and external log aggregation - investigate options for logging to a durable store (e.g. file, database, or logging service) instead of just stdout for better traceability and debugging.
+- [ ] Setup a monitoring tool and external log aggregation - investigate options for logging to a durable store (e.g. file, database, or central logging service) instead of just stdout for better traceability and debugging.
+
+## Claude Review
+Findings from a codebase review (2026-08-24), ordered roughly by priority within each subsection.
+
+### Archive integrity
+- [x] Fix retry/part-mixing bug: archive parts are byte-slices of a single gzip stream, but a retry re-tars the drive (producing a byte-different stream) while `_upload_chunked_archive_parts` skips part keys persisted from the previous attempt if they exist in S3. The bucket can end up with a mix of old-stream and new-stream parts that can never reassemble, and COMPLIANCE-mode object lock means the bad parts cannot be deleted for years. FIXED (2026-08-24): stale part keys are now invalidated whenever the tar stream is rebuilt, every part of the new stream is re-uploaded (overwriting same-named objects), the upload loop iterates the authoritative part list from the current build instead of globbing the parts directory (so stale local part files from an interrupted run are ignored), and regression tests cover both scenarios. Cross-retry upload resume was removed as inherently unsafe with rebuilt streams; if re-upload cost becomes a problem, a future enhancement could preserve local parts on failure and verify checksums before reuse.
+- [ ] Document (or reconsider) the bag-in-place design: `bag_directory(drive_location)` restructures the source research drive in place and the RO-Crate metadata is written into it. A crash mid-bag leaves the drive half-restructured, and `bag.save(manifests=True)` on retry re-checksums the entire drive. If bag-in-place is intended, state it prominently in the README; either way this needs a deliberate design decision write-up.
+- [ ] Make the S3 upload timeout actually abort (or document that it does not): `upload_file` joins a non-daemon thread with a timeout and returns False, but the thread keeps uploading. A timed-out upload can complete later and race with a retry, and non-daemon threads can block process shutdown. Also note the config interaction: both mode files set `ARCHIVE_CHUNK_SIZE_BYTES` to ~50 TB (chunking effectively disabled) while `activescale_upload_timeout` defaults to 120s, which would time out any real upload.
+
+### Security
+- [ ] Stop accepting API keys as query parameters, or redact them from logs: the request logging middleware logs the full query string, so keyed requests via `?api-key=` write the secret into the logs. Prefer header-only auth.
+- [ ] Constrain retrieval `destination_path` to an allowlisted base directory: currently any POST-capable key can extract an archive (or write probe files) to any path the service account can write.
+- [ ] Remove or lock down the PATCH `/submission/{id}` and `/retrieval/{id}` endpoints: workers write to the DB directly, so these endpoints appear unused, yet they let any PATCH-capable key rewrite job lifecycle state (e.g. mark a submission COMPLETED with no archive).
+- [ ] Store `projectdb_api_key` as `SecretStr` in config.py (currently plain `str`, inconsistent with the Settings docstring convention).
+- [ ] Return 403 (not 401) when a valid key lacks permission for an action.
+- [ ] Note: `modes/.env.development` points development at the production ActiveScale endpoint; the 1-day retention override mitigates, but a config slip in dev writes compliance-locked objects to prod storage.
+
+### API and worker design
+- [ ] Fix `GET /retrieval/{drive_name}` ordering: `.first()` with no `order_by` returns an arbitrary (likely oldest) record once a drive has multiple retrievals. Order by id descending or return a list. The test named `test_get_retrieval_returns_most_recent_record` only inserts one record and does not test what its name claims.
+- [ ] Decide the fate of retrieval resume support: `retrieved_part_keys_json` is persisted per part, but the failure handler deletes the scratch directory, there is no retrieval retry endpoint, and startup reconciliation marks interrupted retrievals FAILED - so the resume state is never reused. Either add a retry endpoint that reuses the record and scratch space, or drop the machinery.
+- [ ] Consistent upstream error handling: `create_submission` does not wrap `get_research_drive_by_name` in the RequestException-to-502 handling that drives.py has, so ProjectDB being down surfaces as 500 from one endpoint and 502 from another.
+- [ ] `_resolve_project_id` silently ignores a supplied `project_id` when the drive has exactly one project; `/driveinfo` silently picks the first project for multi-project drives while submission demands disambiguation. Align these behaviours.
+- [ ] `archive_file_key` ends up storing the manifest key, duplicating `archive_manifest_key` - rename or remove.
+- [ ] Standardise on timezone-aware UTC datetimes: DB timestamps use naive local `datetime.now()` while retention maths is UTC-aware.
+- [ ] Threadpool starvation risk: sync endpoints and sync background tasks share the same threadpool, and a retrieval can hold a thread for up to 24 hours in its restore-polling loop. The existing "one job at a time" TODO item would largely address this.
+
+### Tests
+- [ ] Add auth tests: nothing exercises a missing/wrong API key (401) or an action the key lacks - security.py is the entire perimeter and it is untested.
+- [ ] Add a retry-after-failed-upload test that rebuilds the tar with changed bytes (regression for the part-mixing bug).
+- [ ] Add tests for `utils/paths.py` (16% coverage): the UNC/Linux mount resolution logic is platform-dependent and will be load-bearing on the deployment VM.
+- [ ] Add tests for `/driveinfo` (currently zero tests despite the conftest mock containing everything needed).
+- [ ] Add tests for startup job reconciliation (23% coverage): insert in-flight records and assert ABANDONED/FAILED transitions.
+- [ ] Add unit tests for the pure-logic S3 helpers: `initiate_object_restore` error-code branching and `is_object_ready_for_download` Restore-header parsing.
+- [ ] Trim low-value tests: the model-default suites (test_retrieval_model.py, test_submission_model.py, test_factories.py) mostly assert SQLModel defaults; the PATCH-endpoint suites can go if those endpoints are removed.

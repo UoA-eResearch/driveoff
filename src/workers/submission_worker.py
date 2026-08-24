@@ -25,7 +25,6 @@ from packaging.crate.ro_loader import ROLoader
 from packaging.manifests import bag_directory, bagit_exists, create_manifests_directory
 from service.activescale import (
     get_activescale_client_context,
-    object_exists,
     set_object_retention,
     upload_file,
     verify_uploaded_part_size,
@@ -93,7 +92,8 @@ def _persist_uploaded_part_keys(
     submission: ArchiveSubmission,
     uploaded_keys: list[str],
 ) -> None:
-    """Persist uploaded part key progress so retries can resume."""
+    """Persist uploaded part key progress so the objects written by a run
+    (including a failed one) can be identified by operators."""
     submission.archive_part_keys_json = json.dumps(uploaded_keys)
     submission.last_updated_timestamp = datetime.now()
     session.add(submission)
@@ -113,11 +113,15 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     metadata: dict[str, str] | None = None,
     retain_until: datetime | None = None,
 ) -> tuple[bool, list[str]]:
-    """Upload chunked archive part files with resume support.
+    """Upload every part file of the current chunked tar stream.
 
-    A part key is considered already uploaded only if:
-    - it appears in persisted submission state, and
-    - the key currently exists in object storage.
+    Parts are byte-slices of a single gzip stream, so a rebuilt stream
+    invalidates any parts uploaded by a previous attempt. This function
+    therefore always uploads the full part list from the current build,
+    overwriting any same-named objects from earlier attempts, and never
+    skips a part based on previously persisted state. Only the parts listed
+    in *archive_parts* are uploaded; stale part files that an interrupted
+    earlier run may have left in *archive_parts_dir* are ignored.
 
     Args:
         session: Database session for persisting progress
@@ -134,24 +138,11 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     Returns:
         Tuple of (overall upload success, list of uploaded part keys)
     """
-    part_files = sorted(archive_parts_dir.glob("*.tar.gz.part-*"))
-    uploaded_keys = parse_part_keys_json(submission.archive_part_keys_json)
-    manifest_sizes: dict[str, int] = {p.file_name: p.size_bytes for p in archive_parts}
+    uploaded_keys: list[str] = []
 
-    for part_file in part_files:
-        part_key = f"{object_prefix}{part_file.name}"
-        if part_key in uploaded_keys:
-            exists, _ = object_exists(client, bucket_name, part_key)
-            if exists:
-                log_event(
-                    logging.INFO,
-                    "crate.upload.part.skipped",
-                    submission_id=submission.id,
-                    drive_name=submission.drive_name,
-                    part_key=part_key,
-                    reason="already_uploaded",
-                )
-                continue
+    for part in sorted(archive_parts, key=lambda p: p.index):
+        part_file = archive_parts_dir / part.file_name
+        part_key = f"{object_prefix}{part.file_name}"
 
         success = upload_file(
             client,
@@ -171,15 +162,14 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
             )
             return False, uploaded_keys
 
-        expected_size = manifest_sizes.get(part_file.name, part_file.stat().st_size)
-        if not verify_uploaded_part_size(client, bucket_name, part_key, expected_size):
+        if not verify_uploaded_part_size(client, bucket_name, part_key, part.size_bytes):
             log_event(
                 logging.ERROR,
                 "crate.upload.part.size_mismatch",
                 submission_id=submission.id,
                 drive_name=submission.drive_name,
                 part_key=part_key,
-                expected_size=expected_size,
+                expected_size=part.size_bytes,
             )
             return False, uploaded_keys
 
@@ -309,10 +299,11 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
     uploads the archive to ActiveScale for long-term storage, and updates
     the ArchiveSubmission record with stage and operational metadata.
 
-    Implements persisted checkpoints so retries can skip completed steps:
-    - queued→running: After loading submission from DB
-    - running→uploading: After crate build and tar generation
-    - uploading→completed/failed: After upload attempt
+    Each run rebuilds the chunked tar stream from the source drive and
+    re-uploads every part. Parts are byte-slices of a single gzip stream, so
+    part keys persisted by a previous (failed) attempt are invalidated when
+    the stream is rebuilt — reusing them would mix slices of two different
+    streams and permanently corrupt the archive.
 
     Args:
         drive: Dictionary containing research drive information
@@ -448,8 +439,22 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             submission.archive_total_bytes = chunk_result.total_bytes
             submission.archive_object_prefix = object_prefix
             submission.archive_manifest_key = f"{object_prefix}{chunk_result.manifest_path.name}"
-            if submission.archive_part_keys_json is None:
-                submission.archive_part_keys_json = "[]"
+
+            # The tar stream was just rebuilt, so any part keys persisted by a
+            # previous attempt refer to byte-slices of a different stream and
+            # must not be reused. Every part of the new stream is re-uploaded,
+            # overwriting same-named objects from the earlier attempt.
+            stale_part_keys = parse_part_keys_json(submission.archive_part_keys_json)
+            if stale_part_keys:
+                log_event(
+                    logging.WARNING,
+                    "crate.package.stale_part_keys_invalidated",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    stale_part_key_count=len(stale_part_keys),
+                    retry_count=submission.retry_count,
+                )
+            submission.archive_part_keys_json = "[]"
             submission.last_updated_timestamp = datetime.now()
             session.add(submission)
             session.commit()
