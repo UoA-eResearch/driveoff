@@ -755,7 +755,7 @@ export type PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses = {
 
 export type PatchSubmissionApiV1SubmissionSubmissionIdPatchResponse = PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses[keyof PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses];
 
-export type GetRetrievalApiV1RetrievalDriveNameGetData = {
+export type GetRetrievalsApiV1RetrievalDriveNameGetData = {
     body?: never;
     path: {
         /**
@@ -765,6 +765,10 @@ export type GetRetrievalApiV1RetrievalDriveNameGetData = {
     };
     query?: {
         /**
+         * Latest
+         */
+        latest?: boolean;
+        /**
          * Path
          */
         path?: string;
@@ -772,13 +776,13 @@ export type GetRetrievalApiV1RetrievalDriveNameGetData = {
     url: '/api/v1/retrieval/{drive_name}';
 };
 
-export type GetRetrievalApiV1RetrievalDriveNameGetErrors = {
+export type GetRetrievalsApiV1RetrievalDriveNameGetErrors = {
     /**
      * Invalid or missing API key
      */
     401: ErrorResponse;
     /**
-     * No archive retrieval job found for drive
+     * No archive retrieval jobs found for drive
      */
     404: ErrorResponse;
     /**
@@ -791,16 +795,18 @@ export type GetRetrievalApiV1RetrievalDriveNameGetErrors = {
     500: ErrorResponse;
 };
 
-export type GetRetrievalApiV1RetrievalDriveNameGetError = GetRetrievalApiV1RetrievalDriveNameGetErrors[keyof GetRetrievalApiV1RetrievalDriveNameGetErrors];
+export type GetRetrievalsApiV1RetrievalDriveNameGetError = GetRetrievalsApiV1RetrievalDriveNameGetErrors[keyof GetRetrievalsApiV1RetrievalDriveNameGetErrors];
 
-export type GetRetrievalApiV1RetrievalDriveNameGetResponses = {
+export type GetRetrievalsApiV1RetrievalDriveNameGetResponses = {
     /**
+     * Response Get Retrievals Api V1 Retrieval  Drive Name  Get
+     *
      * Successful Response
      */
-    200: RetrievalResponse;
+    200: Array<RetrievalResponse>;
 };
 
-export type GetRetrievalApiV1RetrievalDriveNameGetResponse = GetRetrievalApiV1RetrievalDriveNameGetResponses[keyof GetRetrievalApiV1RetrievalDriveNameGetResponses];
+export type GetRetrievalsApiV1RetrievalDriveNameGetResponse = GetRetrievalsApiV1RetrievalDriveNameGetResponses[keyof GetRetrievalsApiV1RetrievalDriveNameGetResponses];
 
 export type CreateRetrievalApiV1RetrievalDriveNamePostData = {
     body: CreateRetrievalRequest;

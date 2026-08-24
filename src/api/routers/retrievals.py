@@ -177,34 +177,45 @@ def create_retrieval(
 @router.get(
     "/retrieval/{drive_name}",
     status_code=status.HTTP_200_OK,
-    response_model=RetrievalResponse,
+    response_model=list[RetrievalResponse],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
         404: {
             "model": ErrorResponse,
-            "description": "No archive retrieval job found for drive",
+            "description": "No archive retrieval jobs found for drive",
         },
         422: {"description": "Validation error"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-def get_retrieval(
+def get_retrievals(
     drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> RetrievalResponse:
-    """Check if an archive retrieval job exists for the drive and return it."""
+    latest: bool = False,
+) -> list[RetrievalResponse]:
+    """Return the archive retrieval jobs for a drive, newest first.
+
+    A drive can accumulate multiple retrieval jobs over time (each POST
+    creates a new record). With ``latest=true`` only the most recent job is
+    returned, still as a single-element list so the response shape is
+    consistent. Returns 404 when the drive has no retrieval jobs at all.
+    """
     validate_permissions("GET", api_key)
 
-    retrieval = session.exec(select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == drive_name)).first()
+    id_column = cast(Any, ArchiveRetrieval.id)
+    stmt = select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == drive_name).order_by(id_column.desc())
+    if latest:
+        stmt = stmt.limit(1)
+    retrievals = session.exec(stmt).all()
 
-    if retrieval is None:
+    if not retrievals:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No archive retrieval job found for drive {drive_name}.",
         )
 
-    return RetrievalResponse.model_validate(retrieval)
+    return [RetrievalResponse.model_validate(retrieval) for retrieval in retrievals]
 
 
 @router.patch(

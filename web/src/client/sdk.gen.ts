@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateRetrievalApiV1RetrievalDriveNamePostData, CreateRetrievalApiV1RetrievalDriveNamePostErrors, CreateRetrievalApiV1RetrievalDriveNamePostResponses, CreateSubmissionApiV1SubmissionPostData, CreateSubmissionApiV1SubmissionPostErrors, CreateSubmissionApiV1SubmissionPostResponses, GetDriveInfoApiV1DriveinfoGetData, GetDriveInfoApiV1DriveinfoGetErrors, GetDriveInfoApiV1DriveinfoGetResponses, GetRetrievalApiV1RetrievalDriveNameGetData, GetRetrievalApiV1RetrievalDriveNameGetErrors, GetRetrievalApiV1RetrievalDriveNameGetResponses, GetSubmissionApiV1SubmissionGetData, GetSubmissionApiV1SubmissionGetErrors, GetSubmissionApiV1SubmissionGetResponses, PatchRetrievalApiV1RetrievalRetrievalIdPatchData, PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors, PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses, PatchSubmissionApiV1SubmissionSubmissionIdPatchData, PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors, PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostData, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses } from './types.gen';
+import type { CreateRetrievalApiV1RetrievalDriveNamePostData, CreateRetrievalApiV1RetrievalDriveNamePostErrors, CreateRetrievalApiV1RetrievalDriveNamePostResponses, CreateSubmissionApiV1SubmissionPostData, CreateSubmissionApiV1SubmissionPostErrors, CreateSubmissionApiV1SubmissionPostResponses, GetDriveInfoApiV1DriveinfoGetData, GetDriveInfoApiV1DriveinfoGetErrors, GetDriveInfoApiV1DriveinfoGetResponses, GetRetrievalsApiV1RetrievalDriveNameGetData, GetRetrievalsApiV1RetrievalDriveNameGetErrors, GetRetrievalsApiV1RetrievalDriveNameGetResponses, GetSubmissionApiV1SubmissionGetData, GetSubmissionApiV1SubmissionGetErrors, GetSubmissionApiV1SubmissionGetResponses, PatchRetrievalApiV1RetrievalRetrievalIdPatchData, PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors, PatchRetrievalApiV1RetrievalRetrievalIdPatchResponses, PatchSubmissionApiV1SubmissionSubmissionIdPatchData, PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors, PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostData, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -97,11 +97,16 @@ export const patchSubmissionApiV1SubmissionSubmissionIdPatch = <ThrowOnError ext
 });
 
 /**
- * Get Retrieval
+ * Get Retrievals
  *
- * Check if an archive retrieval job exists for the drive and return it.
+ * Return the archive retrieval jobs for a drive, newest first.
+ *
+ * A drive can accumulate multiple retrieval jobs over time (each POST
+ * creates a new record). With ``latest=true`` only the most recent job is
+ * returned, still as a single-element list so the response shape is
+ * consistent. Returns 404 when the drive has no retrieval jobs at all.
  */
-export const getRetrievalApiV1RetrievalDriveNameGet = <ThrowOnError extends boolean = false>(options: Options<GetRetrievalApiV1RetrievalDriveNameGetData, ThrowOnError>) => (options.client ?? client).get<GetRetrievalApiV1RetrievalDriveNameGetResponses, GetRetrievalApiV1RetrievalDriveNameGetErrors, ThrowOnError>({
+export const getRetrievalsApiV1RetrievalDriveNameGet = <ThrowOnError extends boolean = false>(options: Options<GetRetrievalsApiV1RetrievalDriveNameGetData, ThrowOnError>) => (options.client ?? client).get<GetRetrievalsApiV1RetrievalDriveNameGetResponses, GetRetrievalsApiV1RetrievalDriveNameGetErrors, ThrowOnError>({
     security: [{ name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/retrieval/{drive_name}',
     ...options
@@ -113,7 +118,8 @@ export const getRetrievalApiV1RetrievalDriveNameGet = <ThrowOnError extends bool
  * Schedule an archive retrieval job for a research drive.
  *
  * Validates that a completed archive exists for the drive and that the
- * destination path is accessible, then schedules a background task to
+ * destination path is within an allowlisted retrieval location (the Vast
+ * Data storage mount) and writable, then schedules a background task to
  * restore, download, and extract the archive into the destination.
  */
 export const createRetrievalApiV1RetrievalDriveNamePost = <ThrowOnError extends boolean = false>(options: Options<CreateRetrievalApiV1RetrievalDriveNamePostData, ThrowOnError>) => (options.client ?? client).post<CreateRetrievalApiV1RetrievalDriveNamePostResponses, CreateRetrievalApiV1RetrievalDriveNamePostErrors, ThrowOnError>({
