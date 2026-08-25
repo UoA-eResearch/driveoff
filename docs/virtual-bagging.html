@@ -1,0 +1,287 @@
+<title>Virtual Bagging</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #FAF9F6;
+    --surface: #F1F0EA;
+    --surface-2: #E9E9E1;
+    --ink: #232B2A;
+    --muted: #5E6D6A;
+    --line: #D8D9D0;
+    --accent: #2E7D6E;
+    --accent-ink: #1F5A50;
+    --risk: #A2691E;
+    --code-bg: #EDEFE9;
+    --good: #2E7D6E;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #131817;
+      --surface: #1B2220;
+      --surface-2: #212927;
+      --ink: #DCE5E1;
+      --muted: #93A39E;
+      --line: #2C3634;
+      --accent: #57B3A2;
+      --accent-ink: #7BC9BA;
+      --risk: #D19A55;
+      --code-bg: #1A211F;
+      --good: #57B3A2;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #131817;
+    --surface: #1B2220;
+    --surface-2: #212927;
+    --ink: #DCE5E1;
+    --muted: #93A39E;
+    --line: #2C3634;
+    --accent: #57B3A2;
+    --accent-ink: #7BC9BA;
+    --risk: #D19A55;
+    --code-bg: #1A211F;
+    --good: #57B3A2;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    margin: 0;
+    padding: 3.5rem 1.25rem 5rem;
+  }
+  .page { max-width: 46rem; margin: 0 auto; }
+
+  h1, h2, h3 {
+    font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    text-wrap: balance;
+    line-height: 1.15;
+  }
+  h1 { font-size: 2.4rem; font-weight: 700; margin: 0.75rem 0 0.5rem; letter-spacing: -0.01em; }
+  h2 { font-size: 1.45rem; font-weight: 600; margin: 0 0 0.75rem; }
+  h3 { font-size: 1.05rem; font-weight: 600; margin: 1.5rem 0 0.35rem; }
+
+  .doc-meta {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;
+    font-size: 0.8rem; color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.1rem;
+  }
+  .doc-meta span strong { color: var(--ink); font-weight: 600; }
+  .status-pill {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 999px; padding: 0.05rem 0.7rem;
+    color: var(--accent-ink); font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; font-size: 0.72rem;
+  }
+
+  .lede { font-size: 1.15rem; color: var(--ink); margin: 0 0 0.5rem; }
+  .lede + p { color: var(--muted); margin-top: 0; }
+
+  section { margin-top: 3rem; }
+  .eyebrow {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent-ink);
+    margin: 0 0 0.4rem;
+  }
+
+  p { margin: 0.75rem 0; }
+  ul { margin: 0.75rem 0; padding-left: 1.3rem; }
+  li { margin: 0.45rem 0; }
+  li::marker { color: var(--accent); }
+
+  code, pre {
+    font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    font-size: 0.86em;
+  }
+  code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 0.08em 0.35em;
+  }
+
+  figure { margin: 1.5rem 0; }
+  figure.tree {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1.1rem 1.3rem;
+    overflow-x: auto;
+  }
+  figure.tree pre { margin: 0; line-height: 1.55; font-size: 0.82rem; }
+  figure.tree .lbl { color: var(--muted); }
+  figure.tree .gen { color: var(--accent-ink); }
+  figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 0.55rem; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+
+  .note {
+    border-left: 3px solid var(--risk);
+    background: var(--surface);
+    border-radius: 0 8px 8px 0;
+    padding: 0.7rem 1.1rem;
+    margin: 1.25rem 0;
+    font-size: 0.95rem;
+  }
+  .note strong:first-child { color: var(--risk); }
+
+  .table-wrap { overflow-x: auto; margin: 1.25rem 0; }
+  table {
+    border-collapse: collapse; width: 100%;
+    font-size: 0.92rem;
+  }
+  th {
+    text-align: left; font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); font-weight: 700;
+    padding: 0.45rem 0.9rem 0.45rem 0;
+    border-bottom: 1.5px solid var(--line);
+  }
+  td {
+    padding: 0.55rem 0.9rem 0.55rem 0;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.total td { font-weight: 700; border-bottom: none; border-top: 2px solid var(--line); }
+
+  .gain { color: var(--good); font-weight: 700; }
+  .keep { color: var(--muted); }
+
+  dl.decisions { margin: 1rem 0 0; }
+  dl.decisions dt { font-weight: 700; margin-top: 1rem; }
+  dl.decisions dd { margin: 0.25rem 0 0 0; color: var(--ink); }
+  dl.decisions dd .rec { color: var(--accent-ink); font-weight: 600; }
+
+  a { color: var(--accent-ink); }
+  a:focus-visible, :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="doc-meta">
+      <span class="status-pill">Proposal</span>
+      <span><strong>driveoff</strong> · archive packaging</span>
+      <span>Rose McColl · IDS</span>
+      <span>24 Aug 2026</span>
+    </div>
+    <h1>Virtual Bagging</h1>
+    <p class="lede">Build the BagIt bag <em>inside the tar stream</em> instead of restructuring the research drive in place.</p>
+    <p>Estimated effort: <strong>3.5&ndash;5 dev-days</strong> (about a week with review). No API, database, or retrieval-side changes.</p>
+  </header>
+
+  <section>
+    <p class="eyebrow">Why change</p>
+    <h2>The problem with bag-in-place</h2>
+    <p>Today an archive submission mutates the source drive: <code>bagit.make_bag()</code> moves every file into a <code>data/</code> directory, checksums the lot, and writes bag metadata at the drive root. The rename-based restructure is nearly free, which is why we chose it over copying &mdash; but <code>make_bag</code> is <strong>not crash-safe and not idempotent</strong>, and our &ldquo;is this already a bag?&rdquo; check can&rsquo;t tell <em>never bagged</em> from <em>half bagged</em>.</p>
+    <p>Reading the installed bagit source confirms the ordering: restructure first, then the hours-long checksum pass, and only <em>then</em> <code>bagit.txt</code> &mdash; the very file our check looks for. So a crash in either of the first two phases leaves a state where retrying silently re-wraps the debris: the archive ends up with a stray temp directory or a double-nested <code>data/data/&hellip;</code> layout, and the job reports success. A further cost of the current design: every byte is read <strong>twice</strong> &mdash; once to checksum, once to tar.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">Proposed design</p>
+    <h2>Synthesize the bag in the archive only</h2>
+    <p>We already build the tar ourselves and stream it into chunked parts. Instead of tarring a restructured drive, we walk the <em>untouched</em> source, write each file into the tar under <code>data/</code>, compute its SHA-256 <em>while the bytes stream through</em>, and append the generated BagIt tag files as tar entries at the end. The extracted archive is a fully valid BagIt bag; the source drive is never written to at all.</p>
+
+    <div class="cols">
+      <figure class="tree">
+        <pre><span class="lbl"># On disk (unchanged, read-only)</span>
+resmed202200024_drive/
+├── experiment-01/
+│   └── results.csv
+├── notes.docx
+└── README.txt</pre>
+        <figcaption>The source drive before, during, and after archiving.</figcaption>
+      </figure>
+      <figure class="tree">
+        <pre><span class="lbl"># Inside the tar (synthesized)</span>
+resmed202200024_drive/
+├── data/
+│   ├── experiment-01/
+│   │   └── results.csv
+│   ├── notes.docx
+│   ├── README.txt
+│   └── <span class="gen">ro-crate-metadata.json</span>
+├── <span class="gen">manifest-sha256.txt</span>
+├── <span class="gen">bagit.txt</span>
+├── <span class="gen">bag-info.txt</span>
+└── <span class="gen">tagmanifest-sha256.txt</span></pre>
+        <figcaption>Green entries are generated during streaming, never written to the drive.</figcaption>
+      </figure>
+    </div>
+
+    <p>The RO-Crate metadata file is generated into local scratch (it is a single JSON file) and injected into the tar as payload, with its hash in the manifest &mdash; exactly where the profile expects it.</p>
+
+    <h3>What this buys us</h3>
+    <ul>
+      <li><strong>The crash-inconsistency class is deleted, not managed.</strong> A failed or interrupted job leaves the source drive byte-identical to before. Retry is trivially safe &mdash; no repair logic, no sentinel states.</li>
+      <li><strong>One read pass instead of two.</strong> Checksums are computed from the same bytes being tarred. On SMB, where reads dominate wall-time, this roughly halves archive runtime.</li>
+      <li><strong>Integrity by construction.</strong> Today the checksum pass and the tar pass read at different times; any change to the drive in between (admin tooling, sync agents) yields a manifest that doesn&rsquo;t match the archived bytes, undetected until retrieval. Streaming hashes exactly the bytes that enter the archive, so the manifest is guaranteed to match &mdash; independent of the pre-job access freeze.</li>
+      <li><strong>Read-only source.</strong> The write-probe on the drive goes away; drives can be mounted read-only &mdash; consistent with researcher access being removed before a job runs, a better isolation posture, and a good fit for the planned split-worker architecture.</li>
+      <li><strong>The frozen drive stays frozen.</strong> Access is removed before a job precisely so the drive is a fixed snapshot &mdash; bag-in-place then immediately restructures that snapshot. Virtual bagging keeps the handed-over state byte-identical, which also keeps verification simple for the future delete-after-archive workflow.</li>
+      <li><strong>Sidesteps the Linux constraint</strong> that currently forces single-process checksumming (<code>PROCESSES = 1</code>) &mdash; hashing rides the I/O-bound streaming pass.</li>
+    </ul>
+
+    <h3>What it costs</h3>
+    <ul>
+      <li>Bag <em>creation</em> moves from the bagit library into ~250 lines of our own code (manifest, <code>bagit.txt</code>, <code>bag-info.txt</code> with Payload-Oxum, tagmanifest &mdash; simple, well-specified formats). The bagit library remains the <em>validation</em> oracle, both in tests and at retrieval.</li>
+      <li>Filename edge cases (BagIt percent-encoding of CR/LF/<code>%</code>, unicode on SMB) are ours to handle &mdash; mitigated by round-trip tests that extract and validate with bagit itself.</li>
+      <li>Empty directories survive in the tar but aren&rsquo;t protected by BagIt manifests &mdash; identical to today.</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="eyebrow">Scope of change</p>
+    <h2>What changes, component by component</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Component</th><th>Change</th></tr>
+        <tr><td><code>packaging/bag_stream.py</code> <span class="gain">new</span></td><td>Deterministic walk of the source; per-file tee-hashing into the tar via <code>tarfile.addfile</code>; synthesis of the four tag files as in-memory tar entries. ~250 lines.</td></tr>
+        <tr><td><code>packaging/archive_chunks.py</code></td><td>Content of the tar comes from the bag streamer instead of one <code>tar.add(drive)</code> call. The split-part writer, chunk manifest, and reassembly logic are below the tar layer and don&rsquo;t change.</td></tr>
+        <tr><td><code>workers/submission_worker.py</code></td><td><code>build_crate_contents</code> simplifies: crate JSON to scratch; the <code>bag_directory</code> call and the bagged/unbagged branching are deleted.</td></tr>
+        <tr><td><code>utils/paths.py</code></td><td>Drop the write-probe on the source drive (keep read-probe and temp-space probe). Source can be read-only.</td></tr>
+        <tr><td><code>packaging/manifests.py</code></td><td>Prune the creation path (<code>bag_directory</code>, <code>create_manifests_directory</code> &mdash; the latter currently builds an artifact that is always deleted unused). Keep <code>bagit_exists</code> / <code>validate_bag</code> for retrieval.</td></tr>
+        <tr><td class="keep">Retrieval worker</td><td class="keep">Unchanged &mdash; the extracted tar is a valid bag and already gets validated.</td></tr>
+        <tr><td class="keep">API, DB schema, S3 layout</td><td class="keep">Unchanged. Chunk-part naming, archive manifest, retention, and resume-invalidation logic all stay as-is.</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>Transition caveat:</strong> drives already bagged in place by earlier runs contain a real <code>data/</code> + <code>bagit.txt</code>. Wrapping them again would double-nest. Either keep a thin legacy branch (&ldquo;if already a bag, tar as-is&rdquo;) or manually un-bag the handful of test drives. Pre-production, both are cheap.
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Effort</p>
+    <h2>Estimate</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Work item</th><th>Days</th></tr>
+        <tr><td>Bag streamer module: walk, tee-hash, tag-file synthesis, path encoding</td><td class="num">1.5 &ndash; 2</td></tr>
+        <tr><td>Integration: chunked tar build, worker simplification, crate-to-scratch</td><td class="num">0.5 &ndash; 1</td></tr>
+        <tr><td>Cleanup: read-only source validation, prune dead creation code</td><td class="num">0.5</td></tr>
+        <tr><td>Tests: bagit-as-oracle round trip (build &rarr; chunk &rarr; reassemble &rarr; extract &rarr; <code>Bag.validate()</code>), edge-case names, empty dirs, integration updates</td><td class="num">1 &ndash; 1.5</td></tr>
+        <tr><td>Docs, README, review</td><td class="num">0.5</td></tr>
+        <tr class="total"><td>Total (one developer)</td><td class="num">3.5 &ndash; 5</td></tr>
+      </table>
+    </div>
+    <p><strong>Optional, +0.5&ndash;1 day:</strong> extend the existing pre-upload tar verification pass to also recompute payload hashes against the in-tar manifest &mdash; full end-to-end integrity confirmation before upload, at almost no extra I/O since that pass already decompresses everything.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">For the team</p>
+    <h2>Decisions needed</h2>
+    <dl class="decisions">
+      <dt>1. Approve the direction?</dt>
+      <dd>Virtual bagging vs. hardening bag-in-place (crash-state detection and repair, ~2&ndash;3 days, keeps both read passes and the in-place mutation). <span class="rec">Recommended: virtual bagging</span> &mdash; it removes the failure class instead of managing it, and the effort is comparable.</dd>
+      <dt>2. Legacy bagged drives</dt>
+      <dd>Thin compatibility branch, or manually un-bag existing test drives? <span class="rec">Recommended: manual un-bag</span> if only test drives are affected &mdash; keeps the code single-path.</dd>
+      <dt>3. In-stream verification</dt>
+      <dd>Include the optional hash-verification pass in scope? <span class="rec">Recommended: yes</span> &mdash; cheapest point we will ever be able to add it.</dd>
+      <dt>4. Bag remnant on the drive</dt>
+      <dd>The future deletion workflow wants a manifest copy left on the drive. Under virtual bagging that becomes one explicit small file write at a time of our choosing &mdash; confirm it belongs to the deletion workflow, not archiving.</dd>
+    </dl>
+  </section>
+</div>
