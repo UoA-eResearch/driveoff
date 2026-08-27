@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import tarfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -20,9 +21,9 @@ from packaging.archive_chunks import (
     build_chunked_tar_archive,
     verify_tar_parts_stream,
 )
+from packaging.bag_stream import write_bagged_tree
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import ROLoader
-from packaging.manifests import bag_directory, bagit_exists, create_manifests_directory
 from service.activescale import (
     get_activescale_client_context,
     set_object_retention,
@@ -198,23 +199,28 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     return True, uploaded_keys
 
 
-def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+def build_crate_contents(
     drive: dict[str, Any],
     submission: ArchiveSubmission,
     members_list: list[dict[str, Any]],
     project_data: dict[str, Any],
-    drive_location: Path,
     output_location: Path,
-) -> None:
-    """Generate RO-Crate with data from ProjectDB.
+) -> Path:
+    """Generate the RO-Crate metadata JSON for a submission into local scratch.
+
+    The crate file is never written to the source drive; the packaging step
+    injects it into the archive tar as ``data/ro-crate-metadata.json``
+    ("virtual bagging" - see packaging.bag_stream).
 
     Args:
         drive: Research drive data dictionary
         submission: ArchiveSubmission record for this crate generation
         members_list: List of project members from ProjectDB
         project_data: Project data from ProjectDB
-        drive_location: Source drive location path
-        output_location: Output archive location path
+        output_location: Local scratch directory for generated artifacts
+
+    Returns:
+        Path of the generated RO-Crate metadata file.
     """
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
@@ -229,39 +235,15 @@ def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positi
     ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
     drive_entity.append_to("project", [project_entity])
 
-    ro_crate_location = drive_location
-    if bagit_exists(ro_crate_location):
-        ro_crate_location = ro_crate_location / "data"
-
+    output_location.mkdir(parents=True, exist_ok=True)
     log_event(
         logging.INFO,
         "crate.write.metadata",
-        ro_crate_location=str(ro_crate_location),
+        output_location=str(output_location),
         drive_name=submission.drive_name,
     )
-    ro_crate_loader.write_crate(ro_crate_location)
-
-    log_event(
-        logging.INFO,
-        "bag_directory.start",
-        drive_name=submission.drive_name,
-    )
-    bag_directory(
-        drive_location,
-        bag_info={
-            "project_id": str(project_data.get("id", "")),
-            "drive_name": submission.drive_name,
-        },
-    )
-
-    # Create output location after bagit processing so it doesn't get included in bag
-    output_location.mkdir(parents=True, exist_ok=True)
-
-    create_manifests_directory(
-        drive_path=drive_location,
-        output_location=output_location,
-        drive_name=str(submission.drive_name),
-    )
+    ro_crate_loader.write_crate(output_location)
+    return output_location / str(ro_crate_loader.crate.metadata.id)
 
 
 def _build_archive_object_metadata(
@@ -403,13 +385,12 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 elapsed_ms=elapsed_ms(started_at),
             )
 
-            # Build crate contents (idempotent, safe to retry)
-            build_crate_contents(
+            # Generate the RO-Crate metadata into scratch (idempotent, safe to retry)
+            crate_file = build_crate_contents(
                 drive=drive,
                 submission=submission,
                 members_list=members_list,
                 project_data=project_data,
-                drive_location=drive_path,
                 output_location=output_location,
             )
 
@@ -427,12 +408,33 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 retry_count=submission.retry_count,
                 elapsed_ms=elapsed_ms(started_at),
             )
+            # The tar content is a BagIt bag synthesized during streaming
+            # ("virtual bagging"): payload under <drive>/data/ with the crate
+            # metadata injected, tag files generated in-stream, and the
+            # source drive never modified.
+            extra_payload_files: list[tuple[Path, str]] = []
+            if crate_file is not None:
+                extra_payload_files.append((crate_file, crate_file.name))
+
+            def _write_bag_content(tar_stream: tarfile.TarFile) -> None:
+                write_bagged_tree(
+                    tar_stream,
+                    source_dir=drive_path,
+                    arcname_root=drive_path.name,
+                    bag_info={
+                        "project_id": str(project_data.get("id", "")),
+                        "drive_name": str(drive_name),
+                    },
+                    extra_payload_files=extra_payload_files,
+                )
+
             chunk_result = build_chunked_tar_archive(
                 source_dir=drive_path,
                 output_dir=archive_parts_dir,
                 base_name=str(drive_name),
                 part_size_bytes=settings.archive_chunk_size_bytes,
                 manifest_file_name=settings.archive_chunk_manifest_file_name,
+                content_writer=_write_bag_content,
             )
 
             object_prefix = f"{drive_name}/"

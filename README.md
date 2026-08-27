@@ -40,6 +40,16 @@ File logging:
 - Retention is controlled by `log_file_backup_count` (default: `14` rotated files).
 - File logging setup is best-effort; if file handler setup fails, logging continues to stdout.
 
+Archive packaging (virtual bagging):
+- The archive tar contains a BagIt bag that is synthesized during streaming - the source drive is never modified. Payload files appear under `<drive>/data/`, the BagIt tag files (manifest, bagit.txt, bag-info.txt, tagmanifest) are generated in-stream, and the RO-Crate metadata is injected as `data/ro-crate-metadata.json`.
+- Why not bag in place with `bagit.make_bag()`? That was the original design, but `make_bag` restructures the drive in place and is neither crash-safe nor idempotent: it moves all content into `data/` first, spends hours checksumming, and only then writes `bagit.txt` - so a crash mid-job leaves a state that a retry silently re-wraps into a garbled archive (stray temp dirs or a double-nested `data/data/`). It also requires write access to the drive and reads every byte twice (once to checksum, once to tar).
+- The trade-off accepted for this: bag *creation* is now ~250 lines of our own code (`src/packaging/bag_stream.py`) replicating bagit's simple, well-specified output formats, which we must keep spec-compliant ourselves. This is mitigated by keeping the bagit library as the independent validation oracle - the test suite round-trips bags through it, and retrievals validate extracted bags with it - so any drift from the spec fails loudly rather than silently.
+- Checksums are computed from the same read pass that feeds the tar (pure Python, platform-agnostic), so the manifest is guaranteed to match the archived bytes, and each drive is read only once.
+- Because the source is only ever read, drives can be mounted read-only by the archiving host.
+- The pre-upload verification pass streams the chunked parts and re-checks every payload file's hash against the in-tar manifest before anything is uploaded.
+- Drives that were bagged in place by earlier prototype runs must be un-bagged (contents moved back out of `data/`, bag metadata files removed) before archiving; the job fails fast with a clear error if `bagit.txt` + `data/` are detected at the drive root.
+- The `bagit` library remains the validation oracle: extracted archives are validated with it during retrieval, and the test suite validates round-tripped bags with it.
+
 Retrieval destination allowlist:
 - Archive retrievals may only extract into a path under the drive storage base - the same Vast Data storage that hosts the research drives. The allowed base is derived from the existing settings: `SMB_DRIVE_BASE_PATH` on Windows (or when it is a local path), and `SMB_LINUX_MOUNT_BASE_PATH` on Linux when the SMB base is a UNC path.
 - If the relevant setting is not configured, retrieval requests are rejected (fail closed).

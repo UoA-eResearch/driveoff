@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import json
+import tarfile
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import bagit
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from models.common import DataClassification
 from models.submission import ArchiveJobStage, ArchiveSubmission
+from packaging.archive_reassembly import reassemble_archive_from_manifest
 from workers.submission_worker import generate_ro_crate
 
 
@@ -88,9 +91,6 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         "workers.submission_worker._cleanup_job_artifacts",
         lambda *_args, **_kwargs: (True, None),
     )
-
-    # Avoid heavy crate generation internals; this test focuses on chunked workflow.
-    monkeypatch.setattr("workers.submission_worker.build_crate_contents", lambda **_kwargs: None)
 
     settings = SimpleNamespace(
         archive_chunk_size_bytes=1024,
@@ -204,6 +204,28 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
             },
         }
     ]
+
+    # End-to-end: reassemble the parts, extract, and let the bagit library
+    # validate the bag; the RO-Crate metadata must be inside the payload and
+    # the source drive must be untouched.
+    out_tar = tmp_path / "reassembled.tar.gz"
+    reassemble_archive_from_manifest(
+        parts_dir=output_path / "archive_parts",
+        manifest_path=Path(str(manifest_upload["file_path"])),
+        output_tar_path=out_tar,
+    )
+    extract_dir = tmp_path / "extracted"
+    with tarfile.open(out_tar, "r:gz") as tar:
+        tar.extractall(extract_dir, filter="data")
+
+    bag_root = extract_dir / drive_name
+    bag = bagit.Bag(str(bag_root))
+    bag.validate(processes=1)
+    assert (bag_root / "data" / "ro-crate-metadata.json").is_file()
+    assert (bag_root / "data" / "a.bin").is_file()
+    assert (bag_root / "data" / "nested" / "b.bin").is_file()
+    assert not (drive_path / "bagit.txt").exists()
+    assert not (drive_path / "data").exists()
 
 
 def test_generate_ro_crate_retry_reuploads_all_parts_after_failure(
