@@ -72,10 +72,8 @@ def test_upload_chunked_parts_reuploads_parts_from_previous_attempt(
         _bucket: str,
         key: str,
         file_path: str,
-        timeout: int,
         metadata: dict[str, str] | None = None,
     ):
-        assert timeout == 60
         assert Path(file_path).exists()
         assert metadata is None
         uploaded_keys.append(key)
@@ -95,7 +93,6 @@ def test_upload_chunked_parts_reuploads_parts_from_previous_attempt(
             ArchivePartInfo(index=1, file_name=first.name, size_bytes=len(b"part1"), sha256="a"),
             ArchivePartInfo(index=2, file_name=second.name, size_bytes=len(b"part2"), sha256="b"),
         ],
-        timeout_seconds=60,
     )
 
     assert success is True
@@ -126,7 +123,7 @@ def test_upload_chunked_parts_ignores_stale_local_part_files(
 
     uploaded_keys: list[str] = []
 
-    def fake_upload(_client, _bucket: str, key: str, file_path: str, timeout: int, metadata=None):
+    def fake_upload(_client, _bucket: str, key: str, file_path: str, metadata=None):
         uploaded_keys.append(key)
         return True
 
@@ -143,7 +140,6 @@ def test_upload_chunked_parts_ignores_stale_local_part_files(
         archive_parts=[
             ArchivePartInfo(index=1, file_name=current.name, size_bytes=len(b"part1"), sha256="a"),
         ],
-        timeout_seconds=60,
     )
 
     assert success is True
@@ -178,7 +174,6 @@ def test_upload_chunked_parts_stops_on_failure(
         archive_parts=[
             ArchivePartInfo(index=1, file_name=first.name, size_bytes=len(b"part1"), sha256="a"),
         ],
-        timeout_seconds=60,
     )
 
     assert success is False
@@ -215,7 +210,6 @@ def test_upload_chunked_parts_fails_on_size_mismatch(
         archive_parts=[
             ArchivePartInfo(index=1, file_name=part.name, size_bytes=len(b"part1"), sha256="a"),
         ],
-        timeout_seconds=60,
     )
 
     assert success is False
@@ -261,7 +255,6 @@ def test_upload_chunked_parts_size_check_called_with_correct_args(
         archive_parts=[
             ArchivePartInfo(index=1, file_name=part.name, size_bytes=manifest_size, sha256="a"),
         ],
-        timeout_seconds=60,
     )
 
     assert success is True
@@ -313,7 +306,6 @@ def test_upload_chunked_parts_sets_retention_when_provided(
                 sha256="a",
             ),
         ],
-        timeout_seconds=60,
         retain_until=retain_until,
     )
 
@@ -360,7 +352,6 @@ def test_upload_chunked_parts_fails_on_retention_error(
                 sha256="a",
             ),
         ],
-        timeout_seconds=60,
         retain_until=retain_until,
     )
 

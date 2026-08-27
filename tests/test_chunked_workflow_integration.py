@@ -95,7 +95,6 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
     settings = SimpleNamespace(
         archive_chunk_size_bytes=1024,
         archive_chunk_manifest_file_name="archive-manifest.json",
-        activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
         activescale_enable_object_retention=False,
         activescale_default_retention_years=6,
@@ -124,14 +123,12 @@ def test_generate_ro_crate_chunked_success_and_manifest_integrity(
         _bucket: str,
         key: str,
         file_path: str,
-        timeout: int,
         metadata=None,
     ) -> bool:
         upload_calls.append(
             {
                 "key": key,
                 "file_path": file_path,
-                "timeout": timeout,
                 "metadata": metadata,
             }
         )
@@ -269,7 +266,6 @@ def test_generate_ro_crate_retry_reuploads_all_parts_after_failure(
     settings = SimpleNamespace(
         archive_chunk_size_bytes=100,  # small enough to produce multiple parts after gzip
         archive_chunk_manifest_file_name="archive-manifest.json",
-        activescale_upload_timeout=60,
         activescale_bucket_name="research-archive-test",
         activescale_enable_object_retention=False,
         activescale_default_retention_years=6,
@@ -298,7 +294,6 @@ def test_generate_ro_crate_retry_reuploads_all_parts_after_failure(
         _bucket: str,
         key: str,
         file_path: str,
-        timeout: int,
         metadata=None,
     ) -> bool:
         if key.endswith("archive-manifest.json"):
@@ -360,7 +355,6 @@ def test_generate_ro_crate_retry_reuploads_all_parts_after_failure(
         _bucket: str,
         key: str,
         file_path: str,
-        timeout: int,
         metadata=None,
     ) -> bool:
         second_run_uploaded.append(key)

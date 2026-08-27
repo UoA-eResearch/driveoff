@@ -111,7 +111,6 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     object_prefix: str,
     archive_parts_dir: Path,
     archive_parts: list[ArchivePartInfo],
-    timeout_seconds: int,
     metadata: dict[str, str] | None = None,
     retain_until: datetime | None = None,
 ) -> tuple[bool, list[str]]:
@@ -133,7 +132,7 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
         object_prefix: S3 key prefix for all parts in this submission
         archive_parts_dir: Local directory containing the part files
         archive_parts: List of ArchivePartInfo for all parts being uploaded
-        timeout_seconds: Timeout for each individual part upload attempt
+        metadata: Optional S3 object metadata attached to each part
         retain_until: Optional datetime to set for object retention
         (object lock COMPLIANCE mode). If None, retention will not be set.
 
@@ -151,7 +150,6 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
             bucket_name,
             part_key,
             file_path=str(part_file),
-            timeout=timeout_seconds,
             metadata=metadata,
         )
         if not success:
@@ -559,7 +557,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     object_prefix=object_prefix,
                     archive_parts_dir=archive_parts_dir,
                     archive_parts=chunk_result.parts,
-                    timeout_seconds=settings.activescale_upload_timeout,
                     metadata=archive_metadata,
                     retain_until=retain_until,
                 )
@@ -590,7 +587,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                         bucket_name,
                         file_key,
                         file_path=str(chunk_result.manifest_path),
-                        timeout=settings.activescale_upload_timeout,
                         metadata=archive_metadata,
                     )
                     submission.archive_manifest_key = file_key

@@ -39,9 +39,14 @@ class Settings(BaseSettings):
     activescale_access_key: SecretStr | None = None
     activescale_secret_key: SecretStr | None = None
     activescale_connect_timeout: int = 5
-    activescale_read_timeout: int = 15
+    # Socket-level timeout applied by botocore to every blocking socket
+    # operation, sends included. This is the hang defence for uploads and
+    # downloads: a dead connection fails within roughly
+    # read_timeout * retry_attempts, while slow-but-progressing bulk
+    # transfers are unaffected (there is deliberately no wall-clock upload
+    # timeout - it cannot be calibrated when part sizes vary this much).
+    activescale_read_timeout: int = 60
     activescale_retry_attempts: int = 2
-    activescale_upload_timeout: int = 120
     log_level: str = "INFO"
     log_to_file_enabled: bool = False
     log_file_path: str = "logs/driveoff.log"
