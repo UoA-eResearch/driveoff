@@ -48,6 +48,10 @@ export const getSubmissionApiV1SubmissionGet = <ThrowOnError extends boolean = f
  *
  * Create a new archive submission for a research drive.
  *
+ * Precondition: all researcher access to the drive must already be removed
+ * (an operational step performed outside this API), so the drive contents
+ * are frozen for the duration of the archive job.
+ *
  * Validates drive exists in ProjectDB, resolves project_id if needed,
  * and schedules RO-Crate generation as a background task.
  */
@@ -65,6 +69,9 @@ export const createSubmissionApiV1SubmissionPost = <ThrowOnError extends boolean
  * Retry Submission
  *
  * Retry a failed or abandoned archive job for a research drive.
+ *
+ * The same precondition as submission applies: researcher access to the
+ * drive must still be removed, so the drive remains a frozen snapshot.
  */
 export const retrySubmissionApiV1SubmissionDriveNameRetryPost = <ThrowOnError extends boolean = false>(options: Options<RetrySubmissionApiV1SubmissionDriveNameRetryPostData, ThrowOnError>) => (options.client ?? client).post<RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses, RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors, ThrowOnError>({
     security: [{ name: 'x-api-key', type: 'apiKey' }],

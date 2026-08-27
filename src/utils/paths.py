@@ -91,10 +91,12 @@ def resolve_drive_path_for_archive(drive_name: str) -> Path:
 
 
 def validate_archive_path_access(drive_name: str) -> Path:
-    """Validate drive path can be read and written before scheduling archive job.
+    """Validate drive path can be read before scheduling an archive job.
 
     Synchronous validation to be called from submission endpoints (before 201).
-    Resolves the archive path and validates read/write permissions early.
+    The archive job only ever reads the source drive (the bag structure is
+    synthesized inside the tar stream), so no write access is required and
+    drives may be mounted read-only.
     """
     drive_path = resolve_drive_path_for_archive(drive_name)
 
@@ -106,15 +108,6 @@ def validate_archive_path_access(drive_name: str) -> Path:
         _ = next(drive_path.iterdir(), None)
     except Exception as e:
         raise PermissionError(f"Cannot read source directory {drive_path}: {e}") from e
-
-    # Write probe to validate output permissions
-    probe_file = drive_path / ".driveoff_write_probe"
-    try:
-        with open(probe_file, "wb") as f:
-            f.write(b"ok")
-        probe_file.unlink(missing_ok=True)
-    except Exception as e:
-        raise PermissionError(f"Cannot write to directory {drive_path}: {e}") from e
 
     # Validate local temp base is writable for generated archive artifacts.
     temp_base = Path(get_settings().archive_temp_base_path).expanduser()
