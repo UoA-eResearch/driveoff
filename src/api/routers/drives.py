@@ -32,6 +32,10 @@ router = APIRouter(tags=["driveinfo"])
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
         403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {"model": ErrorResponse, "description": "Drive or project not found"},
+        409: {
+            "model": ErrorResponse,
+            "description": "Drive is associated with more than one project",
+        },
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
@@ -43,7 +47,9 @@ def get_drive_info(
     """Retrieve drive and project info from ProjectDB for display.
 
     Looks up the drive by name, resolves the associated project,
-    and returns combined info including members and codes.
+    and returns combined info including members and codes. Drives
+    associated with more than one project are rejected with 409 -
+    this endpoint cannot disambiguate which project to display.
     """
     validate_permissions("GET", api_key)
 
@@ -78,7 +84,12 @@ def get_drive_info(
             detail=f"No projects associated with drive {drive_name}",
         )
 
-    # Use the first project (single-project drives are the common case)
+    if len(drive_projects) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(f"Multiple projects are associated with drive {drive_name}; drive info requires exactly one."),
+        )
+
     project_id = drive_projects[0]["project"]["id"]
 
     # Fetch full project data with codes and services
