@@ -111,7 +111,6 @@ def _upsert_submission(
         existing_submission.data_classification = request.data_classification
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
-        existing_submission.archive_file_key = None
         existing_submission.archive_object_prefix = None
         existing_submission.archive_manifest_key = None
         existing_submission.archive_part_keys_json = None

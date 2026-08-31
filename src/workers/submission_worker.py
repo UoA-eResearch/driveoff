@@ -634,7 +634,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 submission.stage = ArchiveJobStage.COMPLETED
                 submission.failure_reason = None
                 submission.failed_timestamp = None
-                submission.archive_file_key = file_key
                 submission.completed_timestamp = now
                 submission.last_updated_timestamp = now
                 session.add(submission)
@@ -667,7 +666,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 submission.stage = ArchiveJobStage.FAILED
                 submission.failure_reason = "Archive upload failed"
                 submission.failed_timestamp = now
-                submission.archive_file_key = file_key
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()

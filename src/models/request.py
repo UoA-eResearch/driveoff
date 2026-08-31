@@ -41,7 +41,6 @@ class PatchSubmissionRequest(BaseModel):
     failure_reason: str | None = None
     cleanup_succeeded: bool | None = None
     cleanup_error: str | None = None
-    archive_file_key: str | None = None
     archive_object_prefix: str | None = None
     archive_manifest_key: str | None = None
     archive_part_keys_json: str | None = None
