@@ -236,10 +236,6 @@ export type PatchSubmissionRequest = {
      */
     cleanup_error?: string | null;
     /**
-     * Archive File Key
-     */
-    archive_file_key?: string | null;
-    /**
      * Archive Object Prefix
      */
     archive_object_prefix?: string | null;
@@ -457,10 +453,6 @@ export type SubmissionResponse = {
      * Cleanup Error
      */
     cleanup_error: string | null;
-    /**
-     * Archive File Key
-     */
-    archive_file_key: string | null;
     /**
      * Archive Object Prefix
      */
@@ -711,6 +703,10 @@ export type RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors = {
      * Internal server error
      */
     500: ErrorResponse;
+    /**
+     * ProjectDB upstream request failed
+     */
+    502: ErrorResponse;
 };
 
 export type RetrySubmissionApiV1SubmissionDriveNameRetryPostError = RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors[keyof RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors];

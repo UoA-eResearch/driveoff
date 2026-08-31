@@ -35,15 +35,21 @@ router = APIRouter(tags=["submissions"])
 
 
 def _validate_drive(projectdb: ProjectDBClient, drive_name: str) -> Any:
-    """Fetch and validate drive from ProjectDB."""
-    drive = projectdb.get_research_drive_by_name(drive_name)
-    if not drive:
+    """Fetch and validate drive from ProjectDB.
+
+    Upstream ProjectDB failures surface as 502 (consistent with the driveinfo
+    endpoint) rather than falling through to a generic 500.
+    """
+    try:
+        drive = projectdb.get_research_drive_by_name(drive_name)
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"Research Drive {drive_name} not found in ProjectDB.",
-        )
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"ProjectDB request failed while fetching drive {drive_name}: {e}",
+        ) from e
+
     if isinstance(drive, list):
-        drive = drive[0]
+        drive = drive[0] if drive else None
     if not drive:
         raise HTTPException(
             status_code=404,
@@ -310,6 +316,10 @@ def create_submission(
             "description": "Job is active or already completed",
         },
         500: {"model": ErrorResponse, "description": "Internal server error"},
+        502: {
+            "model": ErrorResponse,
+            "description": "ProjectDB upstream request failed",
+        },
     },
 )
 def retry_submission(
