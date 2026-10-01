@@ -29,6 +29,7 @@ from service.activescale import (
     is_object_ready_for_download,
 )
 from service.notifications import notify_job_result
+from utils import utc_now
 from utils.logging import elapsed_ms, log_event
 from workers import parse_part_keys_json
 
@@ -41,7 +42,7 @@ def _transition_retrieval_stage(
 ) -> None:
     """Transition a retrieval job to *to_stage*, commit, and log the change."""
     previous_stage = retrieval.stage
-    now = datetime.now()
+    now = utc_now()
     if to_stage == RetrievalJobStage.RESTORING and retrieval.started_timestamp is None:
         retrieval.started_timestamp = now
     retrieval.stage = to_stage
@@ -66,7 +67,7 @@ def _persist_retrieved_part_keys(
 ) -> None:
     """Persist the current list of downloaded part keys to the retrieval record."""
     retrieval.retrieved_part_keys_json = json.dumps(downloaded_keys)
-    retrieval.last_updated_timestamp = datetime.now()
+    retrieval.last_updated_timestamp = utc_now()
     session.add(retrieval)
     session.commit()
 
@@ -86,7 +87,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                       clean up temp files.
       4. COMPLETED / FAILED - Final state written to the ArchiveRetrieval record.
     """
-    started_at = datetime.now()
+    started_at = utc_now()
     settings = get_settings()
 
     with Session(engine) as session:
@@ -151,13 +152,13 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                     )
 
                 if manifest_needs_restore:
-                    deadline = datetime.now() + timedelta(seconds=max_wait)
+                    deadline = utc_now() + timedelta(seconds=max_wait)
                     while True:
                         with get_activescale_client_context() as client:
                             ready = is_object_ready_for_download(client, bucket_name, manifest_key)
                         if ready:
                             break
-                        if datetime.now() >= deadline:
+                        if utc_now() >= deadline:
                             raise TimeoutError(
                                 f"Archive manifest not restored within {max_wait}s."
                                 " Re-submit a retrieval request to try again."
@@ -205,7 +206,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
 
             # Poll until all tape-tier parts have been thawed.
             if needs_restore:
-                deadline = datetime.now() + timedelta(seconds=max_wait)
+                deadline = utc_now() + timedelta(seconds=max_wait)
 
                 while True:
                     with get_activescale_client_context() as client:
@@ -219,7 +220,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                             elapsed_ms=elapsed_ms(started_at),
                         )
                         break
-                    if datetime.now() >= deadline:
+                    if utc_now() >= deadline:
                         raise TimeoutError(
                             f"Archive objects not restored within {max_wait}s."
                             " Re-submit a retrieval request to try again."
@@ -321,7 +322,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
             download_dir = None
 
             # Mark COMPLETED
-            now = datetime.now()
+            now = utc_now()
             retrieval.stage = RetrievalJobStage.COMPLETED
             retrieval.completed_timestamp = now
             retrieval.last_updated_timestamp = now
@@ -352,7 +353,7 @@ def run_archive_retrieval(  # pylint: disable=too-many-statements,too-many-local
                 shutil.rmtree(download_dir, ignore_errors=True)
 
             if retrieval is not None:
-                now = datetime.now()
+                now = utc_now()
                 retrieval.stage = RetrievalJobStage.FAILED
                 retrieval.failure_reason = str(e)
                 retrieval.failed_timestamp = now

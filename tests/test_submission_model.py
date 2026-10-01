@@ -24,7 +24,6 @@ def submission_data_fixture() -> dict[str, Any]:
         "retention_period_justification": "Standard research retention",
         "data_classification": DataClassification.SENSITIVE,
         "started_timestamp": datetime(2024, 10, 13),
-        "archive_file_key": None,
     }
 
 
@@ -65,13 +64,11 @@ def test_submission_with_archive_metadata(
 
     submission_data["archive_object_prefix"] = "test-drive/"
     submission_data["archive_manifest_key"] = "test-drive/archive-manifest.json"
-    submission_data["archive_file_key"] = "test-drive/archive-manifest.json"
     submission_data["archive_part_count"] = 3
     submission_data["archive_total_bytes"] = 1500
     instance = ArchiveSubmission.model_validate(submission_data)
     assert instance.archive_object_prefix == "test-drive/"
     assert instance.archive_manifest_key == "test-drive/archive-manifest.json"
-    assert instance.archive_file_key == "test-drive/archive-manifest.json"
     assert instance.archive_part_count == 3
     assert instance.archive_total_bytes == 1500
 

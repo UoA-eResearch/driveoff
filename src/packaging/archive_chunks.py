@@ -6,9 +6,13 @@ import hashlib
 import json
 import os
 import tarfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, cast
+
+#: Writes the archive's content into an open TarFile (e.g. the bag streamer).
+TarContentWriter = Callable[[tarfile.TarFile], None]
 
 
 @dataclass
@@ -226,28 +230,80 @@ class _ChainReader:
 def verify_tar_parts_stream(parts: list[ArchivePartInfo], parts_dir: Path) -> None:
     """Verify the integrity of a chunked tar.gz archive by streaming all parts.
 
-    Chains the ordered part files into a single logical byte stream and passes
-    it to :func:`tarfile.open` in streaming read mode (``r|gz``).  Iterating
-    :meth:`~tarfile.TarFile.getmembers` forces full decompression and gzip CRC
-    validation without writing anything to disk.
+    Chains the ordered part files into a single logical byte stream and reads
+    it with :func:`tarfile.open` in streaming mode (``r|gz``), forcing full
+    decompression and gzip CRC validation without writing anything to disk.
+
+    When the stream contains a BagIt bag (a ``<root>/manifest-sha256.txt``
+    entry), every payload file under ``<root>/data/`` is additionally hashed
+    during the same pass and checked against the manifest, in both
+    directions - end-to-end integrity confirmation before upload. Archives
+    without a bag manifest are only structurally verified, as before.
 
     Raises:
         FileNotFoundError: If any part file is missing.
-        tarfile.TarError: If the gzip stream is corrupt or the tar structure is invalid.
+        tarfile.TarError: If the gzip stream is corrupt, the tar structure is
+            invalid, or the bag payload does not match its manifest.
     """
     for part in parts:
         part_path = parts_dir / part.file_name
         if not part_path.exists():
             raise FileNotFoundError(f"Archive part file not found: {part_path}")
 
+    computed_payload_hashes: dict[str, str] = {}
+    bag_manifest_bytes: bytes | None = None
+
     with _ChainReader(parts, parts_dir) as chain:
         with tarfile.open(fileobj=cast(BinaryIO, chain), mode="r|gz") as tar:
             member_count = 0
-            for _ in tar:
+            for member in tar:
                 member_count += 1
+                if not member.isreg():
+                    continue
+                name_parts = member.name.split("/")
+                if len(name_parts) == 2 and name_parts[1] == "manifest-sha256.txt":
+                    manifest_file = tar.extractfile(member)
+                    if manifest_file is not None:
+                        bag_manifest_bytes = manifest_file.read()
+                elif len(name_parts) >= 3 and name_parts[1] == "data":
+                    payload_file = tar.extractfile(member)
+                    if payload_file is not None:
+                        hasher = hashlib.sha256()
+                        while chunk := payload_file.read(1024 * 1024):
+                            hasher.update(chunk)
+                        computed_payload_hashes["/".join(name_parts[1:])] = hasher.hexdigest()
 
     if member_count == 0:
         raise tarfile.TarError("Tar stream contained no members — archive may be empty or corrupt")
+
+    if bag_manifest_bytes is not None:
+        _verify_bag_payload_hashes(bag_manifest_bytes, computed_payload_hashes)
+
+
+def _verify_bag_payload_hashes(manifest_bytes: bytes, computed: dict[str, str]) -> None:
+    """Check streamed payload hashes against a BagIt manifest, both ways."""
+    # Imported here to avoid a circular import at module load.
+    from packaging.bag_stream import encode_manifest_path  # pylint: disable=import-outside-toplevel
+
+    manifest: dict[str, str] = {}
+    for line in manifest_bytes.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        digest, _, rel_path = line.partition("  ")
+        manifest[rel_path] = digest
+
+    encoded_computed = {encode_manifest_path(path): digest for path, digest in computed.items()}
+
+    for rel_path, expected_digest in manifest.items():
+        actual_digest = encoded_computed.get(rel_path)
+        if actual_digest is None:
+            raise tarfile.TarError(f"Bag manifest lists a payload file missing from the archive: {rel_path}")
+        if actual_digest != expected_digest:
+            raise tarfile.TarError(f"Bag payload checksum mismatch for {rel_path}")
+
+    unlisted = set(encoded_computed) - set(manifest)
+    if unlisted:
+        raise tarfile.TarError(f"Archive contains payload files not listed in the bag manifest: {sorted(unlisted)[:5]}")
 
 
 def build_chunked_tar_archive(
@@ -256,12 +312,17 @@ def build_chunked_tar_archive(
     base_name: str,
     part_size_bytes: int,
     manifest_file_name: str = "archive-manifest.json",
+    content_writer: TarContentWriter | None = None,
 ) -> ChunkedArchiveResult:
     """Create a gzip-compressed streamed tar split into sequential part files.
 
     The resulting part files are contiguous byte segments of one logical
     gzip-compressed tar stream.  Reassembly is done by concatenating parts
     in index order and then extracting the resulting ``.tar.gz``.
+
+    By default the whole *source_dir* is added as-is. Pass *content_writer*
+    to take over writing the tar's content instead (e.g. the bag streamer,
+    which synthesizes a BagIt layout without modifying the source).
     """
     if not source_dir.exists() or not source_dir.is_dir():
         raise FileNotFoundError(f"source_dir does not exist or is not a directory: {source_dir}")
@@ -272,7 +333,10 @@ def build_chunked_tar_archive(
             fileobj=cast(BinaryIO, writer),
             mode="w|gz",
         ) as tar_stream:
-            tar_stream.add(str(source_dir), arcname=source_dir.name)
+            if content_writer is not None:
+                content_writer(tar_stream)
+            else:
+                tar_stream.add(str(source_dir), arcname=source_dir.name)
 
     manifest = {
         "archive_name": base_name,

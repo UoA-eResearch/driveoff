@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any, cast
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Security, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, status
 from sqlmodel import select
 
 from api.dependencies import SessionDep
-from api.routers import _get_submission_or_404
+from api.routers import _get_submission_or_404, require_worker_patch_endpoints_enabled
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
 from models.request import CreateRetrievalRequest, PatchRetrievalRequest
@@ -21,6 +20,7 @@ from models.retrieval import (
     RetrievalJobStage,
 )
 from models.submission import ArchiveJobStage
+from utils import utc_now
 from utils.logging import log_event
 from utils.paths import validate_destination_path
 from workers.retrieval_worker import run_archive_retrieval
@@ -35,6 +35,7 @@ router = APIRouter(tags=["retrievals"])
     responses={
         400: {"model": ErrorResponse, "description": "Invalid retrieval request"},
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
             "description": "No completed archive submission found for drive",
@@ -57,7 +58,8 @@ def create_retrieval(
     """Schedule an archive retrieval job for a research drive.
 
     Validates that a completed archive exists for the drive and that the
-    destination path is accessible, then schedules a background task to
+    destination path is within an allowlisted retrieval location (the Vast
+    Data storage mount) and writable, then schedules a background task to
     restore, download, and extract the archive into the destination.
     """
     validate_permissions("POST", api_key)
@@ -99,7 +101,7 @@ def create_retrieval(
             ),
         )
 
-    # 3. Validate the destination path exists and is writable.
+    # 3. Validate the destination path is allowlisted, exists, and is writable.
     try:
         validate_destination_path(request.destination_path)
     except (FileNotFoundError, PermissionError) as e:
@@ -115,6 +117,20 @@ def create_retrieval(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Destination path validation failed: {e}",
         ) from e
+    except RuntimeError as e:
+        # Missing allowlist configuration is a server-side problem, not a
+        # client error; fail closed until the allowlist is configured.
+        log_event(
+            logging.ERROR,
+            "retrieval.destination_allowlist_not_configured",
+            drive_name=drive_name,
+            destination_path=request.destination_path,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        ) from e
 
     # 4. Create the retrieval record.
     if submission.id is None:
@@ -123,7 +139,7 @@ def create_retrieval(
             detail="Archive submission record is missing ID.",
         )
 
-    now = datetime.now()
+    now = utc_now()
     retrieval = ArchiveRetrieval(
         drive_name=drive_name,
         submission_id=submission.id,
@@ -162,43 +178,60 @@ def create_retrieval(
 @router.get(
     "/retrieval/{drive_name}",
     status_code=status.HTTP_200_OK,
-    response_model=RetrievalResponse,
+    response_model=list[RetrievalResponse],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
-            "description": "No archive retrieval job found for drive",
+            "description": "No archive retrieval jobs found for drive",
         },
         422: {"description": "Validation error"},
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-def get_retrieval(
+def get_retrievals(
     drive_name: ResearchDriveName,
     session: SessionDep,
     api_key: ApiKey = Security(validate_api_key),
-) -> RetrievalResponse:
-    """Check if an archive retrieval job exists for the drive and return it."""
+    latest: bool = False,
+) -> list[RetrievalResponse]:
+    """Return the archive retrieval jobs for a drive, newest first.
+
+    A drive can accumulate multiple retrieval jobs over time (each POST
+    creates a new record). With ``latest=true`` only the most recent job is
+    returned, still as a single-element list so the response shape is
+    consistent. Returns 404 when the drive has no retrieval jobs at all.
+    """
     validate_permissions("GET", api_key)
 
-    retrieval = session.exec(select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == drive_name)).first()
+    id_column = cast(Any, ArchiveRetrieval.id)
+    stmt = select(ArchiveRetrieval).where(ArchiveRetrieval.drive_name == drive_name).order_by(id_column.desc())
+    if latest:
+        stmt = stmt.limit(1)
+    retrievals = session.exec(stmt).all()
 
-    if retrieval is None:
+    if not retrievals:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No archive retrieval job found for drive {drive_name}.",
         )
 
-    return RetrievalResponse.model_validate(retrieval)
+    return [RetrievalResponse.model_validate(retrieval) for retrieval in retrievals]
 
 
 @router.patch(
     "/retrieval/{retrieval_id}",
     status_code=status.HTTP_200_OK,
     response_model=RetrievalResponse,
+    dependencies=[Depends(require_worker_patch_endpoints_enabled)],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
-        404: {"model": ErrorResponse, "description": "Retrieval job not found"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
+        404: {
+            "model": ErrorResponse,
+            "description": "Retrieval job not found, or worker PATCH endpoints are disabled",
+        },
         422: {"description": "Validation error"},
     },
 )
@@ -210,7 +243,11 @@ def patch_retrieval(
 ) -> RetrievalResponse:
     """Partially update an archive retrieval record.
 
-    Intended for worker processes to report stage transitions and progress.
+    Reserved for the future split-worker architecture, where workers on a
+    separate host report stage transitions and progress back to the API.
+    Disabled (404) unless ``worker_patch_endpoints_enabled`` is set, since the
+    current in-process workers write to the database directly.
+
     Only fields present in the request body are applied.  Timestamps are
     managed server-side: last_updated_timestamp is always refreshed;
     completed_timestamp and failed_timestamp are set automatically on the
@@ -229,7 +266,7 @@ def patch_retrieval(
     for field, value in update_data.items():
         setattr(retrieval, field, value)
 
-    now = datetime.now()
+    now = utc_now()
     retrieval.last_updated_timestamp = now
     if "stage" in update_data:
         if retrieval.stage == RetrievalJobStage.COMPLETED and retrieval.completed_timestamp is None:

@@ -1,18 +1,23 @@
-"""Scripts for generating file manifests"""
+"""BagIt bag validation helpers.
+
+Bag *creation* lives in packaging.bag_stream ("virtual bagging"): the bag
+structure is synthesized inside the archive tar and the source drive is never
+modified. This module keeps the bagit-library-backed validation used by the
+retrieval workflow, so extracted archives are checked by the same independent
+implementation that defined the format.
+"""
 
 import multiprocessing
 import os
-import shutil
 from pathlib import Path
 
 import bagit
 
-# bagit uses multiprocessing.Pool for checksum generation when processes > 1.
-# On Linux, exceptions raised during bagging can leave semaphore resources
+# bagit uses multiprocessing.Pool for checksum validation when processes > 1.
+# On Linux, exceptions raised during validation can leave semaphore resources
 # behind at shutdown, so we keep it single-process there for deterministic
 # cleanup.
 PROCESSES = 1 if os.name != "nt" else max(multiprocessing.cpu_count() - 2, 1)
-DEFAULT_CHECKSUM = ["sha256"]
 
 
 def bagit_exists(drive_path: Path) -> bool:
@@ -29,72 +34,3 @@ def validate_bag(bag_path: Path) -> None:
     """
     bag = bagit.Bag(str(bag_path))
     bag.validate(processes=PROCESSES)
-
-
-def bag_directory(drive_path: Path, bag_info: dict[str, str]) -> None:
-    """Create a bagit bag from a given directory
-
-    Args:
-        drive_path (Path): the path to the directory to bag
-        bag_info (Dict[str,str]): a dictionary documenting ownership of the bag
-    """
-    # if a bagit already exists update it
-    if bagit_exists(drive_path):
-        bag = bagit.Bag(str(drive_path))
-        bag.info = bag.info | bag_info
-        bag.save(processes=PROCESSES, manifests=True)
-        return
-
-    _ = bagit.make_bag(
-        bag_dir=drive_path.as_posix(),
-        bag_info=bag_info,
-        processes=PROCESSES,
-        checksums=DEFAULT_CHECKSUM,
-    )
-
-
-def get_manifests_in_bag(drive_path: Path) -> list[Path]:
-    """Return a list of all manifest type files in the RO-Crate.
-
-    Args:
-        drive_path (Path): root directory of the RO-Crate or BagIt directory
-
-    Returns:
-        List[Path]: a list of all bagit manifest or RO-crate metadata paths
-    """
-    result: list[Path] = []
-    # avoid recursion as RO-Crates may contain a large volume of files
-    result.extend(drive_path.glob("*manifest-*.txt"))
-    result.extend(drive_path.glob("*bag-info.txt"))
-    if len(result) > 0:  # if there is a bagit manifest check data dir
-        result.extend((drive_path / "data").glob("*ro-crate-metadata.json"))
-        return result
-    # otherwise check for un-bagged RO-Crate
-    result.extend(drive_path.glob("*ro-crate-metadata.json"))
-    return result
-
-
-def create_manifests_directory(
-    drive_path: Path,
-    output_location: Path | None = None,
-    drive_name: str = "",
-) -> None:
-    """Creates a directory containing relevant manifest files for an archived Crate.
-
-    Args:
-        output_location (Path): the path to where the manifests should be written,
-            defaults to the drive_path
-        drive_path (Path): the root path of the un-archived RO-Crate
-
-    Raises:
-        ValueError: if no manifests are found in the RO-Crate
-    """
-    if output_location is None:
-        output_location = drive_path.parent
-    manifests = get_manifests_in_bag(drive_path)
-    if not manifests:
-        raise ValueError("No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate")
-    manifest_dir = output_location / (drive_name + "_manifests")
-    manifest_dir.mkdir(parents=True, exist_ok=True)
-    for manifest in manifests:
-        shutil.copy(str(manifest), str(manifest_dir / manifest.name))

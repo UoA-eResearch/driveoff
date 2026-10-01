@@ -20,6 +20,7 @@ from sqlmodel.pool import StaticPool
 
 from api.dependencies import get_session
 from api.main import app
+from api.routers import require_worker_patch_endpoints_enabled
 from api.security import ApiKey, read_api_keys
 from models.common import DataClassification
 from models.submission import ArchiveSubmission
@@ -139,6 +140,10 @@ def client_fixture(session: Session) -> Generator[TestClient, Any]:
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[read_api_keys] = read_api_keys_override
     app.dependency_overrides[get_projectdb_client] = get_projectdb_client_override
+    # Worker PATCH endpoints are disabled by default; enable them for tests so
+    # their contract stays covered. Tests for the disabled behaviour remove
+    # this override.
+    app.dependency_overrides[require_worker_patch_endpoints_enabled] = lambda: None
 
     with patch(
         "workers.submission_worker.get_activescale_client_context",

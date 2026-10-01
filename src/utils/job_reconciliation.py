@@ -1,7 +1,6 @@
 """Job reconciliation utilities for handling interrupted archiving and retrieval jobs."""
 
 import logging
-from datetime import datetime
 from typing import Any, cast
 
 from sqlmodel import Session, select
@@ -13,6 +12,7 @@ from models.retrieval import (
     RetrievalJobStage,
 )
 from models.submission import ACTIVE_STAGES, ArchiveJobStage, ArchiveSubmission
+from utils import utc_now
 from utils.logging import log_event
 
 
@@ -29,7 +29,7 @@ def reconcile_interrupted_archiving_jobs() -> None:
         interrupted = session.exec(select(ArchiveSubmission).where(stage_column.in_(active_stage_values))).all()
         if not interrupted:
             return
-        now = datetime.now()
+        now = utc_now()
         for submission in interrupted:
             previous_stage = submission.stage
             log_event(
@@ -67,7 +67,7 @@ def reconcile_interrupted_retrieval_jobs() -> None:
         interrupted = session.exec(select(ArchiveRetrieval).where(stage_column.in_(active_stage_values))).all()
         if not interrupted:
             return
-        now = datetime.now()
+        now = utc_now()
         for retrieval in interrupted:
             previous_stage = retrieval.stage
             log_event(

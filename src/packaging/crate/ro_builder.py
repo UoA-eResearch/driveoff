@@ -9,6 +9,7 @@ from rocrate.utils import is_url
 
 from models.common import calculate_retention_end_date
 from models.submission import ArchiveSubmission
+from utils import utc_now
 
 PROJECT_PREFIX = "project/"
 ROLE_PREFIX = "role/"
@@ -285,9 +286,9 @@ class ROBuilder:
             try:
                 retention_start = datetime.fromisoformat(project_end_date.replace("Z", "+00:00"))
             except Exception:
-                retention_start = datetime.now()
+                retention_start = utc_now()
         else:
-            retention_start = project_end_date or datetime.now()
+            retention_start = project_end_date or utc_now()
 
         # Calculate delete date
         delete_date = calculate_retention_end_date(retention_start, retention_years)

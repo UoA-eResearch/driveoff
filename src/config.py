@@ -39,9 +39,14 @@ class Settings(BaseSettings):
     activescale_access_key: SecretStr | None = None
     activescale_secret_key: SecretStr | None = None
     activescale_connect_timeout: int = 5
-    activescale_read_timeout: int = 15
+    # Socket-level timeout applied by botocore to every blocking socket
+    # operation, sends included. This is the hang defence for uploads and
+    # downloads: a dead connection fails within roughly
+    # read_timeout * retry_attempts, while slow-but-progressing bulk
+    # transfers are unaffected (there is deliberately no wall-clock upload
+    # timeout - it cannot be calibrated when part sizes vary this much).
+    activescale_read_timeout: int = 60
     activescale_retry_attempts: int = 2
-    activescale_upload_timeout: int = 120
     log_level: str = "INFO"
     log_to_file_enabled: bool = False
     log_file_path: str = "logs/driveoff.log"
@@ -49,7 +54,7 @@ class Settings(BaseSettings):
     log_file_rotation_interval: int = 1
     log_file_backup_count: int = 14
     projectdb_base_url: str = ""
-    projectdb_api_key: str = ""
+    projectdb_api_key: SecretStr | None = None
     smb_drive_base_path: str = ""
     # Required on Linux: local parent mount path that contains per-drive folders.
     # Example: if drive is mounted at /mnt/<drive_name>, set to /mnt
@@ -79,6 +84,12 @@ class Settings(BaseSettings):
     # Notifications
     notifications_enabled: bool = False
     notifications_slack_webhook_url: SecretStr | None = None
+    # Worker PATCH endpoints (PATCH /submission/{id}, PATCH /retrieval/{id}).
+    # Reserved for the future split-worker architecture where workers run on a
+    # separate host and report job stage transitions back over the API. Until
+    # then the in-process workers write to the database directly, so these
+    # endpoints are disabled by default and return 404.
+    worker_patch_endpoints_enabled: bool = False
 
     model_config = SettingsConfigDict(env_file=get_env_file(), extra="ignore")
 

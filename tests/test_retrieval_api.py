@@ -8,6 +8,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
+from api.main import app
+from api.routers import require_worker_patch_endpoints_enabled
 from models.common import DataClassification
 from models.retrieval import (
     ACTIVE_RETRIEVAL_STAGES,
@@ -355,6 +357,73 @@ def test_create_retrieval_400_when_destination_not_writable(
 # ---------------------------------------------------------------------------
 
 
+def test_create_retrieval_201_for_allowlisted_destination(
+    client: TestClient,
+    completed_submission: ArchiveSubmission,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """End-to-end: a real (unpatched) validation passes for a destination
+    under the drive storage base."""
+    from config import get_settings
+
+    base = tmp_path / "vast"
+    dest = base / _DRIVE_NAME
+    dest.mkdir(parents=True)
+    monkeypatch.setattr(get_settings(), "smb_drive_base_path", str(base))
+
+    with patch("api.routers.retrievals.run_archive_retrieval"):
+        response = client.post(
+            f"/api/v1/retrieval/{_DRIVE_NAME}",
+            json={"destination_path": str(dest)},
+        )
+    assert response.status_code == 201
+
+
+def test_create_retrieval_400_when_destination_outside_allowlist(
+    client: TestClient,
+    completed_submission: ArchiveSubmission,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A destination outside the drive storage base is rejected with 400."""
+    from config import get_settings
+
+    base = tmp_path / "vast"
+    base.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    monkeypatch.setattr(get_settings(), "smb_drive_base_path", str(base))
+
+    response = client.post(
+        f"/api/v1/retrieval/{_DRIVE_NAME}",
+        json={"destination_path": str(outside)},
+    )
+    assert response.status_code == 400
+    assert "not within the allowed retrieval location" in response.json()["detail"]
+
+
+def test_create_retrieval_500_when_allowlist_not_configured(
+    client: TestClient,
+    completed_submission: ArchiveSubmission,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """With no drive storage base configured, retrieval requests fail closed with 500."""
+    from config import get_settings
+
+    dest = tmp_path / "anywhere"
+    dest.mkdir()
+    monkeypatch.setattr(get_settings(), "smb_drive_base_path", "")
+
+    response = client.post(
+        f"/api/v1/retrieval/{_DRIVE_NAME}",
+        json={"destination_path": str(dest)},
+    )
+    assert response.status_code == 500
+    assert "SMB_DRIVE_BASE_PATH is not configured" in response.json()["detail"]
+
+
 def test_create_retrieval_422_when_destination_path_missing(
     client: TestClient,
     session: Session,
@@ -544,6 +613,23 @@ def test_patch_retrieval_404_when_not_found(
     assert "No retrieval job found" in response.json()["detail"]
 
 
+def test_patch_retrieval_disabled_returns_404(
+    client: TestClient,
+    session: Session,
+    queued_retrieval: ArchiveRetrieval,
+) -> None:
+    """With worker_patch_endpoints_enabled off (the default), PATCH is hidden."""
+    # Remove the conftest override so the real guard runs with default settings.
+    del app.dependency_overrides[require_worker_patch_endpoints_enabled]
+    response = client.patch(
+        f"/api/v1/retrieval/{queued_retrieval.id}",
+        json={"stage": RetrievalJobStage.RESTORING.value},
+    )
+    assert response.status_code == 404
+    session.refresh(queued_retrieval)
+    assert queued_retrieval.stage == RetrievalJobStage.QUEUED
+
+
 def test_patch_retrieval_returns_full_response_model(
     client: TestClient,
     queued_retrieval: ArchiveRetrieval,
@@ -574,25 +660,28 @@ def test_get_retrieval_returns_200_with_record(
     queued_retrieval: ArchiveRetrieval,
     completed_submission: ArchiveSubmission,
 ) -> None:
-    """GET returns 200 and the retrieval record for the drive."""
+    """GET returns 200 and a list containing the retrieval record for the drive."""
     response = client.get(f"/api/v1/retrieval/{_DRIVE_NAME}")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == queued_retrieval.id
-    assert data["drive_name"] == _DRIVE_NAME
-    assert data["submission_id"] == completed_submission.id
-    assert data["destination_path"] == _DEST_PATH
-    assert data["stage"] == RetrievalJobStage.QUEUED.value
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["id"] == queued_retrieval.id
+    assert data[0]["drive_name"] == _DRIVE_NAME
+    assert data[0]["submission_id"] == completed_submission.id
+    assert data[0]["destination_path"] == _DEST_PATH
+    assert data[0]["stage"] == RetrievalJobStage.QUEUED.value
 
 
 def test_get_retrieval_returns_all_response_fields(
     client: TestClient,
     queued_retrieval: ArchiveRetrieval,
 ) -> None:
-    """GET response body contains every field defined on RetrievalResponse."""
+    """GET response items contain every field defined on RetrievalResponse."""
     response = client.get(f"/api/v1/retrieval/{_DRIVE_NAME}")
     assert response.status_code == 200
     data = response.json()
+    assert len(data) == 1
     for field in (
         "id",
         "drive_name",
@@ -605,7 +694,7 @@ def test_get_retrieval_returns_all_response_fields(
         "completed_timestamp",
         "failed_timestamp",
     ):
-        assert field in data
+        assert field in data[0]
 
 
 def test_get_retrieval_404_when_no_record(
@@ -618,15 +707,10 @@ def test_get_retrieval_404_when_no_record(
     assert "No archive retrieval job found" in response.json()["detail"]
 
 
-def test_get_retrieval_returns_most_recent_record(
-    client: TestClient,
-    session: Session,
-    completed_submission: ArchiveSubmission,
-) -> None:
-    """GET returns a record when one exists (select().first() behaviour)."""
+def _add_newer_retrieval(session: Session, submission_id: int) -> ArchiveRetrieval:
     retrieval = ArchiveRetrieval(
         drive_name=_DRIVE_NAME,
-        submission_id=completed_submission.id,
+        submission_id=submission_id,
         destination_path=_DEST_PATH,
         stage=RetrievalJobStage.DOWNLOADING,
         started_timestamp=datetime(2024, 10, 15, 9, 0, 0),
@@ -634,7 +718,39 @@ def test_get_retrieval_returns_most_recent_record(
     )
     session.add(retrieval)
     session.commit()
+    session.refresh(retrieval)
+    return retrieval
+
+
+def test_get_retrieval_returns_list_ordered_latest_first(
+    client: TestClient,
+    session: Session,
+    queued_retrieval: ArchiveRetrieval,
+    completed_submission: ArchiveSubmission,
+) -> None:
+    """With multiple retrievals for a drive, GET returns all of them newest first."""
+    newer = _add_newer_retrieval(session, completed_submission.id)
 
     response = client.get(f"/api/v1/retrieval/{_DRIVE_NAME}")
     assert response.status_code == 200
-    assert response.json()["stage"] == RetrievalJobStage.DOWNLOADING.value
+    data = response.json()
+    assert [item["id"] for item in data] == [newer.id, queued_retrieval.id]
+    assert data[0]["stage"] == RetrievalJobStage.DOWNLOADING.value
+    assert data[1]["stage"] == RetrievalJobStage.QUEUED.value
+
+
+def test_get_retrieval_latest_param_returns_only_newest(
+    client: TestClient,
+    session: Session,
+    queued_retrieval: ArchiveRetrieval,
+    completed_submission: ArchiveSubmission,
+) -> None:
+    """latest=true returns a single-element list holding the newest retrieval."""
+    newer = _add_newer_retrieval(session, completed_submission.id)
+
+    response = client.get(f"/api/v1/retrieval/{_DRIVE_NAME}", params={"latest": "true"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == newer.id
+    assert data[0]["stage"] == RetrievalJobStage.DOWNLOADING.value

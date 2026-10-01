@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import UTC, datetime, timedelta
+import tarfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -20,12 +21,11 @@ from packaging.archive_chunks import (
     build_chunked_tar_archive,
     verify_tar_parts_stream,
 )
+from packaging.bag_stream import write_bagged_tree
 from packaging.crate.ro_builder import ROBuilder
 from packaging.crate.ro_loader import ROLoader
-from packaging.manifests import bag_directory, bagit_exists, create_manifests_directory
 from service.activescale import (
     get_activescale_client_context,
-    object_exists,
     set_object_retention,
     upload_file,
     verify_uploaded_part_size,
@@ -33,6 +33,7 @@ from service.activescale import (
 from service.notifications import notify_job_result
 from service.projectdb_client import ProjectDBClient
 from service.projectdb_helpers import filter_member_identities, get_project_owner_emails
+from utils import utc_now
 from utils.logging import elapsed_ms, log_event
 from utils.paths import resolve_archive_output_location, resolve_drive_path_for_archive
 from workers import parse_part_keys_json
@@ -93,9 +94,10 @@ def _persist_uploaded_part_keys(
     submission: ArchiveSubmission,
     uploaded_keys: list[str],
 ) -> None:
-    """Persist uploaded part key progress so retries can resume."""
+    """Persist uploaded part key progress so the objects written by a run
+    (including a failed one) can be identified by operators."""
     submission.archive_part_keys_json = json.dumps(uploaded_keys)
-    submission.last_updated_timestamp = datetime.now()
+    submission.last_updated_timestamp = utc_now()
     session.add(submission)
     session.commit()
 
@@ -109,15 +111,18 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     object_prefix: str,
     archive_parts_dir: Path,
     archive_parts: list[ArchivePartInfo],
-    timeout_seconds: int,
     metadata: dict[str, str] | None = None,
     retain_until: datetime | None = None,
 ) -> tuple[bool, list[str]]:
-    """Upload chunked archive part files with resume support.
+    """Upload every part file of the current chunked tar stream.
 
-    A part key is considered already uploaded only if:
-    - it appears in persisted submission state, and
-    - the key currently exists in object storage.
+    Parts are byte-slices of a single gzip stream, so a rebuilt stream
+    invalidates any parts uploaded by a previous attempt. This function
+    therefore always uploads the full part list from the current build,
+    overwriting any same-named objects from earlier attempts, and never
+    skips a part based on previously persisted state. Only the parts listed
+    in *archive_parts* are uploaded; stale part files that an interrupted
+    earlier run may have left in *archive_parts_dir* are ignored.
 
     Args:
         session: Database session for persisting progress
@@ -127,38 +132,24 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
         object_prefix: S3 key prefix for all parts in this submission
         archive_parts_dir: Local directory containing the part files
         archive_parts: List of ArchivePartInfo for all parts being uploaded
-        timeout_seconds: Timeout for each individual part upload attempt
+        metadata: Optional S3 object metadata attached to each part
         retain_until: Optional datetime to set for object retention
         (object lock COMPLIANCE mode). If None, retention will not be set.
 
     Returns:
         Tuple of (overall upload success, list of uploaded part keys)
     """
-    part_files = sorted(archive_parts_dir.glob("*.tar.gz.part-*"))
-    uploaded_keys = parse_part_keys_json(submission.archive_part_keys_json)
-    manifest_sizes: dict[str, int] = {p.file_name: p.size_bytes for p in archive_parts}
+    uploaded_keys: list[str] = []
 
-    for part_file in part_files:
-        part_key = f"{object_prefix}{part_file.name}"
-        if part_key in uploaded_keys:
-            exists, _ = object_exists(client, bucket_name, part_key)
-            if exists:
-                log_event(
-                    logging.INFO,
-                    "crate.upload.part.skipped",
-                    submission_id=submission.id,
-                    drive_name=submission.drive_name,
-                    part_key=part_key,
-                    reason="already_uploaded",
-                )
-                continue
+    for part in sorted(archive_parts, key=lambda p: p.index):
+        part_file = archive_parts_dir / part.file_name
+        part_key = f"{object_prefix}{part.file_name}"
 
         success = upload_file(
             client,
             bucket_name,
             part_key,
             file_path=str(part_file),
-            timeout=timeout_seconds,
             metadata=metadata,
         )
         if not success:
@@ -171,15 +162,14 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
             )
             return False, uploaded_keys
 
-        expected_size = manifest_sizes.get(part_file.name, part_file.stat().st_size)
-        if not verify_uploaded_part_size(client, bucket_name, part_key, expected_size):
+        if not verify_uploaded_part_size(client, bucket_name, part_key, part.size_bytes):
             log_event(
                 logging.ERROR,
                 "crate.upload.part.size_mismatch",
                 submission_id=submission.id,
                 drive_name=submission.drive_name,
                 part_key=part_key,
-                expected_size=expected_size,
+                expected_size=part.size_bytes,
             )
             return False, uploaded_keys
 
@@ -207,23 +197,28 @@ def _upload_chunked_archive_parts(  # pylint: disable=too-many-arguments
     return True, uploaded_keys
 
 
-def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+def build_crate_contents(
     drive: dict[str, Any],
     submission: ArchiveSubmission,
     members_list: list[dict[str, Any]],
     project_data: dict[str, Any],
-    drive_location: Path,
     output_location: Path,
-) -> None:
-    """Generate RO-Crate with data from ProjectDB.
+) -> Path:
+    """Generate the RO-Crate metadata JSON for a submission into local scratch.
+
+    The crate file is never written to the source drive; the packaging step
+    injects it into the archive tar as ``data/ro-crate-metadata.json``
+    ("virtual bagging" - see packaging.bag_stream).
 
     Args:
         drive: Research drive data dictionary
         submission: ArchiveSubmission record for this crate generation
         members_list: List of project members from ProjectDB
         project_data: Project data from ProjectDB
-        drive_location: Source drive location path
-        output_location: Output archive location path
+        output_location: Local scratch directory for generated artifacts
+
+    Returns:
+        Path of the generated RO-Crate metadata file.
     """
     ro_crate_loader = ROLoader()
     ro_crate_loader.init_crate()
@@ -238,39 +233,15 @@ def build_crate_contents(  # pylint: disable=too-many-arguments, too-many-positi
     ro_crate_builder.crate.root_dataset.append_to("mainEntity", drive_entity)
     drive_entity.append_to("project", [project_entity])
 
-    ro_crate_location = drive_location
-    if bagit_exists(ro_crate_location):
-        ro_crate_location = ro_crate_location / "data"
-
+    output_location.mkdir(parents=True, exist_ok=True)
     log_event(
         logging.INFO,
         "crate.write.metadata",
-        ro_crate_location=str(ro_crate_location),
+        output_location=str(output_location),
         drive_name=submission.drive_name,
     )
-    ro_crate_loader.write_crate(ro_crate_location)
-
-    log_event(
-        logging.INFO,
-        "bag_directory.start",
-        drive_name=submission.drive_name,
-    )
-    bag_directory(
-        drive_location,
-        bag_info={
-            "project_id": str(project_data.get("id", "")),
-            "drive_name": submission.drive_name,
-        },
-    )
-
-    # Create output location after bagit processing so it doesn't get included in bag
-    output_location.mkdir(parents=True, exist_ok=True)
-
-    create_manifests_directory(
-        drive_path=drive_location,
-        output_location=output_location,
-        drive_name=str(submission.drive_name),
-    )
+    ro_crate_loader.write_crate(output_location)
+    return output_location / str(ro_crate_loader.crate.metadata.id)
 
 
 def _build_archive_object_metadata(
@@ -288,7 +259,7 @@ def _build_archive_object_metadata(
         "retention_period_years": str(submission.retention_period_years) or "Unknown",
         "review_date": (
             calculate_retention_end_date(
-                datetime.now(),
+                utc_now(),
                 submission.retention_period_years,
             )
             if submission.retention_period_years is not None
@@ -309,10 +280,11 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
     uploads the archive to ActiveScale for long-term storage, and updates
     the ArchiveSubmission record with stage and operational metadata.
 
-    Implements persisted checkpoints so retries can skip completed steps:
-    - queued→running: After loading submission from DB
-    - running→uploading: After crate build and tar generation
-    - uploading→completed/failed: After upload attempt
+    Each run rebuilds the chunked tar stream from the source drive and
+    re-uploads every part. Parts are byte-slices of a single gzip stream, so
+    part keys persisted by a previous (failed) attempt are invalidated when
+    the stream is rebuilt — reusing them would mix slices of two different
+    streams and permanently corrupt the archive.
 
     Args:
         drive: Dictionary containing research drive information
@@ -320,7 +292,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
         projectdb_client: Client for interacting with ProjectDB
     """
     drive_name = drive.get("name", None)
-    started_at = datetime.now()
+    started_at = utc_now()
     if drive_name is None:
         log_event(
             logging.ERROR,
@@ -353,7 +325,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Transition: queued → packaging
             previous_stage = submission.stage
             submission.stage = ArchiveJobStage.PACKAGING
-            submission.last_updated_timestamp = datetime.now()
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -411,13 +383,12 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 elapsed_ms=elapsed_ms(started_at),
             )
 
-            # Build crate contents (idempotent, safe to retry)
-            build_crate_contents(
+            # Generate the RO-Crate metadata into scratch (idempotent, safe to retry)
+            crate_file = build_crate_contents(
                 drive=drive,
                 submission=submission,
                 members_list=members_list,
                 project_data=project_data,
-                drive_location=drive_path,
                 output_location=output_location,
             )
 
@@ -435,12 +406,33 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 retry_count=submission.retry_count,
                 elapsed_ms=elapsed_ms(started_at),
             )
+            # The tar content is a BagIt bag synthesized during streaming
+            # ("virtual bagging"): payload under <drive>/data/ with the crate
+            # metadata injected, tag files generated in-stream, and the
+            # source drive never modified.
+            extra_payload_files: list[tuple[Path, str]] = []
+            if crate_file is not None:
+                extra_payload_files.append((crate_file, crate_file.name))
+
+            def _write_bag_content(tar_stream: tarfile.TarFile) -> None:
+                write_bagged_tree(
+                    tar_stream,
+                    source_dir=drive_path,
+                    arcname_root=drive_path.name,
+                    bag_info={
+                        "project_id": str(project_data.get("id", "")),
+                        "drive_name": str(drive_name),
+                    },
+                    extra_payload_files=extra_payload_files,
+                )
+
             chunk_result = build_chunked_tar_archive(
                 source_dir=drive_path,
                 output_dir=archive_parts_dir,
                 base_name=str(drive_name),
                 part_size_bytes=settings.archive_chunk_size_bytes,
                 manifest_file_name=settings.archive_chunk_manifest_file_name,
+                content_writer=_write_bag_content,
             )
 
             object_prefix = f"{drive_name}/"
@@ -448,9 +440,23 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             submission.archive_total_bytes = chunk_result.total_bytes
             submission.archive_object_prefix = object_prefix
             submission.archive_manifest_key = f"{object_prefix}{chunk_result.manifest_path.name}"
-            if submission.archive_part_keys_json is None:
-                submission.archive_part_keys_json = "[]"
-            submission.last_updated_timestamp = datetime.now()
+
+            # The tar stream was just rebuilt, so any part keys persisted by a
+            # previous attempt refer to byte-slices of a different stream and
+            # must not be reused. Every part of the new stream is re-uploaded,
+            # overwriting same-named objects from the earlier attempt.
+            stale_part_keys = parse_part_keys_json(submission.archive_part_keys_json)
+            if stale_part_keys:
+                log_event(
+                    logging.WARNING,
+                    "crate.package.stale_part_keys_invalidated",
+                    submission_id=submission_id,
+                    drive_name=drive_name,
+                    stale_part_key_count=len(stale_part_keys),
+                    retry_count=submission.retry_count,
+                )
+            submission.archive_part_keys_json = "[]"
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -490,7 +496,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Transition: packaging → uploading
             previous_stage = submission.stage
             submission.stage = ArchiveJobStage.UPLOADING
-            submission.last_updated_timestamp = datetime.now()
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -520,7 +526,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Compute the object retention date once for all objects in this job.
             retain_until: datetime | None = None
             if settings.activescale_enable_object_retention:
-                now_utc = datetime.now(tz=UTC)
+                now_utc = utc_now()
                 if settings.activescale_retention_override_days is not None:
                     retain_until = now_utc + timedelta(days=settings.activescale_retention_override_days)
                 else:
@@ -551,7 +557,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     object_prefix=object_prefix,
                     archive_parts_dir=archive_parts_dir,
                     archive_parts=chunk_result.parts,
-                    timeout_seconds=settings.activescale_upload_timeout,
                     metadata=archive_metadata,
                     retain_until=retain_until,
                 )
@@ -560,7 +565,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                     # Transition: uploading -> writing_manifest
                     previous_stage = submission.stage
                     submission.stage = ArchiveJobStage.WRITING_MANIFEST
-                    submission.last_updated_timestamp = datetime.now()
+                    submission.last_updated_timestamp = utc_now()
                     session.add(submission)
                     session.commit()
 
@@ -582,7 +587,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                         bucket_name,
                         file_key,
                         file_path=str(chunk_result.manifest_path),
-                        timeout=settings.activescale_upload_timeout,
                         metadata=archive_metadata,
                     )
                     submission.archive_manifest_key = file_key
@@ -604,7 +608,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             # Transition: uploading → cleanup
             previous_stage = submission.stage
             submission.stage = ArchiveJobStage.CLEANUP
-            submission.last_updated_timestamp = datetime.now()
+            submission.last_updated_timestamp = utc_now()
             session.add(submission)
             session.commit()
 
@@ -625,12 +629,11 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
             submission.cleanup_error = cleanup_error
 
             # Update submission record with upload result
-            now = datetime.now()
+            now = utc_now()
             if upload_success:
                 submission.stage = ArchiveJobStage.COMPLETED
                 submission.failure_reason = None
                 submission.failed_timestamp = None
-                submission.archive_file_key = file_key
                 submission.completed_timestamp = now
                 submission.last_updated_timestamp = now
                 session.add(submission)
@@ -663,7 +666,6 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
                 submission.stage = ArchiveJobStage.FAILED
                 submission.failure_reason = "Archive upload failed"
                 submission.failed_timestamp = now
-                submission.archive_file_key = file_key
                 submission.last_updated_timestamp = now
                 session.add(submission)
                 session.commit()
@@ -706,7 +708,7 @@ def generate_ro_crate(  # pylint: disable=too-many-locals,too-many-statements,to
         except Exception as e:  # pylint: disable=broad-exception-caught
             processing_error = str(e)
             if submission is not None:
-                now = datetime.now()
+                now = utc_now()
 
                 # Transition to cleanup before final failed state.
                 previous_stage = submission.stage

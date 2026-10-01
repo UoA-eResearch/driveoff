@@ -236,10 +236,6 @@ export type PatchSubmissionRequest = {
      */
     cleanup_error?: string | null;
     /**
-     * Archive File Key
-     */
-    archive_file_key?: string | null;
-    /**
      * Archive Object Prefix
      */
     archive_object_prefix?: string | null;
@@ -458,10 +454,6 @@ export type SubmissionResponse = {
      */
     cleanup_error: string | null;
     /**
-     * Archive File Key
-     */
-    archive_file_key: string | null;
-    /**
      * Archive Object Prefix
      */
     archive_object_prefix: string | null;
@@ -533,6 +525,10 @@ export type GetDriveInfoApiV1DriveinfoGetErrors = {
      */
     401: ErrorResponse;
     /**
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
+    /**
      * Drive or project not found
      */
     404: ErrorResponse;
@@ -579,6 +575,10 @@ export type GetSubmissionApiV1SubmissionGetErrors = {
      */
     401: ErrorResponse;
     /**
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
+    /**
      * No archive submission found for drive
      */
     404: ErrorResponse;
@@ -620,6 +620,10 @@ export type CreateSubmissionApiV1SubmissionPostErrors = {
      * Invalid or missing API key
      */
     401: ErrorResponse;
+    /**
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
     /**
      * Drive or project not found
      */
@@ -680,6 +684,10 @@ export type RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors = {
      */
     401: ErrorResponse;
     /**
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
+    /**
      * No submission found for drive
      */
     404: ErrorResponse;
@@ -695,6 +703,10 @@ export type RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors = {
      * Internal server error
      */
     500: ErrorResponse;
+    /**
+     * ProjectDB upstream request failed
+     */
+    502: ErrorResponse;
 };
 
 export type RetrySubmissionApiV1SubmissionDriveNameRetryPostError = RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors[keyof RetrySubmissionApiV1SubmissionDriveNameRetryPostErrors];
@@ -708,49 +720,58 @@ export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses = {
 
 export type RetrySubmissionApiV1SubmissionDriveNameRetryPostResponse = RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses[keyof RetrySubmissionApiV1SubmissionDriveNameRetryPostResponses];
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchData = {
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchData = {
     body: PatchSubmissionRequest;
-    path?: never;
-    query: {
+    path: {
         /**
          * Submission Id
          */
         submission_id: number;
+    };
+    query?: {
         /**
          * Path
          */
         path?: string;
     };
-    url: '/api/v1/submission/{drive_name}';
+    url: '/api/v1/submission/{submission_id}';
 };
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchErrors = {
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors = {
     /**
      * Invalid or missing API key
      */
     401: ErrorResponse;
     /**
-     * No archive submission found for drive
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
+    /**
+     * No archive submission found for drive, or worker PATCH endpoints are disabled
      */
     404: ErrorResponse;
+    /**
+     * Requested stage transition is not allowed
+     */
+    409: ErrorResponse;
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchError = PatchSubmissionApiV1SubmissionDriveNamePatchErrors[keyof PatchSubmissionApiV1SubmissionDriveNamePatchErrors];
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchError = PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors[keyof PatchSubmissionApiV1SubmissionSubmissionIdPatchErrors];
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchResponses = {
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses = {
     /**
      * Successful Response
      */
     200: SubmissionResponse;
 };
 
-export type PatchSubmissionApiV1SubmissionDriveNamePatchResponse = PatchSubmissionApiV1SubmissionDriveNamePatchResponses[keyof PatchSubmissionApiV1SubmissionDriveNamePatchResponses];
+export type PatchSubmissionApiV1SubmissionSubmissionIdPatchResponse = PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses[keyof PatchSubmissionApiV1SubmissionSubmissionIdPatchResponses];
 
-export type GetRetrievalApiV1RetrievalDriveNameGetData = {
+export type GetRetrievalsApiV1RetrievalDriveNameGetData = {
     body?: never;
     path: {
         /**
@@ -760,6 +781,10 @@ export type GetRetrievalApiV1RetrievalDriveNameGetData = {
     };
     query?: {
         /**
+         * Latest
+         */
+        latest?: boolean;
+        /**
          * Path
          */
         path?: string;
@@ -767,13 +792,17 @@ export type GetRetrievalApiV1RetrievalDriveNameGetData = {
     url: '/api/v1/retrieval/{drive_name}';
 };
 
-export type GetRetrievalApiV1RetrievalDriveNameGetErrors = {
+export type GetRetrievalsApiV1RetrievalDriveNameGetErrors = {
     /**
      * Invalid or missing API key
      */
     401: ErrorResponse;
     /**
-     * No archive retrieval job found for drive
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
+    /**
+     * No archive retrieval jobs found for drive
      */
     404: ErrorResponse;
     /**
@@ -786,16 +815,18 @@ export type GetRetrievalApiV1RetrievalDriveNameGetErrors = {
     500: ErrorResponse;
 };
 
-export type GetRetrievalApiV1RetrievalDriveNameGetError = GetRetrievalApiV1RetrievalDriveNameGetErrors[keyof GetRetrievalApiV1RetrievalDriveNameGetErrors];
+export type GetRetrievalsApiV1RetrievalDriveNameGetError = GetRetrievalsApiV1RetrievalDriveNameGetErrors[keyof GetRetrievalsApiV1RetrievalDriveNameGetErrors];
 
-export type GetRetrievalApiV1RetrievalDriveNameGetResponses = {
+export type GetRetrievalsApiV1RetrievalDriveNameGetResponses = {
     /**
+     * Response Get Retrievals Api V1 Retrieval  Drive Name  Get
+     *
      * Successful Response
      */
-    200: RetrievalResponse;
+    200: Array<RetrievalResponse>;
 };
 
-export type GetRetrievalApiV1RetrievalDriveNameGetResponse = GetRetrievalApiV1RetrievalDriveNameGetResponses[keyof GetRetrievalApiV1RetrievalDriveNameGetResponses];
+export type GetRetrievalsApiV1RetrievalDriveNameGetResponse = GetRetrievalsApiV1RetrievalDriveNameGetResponses[keyof GetRetrievalsApiV1RetrievalDriveNameGetResponses];
 
 export type CreateRetrievalApiV1RetrievalDriveNamePostData = {
     body: CreateRetrievalRequest;
@@ -823,6 +854,10 @@ export type CreateRetrievalApiV1RetrievalDriveNamePostErrors = {
      * Invalid or missing API key
      */
     401: ErrorResponse;
+    /**
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
     /**
      * No completed archive submission found for drive
      */
@@ -875,7 +910,11 @@ export type PatchRetrievalApiV1RetrievalRetrievalIdPatchErrors = {
      */
     401: ErrorResponse;
     /**
-     * Retrieval job not found
+     * API key lacks permission for this action
+     */
+    403: ErrorResponse;
+    /**
+     * Retrieval job not found, or worker PATCH endpoints are disabled
      */
     404: ErrorResponse;
     /**

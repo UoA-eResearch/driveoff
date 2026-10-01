@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 import requests
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Security, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Security, status
 from sqlmodel import Session, select
 
 from api.dependencies import ProjectDbDep, SessionDep
-from api.routers import _get_submission_or_404
+from api.routers import _get_submission_or_404, require_worker_patch_endpoints_enabled
 from api.security import ApiKey, validate_api_key, validate_permissions
 from models.common import ResearchDriveName
 from models.request import CreateSubmissionRequest, PatchSubmissionRequest
@@ -23,6 +22,7 @@ from models.submission import (
     ArchiveSubmission,
 )
 from service.projectdb_client import ProjectDBClient
+from utils import utc_now
 from utils.logging import log_event
 from utils.paths import validate_archive_path_access
 from workers.submission_worker import generate_ro_crate
@@ -35,15 +35,21 @@ router = APIRouter(tags=["submissions"])
 
 
 def _validate_drive(projectdb: ProjectDBClient, drive_name: str) -> Any:
-    """Fetch and validate drive from ProjectDB."""
-    drive = projectdb.get_research_drive_by_name(drive_name)
-    if not drive:
+    """Fetch and validate drive from ProjectDB.
+
+    Upstream ProjectDB failures surface as 502 (consistent with the driveinfo
+    endpoint) rather than falling through to a generic 500.
+    """
+    try:
+        drive = projectdb.get_research_drive_by_name(drive_name)
+    except (requests.RequestException, ValueError) as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"Research Drive {drive_name} not found in ProjectDB.",
-        )
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"ProjectDB request failed while fetching drive {drive_name}: {e}",
+        ) from e
+
     if isinstance(drive, list):
-        drive = drive[0]
+        drive = drive[0] if drive else None
     if not drive:
         raise HTTPException(
             status_code=404,
@@ -111,7 +117,6 @@ def _upsert_submission(
         existing_submission.data_classification = request.data_classification
         existing_submission.failure_reason = None
         existing_submission.failed_timestamp = None
-        existing_submission.archive_file_key = None
         existing_submission.archive_object_prefix = None
         existing_submission.archive_manifest_key = None
         existing_submission.archive_part_keys_json = None
@@ -128,7 +133,7 @@ def _upsert_submission(
             data_classification=request.data_classification,
         )
 
-    now = datetime.now()
+    now = utc_now()
     submission.stage = ArchiveJobStage.QUEUED
     submission.started_timestamp = now
     submission.last_updated_timestamp = now
@@ -175,6 +180,7 @@ def _as_bad_request_for_archive_path(
     responses={
         400: {"model": ErrorResponse, "description": "Invalid submission request"},
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {"model": ErrorResponse, "description": "Drive or project not found"},
         409: {
             "model": ErrorResponse,
@@ -196,6 +202,10 @@ def create_submission(
     api_key: ApiKey = Security(validate_api_key),
 ) -> CreateSubmissionResponse:
     """Create a new archive submission for a research drive.
+
+    Precondition: all researcher access to the drive must already be removed
+    (an operational step performed outside this API), so the drive contents
+    are frozen for the duration of the archive job.
 
     Validates drive exists in ProjectDB, resolves project_id if needed,
     and schedules RO-Crate generation as a background task.
@@ -299,12 +309,17 @@ def create_submission(
     response_model=CreateSubmissionResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {"model": ErrorResponse, "description": "No submission found for drive"},
         409: {
             "model": ErrorResponse,
             "description": "Job is active or already completed",
         },
         500: {"model": ErrorResponse, "description": "Internal server error"},
+        502: {
+            "model": ErrorResponse,
+            "description": "ProjectDB upstream request failed",
+        },
     },
 )
 def retry_submission(
@@ -315,7 +330,11 @@ def retry_submission(
     api_key: ApiKey = Security(validate_api_key),
     force: bool = False,
 ) -> CreateSubmissionResponse:  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    """Retry a failed or abandoned archive job for a research drive."""
+    """Retry a failed or abandoned archive job for a research drive.
+
+    The same precondition as submission applies: researcher access to the
+    drive must still be removed, so the drive remains a frozen snapshot.
+    """
     validate_permissions("POST", api_key)
 
     submission = _get_submission_or_404(session, drive_name)
@@ -358,7 +377,7 @@ def retry_submission(
     except (FileNotFoundError, PermissionError, RuntimeError) as e:
         raise _as_bad_request_for_archive_path(drive_name, e) from e
 
-    now = datetime.now()
+    now = utc_now()
     submission.stage = ArchiveJobStage.QUEUED
     submission.failure_reason = None
     submission.failed_timestamp = None
@@ -406,6 +425,7 @@ def retry_submission(
     response_model=SubmissionResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
             "description": "No archive submission found for drive",
@@ -436,11 +456,17 @@ def get_submission(
     "/submission/{submission_id}",
     status_code=status.HTTP_200_OK,
     response_model=SubmissionResponse,
+    dependencies=[Depends(require_worker_patch_endpoints_enabled)],
     responses={
         401: {"model": ErrorResponse, "description": "Invalid or missing API key"},
+        403: {"model": ErrorResponse, "description": "API key lacks permission for this action"},
         404: {
             "model": ErrorResponse,
-            "description": "No archive submission found for drive",
+            "description": "No archive submission found for drive, or worker PATCH endpoints are disabled",
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "Requested stage transition is not allowed",
         },
     },
 )
@@ -452,10 +478,14 @@ def patch_submission(
 ) -> SubmissionResponse:
     """Partially update an archive submission record.
 
-    This is intended for internal use by worker processes to report stage
-    transitions and progress. Only fields present in the request body are
-    applied; omitted fields are left unchanged. Timestamps are managed
-    server-side based on the resulting stage value.
+    Reserved for the future split-worker architecture, where workers on a
+    separate host report stage transitions and progress back to the API.
+    Disabled (404) unless ``worker_patch_endpoints_enabled`` is set, since the
+    current in-process workers write to the database directly.
+
+    Only fields present in the request body are applied; omitted fields are
+    left unchanged. Timestamps are managed server-side based on the resulting
+    stage value.
     """
     validate_permissions("PATCH", api_key)
 
@@ -466,17 +496,32 @@ def patch_submission(
             detail=f"No archive submission found with id {submission_id}.",
         )
 
-    for field, value in patch.model_dump(exclude_unset=True).items():
+    update_data = patch.model_dump(exclude_unset=True)
+
+    # A submission may only be marked COMPLETED if the resulting record has a
+    # manifest key: without one there is no retrievable archive behind it.
+    resulting_stage = update_data.get("stage", submission.stage)
+    resulting_manifest_key = update_data.get("archive_manifest_key", submission.archive_manifest_key)
+    if resulting_stage == ArchiveJobStage.COMPLETED and not resulting_manifest_key:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Submission {submission_id} cannot be marked completed without an archive_manifest_key."
+                " A completed archive must have an uploaded manifest."
+            ),
+        )
+
+    for field, value in update_data.items():
         if hasattr(submission, field):
             setattr(submission, field, value)
 
-    submission.last_updated_timestamp = datetime.now()
+    submission.last_updated_timestamp = utc_now()
 
     if submission.stage == ArchiveJobStage.COMPLETED:
-        submission.completed_timestamp = datetime.now()
+        submission.completed_timestamp = utc_now()
         submission.failed_timestamp = None
     elif submission.stage == ArchiveJobStage.FAILED:
-        submission.failed_timestamp = datetime.now()
+        submission.failed_timestamp = utc_now()
         submission.completed_timestamp = None
     else:
         submission.completed_timestamp = None

@@ -3,15 +3,63 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
 
-from service.activescale import set_object_retention, verify_uploaded_part_size
+from service.activescale import set_object_retention, upload_file, verify_uploaded_part_size
 
 
 def _make_client_error(code: str) -> ClientError:
     return ClientError({"Error": {"Code": code, "Message": "test error"}}, "HeadObject")
+
+
+class TestUploadFile:
+    """upload_file is a thin, honest wrapper: it calls boto3's upload_file
+    directly (no wall-clock timeout thread) and maps errors to False."""
+
+    def _make_source_file(self, tmp_path: Path) -> Path:
+        source = tmp_path / "part-00001"
+        source.write_bytes(b"payload")
+        return source
+
+    def test_returns_true_and_passes_metadata(self, tmp_path: Path) -> None:
+        client = MagicMock()
+        source = self._make_source_file(tmp_path)
+
+        result = upload_file(client, "bucket", "drive/part-00001", str(source), metadata={"division": "CTRERSH"})
+
+        assert result is True
+        _args, kwargs = client.upload_file.call_args
+        assert client.upload_file.call_args.args == (str(source), "bucket", "drive/part-00001")
+        assert kwargs["ExtraArgs"] == {"Metadata": {"division": "CTRERSH"}}
+        assert kwargs["Callback"] is not None
+
+    def test_no_metadata_omits_extra_args(self, tmp_path: Path) -> None:
+        client = MagicMock()
+        source = self._make_source_file(tmp_path)
+
+        assert upload_file(client, "bucket", "drive/part-00001", str(source)) is True
+        assert client.upload_file.call_args.kwargs["ExtraArgs"] is None
+
+    def test_returns_false_on_client_error(self, tmp_path: Path) -> None:
+        client = MagicMock()
+        client.upload_file.side_effect = _make_client_error("500")
+
+        assert upload_file(client, "bucket", "drive/part-00001", str(self._make_source_file(tmp_path))) is False
+
+    def test_returns_false_on_endpoint_connection_error(self, tmp_path: Path) -> None:
+        client = MagicMock()
+        client.upload_file.side_effect = EndpointConnectionError(endpoint_url="https://example.invalid")
+
+        assert upload_file(client, "bucket", "drive/part-00001", str(self._make_source_file(tmp_path))) is False
+
+    def test_returns_false_when_local_file_missing(self, tmp_path: Path) -> None:
+        client = MagicMock()
+
+        assert upload_file(client, "bucket", "drive/part-00001", str(tmp_path / "missing")) is False
+        client.upload_file.assert_not_called()
 
 
 class TestVerifyUploadedPartSize:

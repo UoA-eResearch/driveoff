@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from api.main import app
+from api.routers import require_worker_patch_endpoints_enabled
 from models.submission import ArchiveJobStage, ArchiveSubmission
 from service.projectdb import get_projectdb_client
 
@@ -142,6 +143,71 @@ def test_post_submission_returns_502_when_projectdb_project_lookup_fails(
             )
         assert response.status_code == 502
         assert "ProjectDB request failed" in response.json()["detail"]
+    finally:
+        if original_projectdb_override is None:
+            app.dependency_overrides.pop(get_projectdb_client, None)
+        else:
+            app.dependency_overrides[get_projectdb_client] = original_projectdb_override
+
+
+def test_post_submission_returns_502_when_projectdb_drive_lookup_fails(
+    client: TestClient,
+) -> None:
+    """A ProjectDB failure on the drive lookup itself is 502, consistent
+    with the project lookup and the driveinfo endpoint (not a generic 500)."""
+
+    class BrokenProjectDbClient:
+        def get_research_drive_by_name(self, drive_name: str):  # noqa: ANN001
+            raise requests.exceptions.ConnectionError("projectdb unreachable")
+
+    original_projectdb_override = app.dependency_overrides.get(get_projectdb_client)
+    app.dependency_overrides[get_projectdb_client] = lambda: BrokenProjectDbClient()
+
+    try:
+        with patch("api.routers.submissions.generate_ro_crate"):
+            response = client.post(
+                "/api/v1/submission",
+                json={
+                    "drive_name": "restst000000001-testing",
+                    "project_id": 123,
+                    "retention_period_years": 7,
+                    "retention_period_justification": "Standard retention",
+                    "data_classification": "Sensitive",
+                },
+            )
+        assert response.status_code == 502
+        assert "ProjectDB request failed while fetching drive" in response.json()["detail"]
+    finally:
+        if original_projectdb_override is None:
+            app.dependency_overrides.pop(get_projectdb_client, None)
+        else:
+            app.dependency_overrides[get_projectdb_client] = original_projectdb_override
+
+
+def test_retry_submission_returns_502_when_projectdb_unavailable(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """The retry endpoint surfaces ProjectDB failures as 502 too."""
+    submission.stage = ArchiveJobStage.FAILED
+    session.add(submission)
+    session.commit()
+
+    class BrokenProjectDbClient:
+        def get_research_drive_by_name(self, drive_name: str):  # noqa: ANN001
+            raise requests.exceptions.ConnectionError("projectdb unreachable")
+
+    original_projectdb_override = app.dependency_overrides.get(get_projectdb_client)
+    app.dependency_overrides[get_projectdb_client] = lambda: BrokenProjectDbClient()
+
+    try:
+        response = client.post(f"/api/v1/submission/{submission.drive_name}/retry")
+        assert response.status_code == 502
+        assert "ProjectDB request failed while fetching drive" in response.json()["detail"]
+
+        session.refresh(submission)
+        assert submission.stage == ArchiveJobStage.FAILED
     finally:
         if original_projectdb_override is None:
             app.dependency_overrides.pop(get_projectdb_client, None)
@@ -378,6 +444,7 @@ def test_patch_submission_sets_completed_timestamp(
     submission: ArchiveSubmission,
 ) -> None:
     """Transitioning to COMPLETED sets completed_timestamp and clears failed_timestamp."""
+    submission.archive_manifest_key = "restst000000001-testing/archive-manifest.json"
     session.add(submission)
     session.commit()
 
@@ -389,6 +456,67 @@ def test_patch_submission_sets_completed_timestamp(
     session.refresh(submission)
     assert submission.completed_timestamp is not None
     assert submission.failed_timestamp is None
+
+
+def test_patch_submission_rejects_completed_without_manifest_key(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """A submission with no manifest key cannot be marked COMPLETED."""
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.COMPLETED.value},
+    )
+    assert response.status_code == 409
+    assert "archive_manifest_key" in response.json()["detail"]
+    session.refresh(submission)
+    assert submission.stage != ArchiveJobStage.COMPLETED
+    assert submission.completed_timestamp is None
+
+
+def test_patch_submission_allows_completed_with_manifest_key_in_patch(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """Supplying the manifest key in the same PATCH satisfies the COMPLETED guard."""
+    session.add(submission)
+    session.commit()
+
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={
+            "stage": ArchiveJobStage.COMPLETED.value,
+            "archive_manifest_key": "restst000000001-testing/archive-manifest.json",
+        },
+    )
+    assert response.status_code == 200
+    session.refresh(submission)
+    assert submission.stage == ArchiveJobStage.COMPLETED
+
+
+def test_patch_submission_disabled_returns_404(
+    client: TestClient,
+    session: Session,
+    submission: ArchiveSubmission,
+) -> None:
+    """With worker_patch_endpoints_enabled off (the default), PATCH is hidden."""
+    session.add(submission)
+    session.commit()
+
+    # Remove the conftest override so the real guard runs with default settings.
+    del app.dependency_overrides[require_worker_patch_endpoints_enabled]
+    response = client.patch(
+        f"/api/v1/submission/{submission.id}",
+        json={"stage": ArchiveJobStage.UPLOADING.value},
+    )
+    assert response.status_code == 404
+    session.refresh(submission)
+    assert submission.stage != ArchiveJobStage.UPLOADING
 
 
 def test_patch_submission_sets_failed_timestamp(

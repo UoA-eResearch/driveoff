@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -303,13 +302,11 @@ def list_buckets(client: S3Client) -> list[str]:
         return []
 
 
-# pylint: disable-next=too-many-arguments,too-many-positional-arguments,too-many-locals
 def upload_file(
     client: S3Client,
     bucket_name: str,
     file_key: str,
     file_path: str,
-    timeout: int = 300,
     metadata: dict[str, str] | None = None,
 ) -> bool:
     """Upload a file to an S3 bucket using streaming for large files.
@@ -319,8 +316,6 @@ def upload_file(
         bucket_name (str): The name of the S3 bucket to upload to.
         file_key (str): The key (path/filename) in the bucket.
         file_path (str): Path to file on disk.
-        timeout (int): Timeout in seconds for the upload operation. Defaults to 300
-            (5 minutes). Use higher values for very large files.
         metadata (dict[str, str] | None): Optional dictionary of metadata to attach to
             the S3 object.
 
@@ -331,8 +326,13 @@ def upload_file(
         Uses boto3 upload_file which handles multipart uploads automatically
         for files larger than 8 MB.
 
-        If the upload operation exceeds the timeout, it will be aborted and logged
-        as an error. This prevents indefinite hangs due to poor network connectivity.
+        There is deliberately no wall-clock timeout: upload time scales with
+        part size, so any fixed cap is wrong for either small or very large
+        parts. Hung transfers are bounded by botocore's socket-level timeouts
+        instead (activescale_connect_timeout / activescale_read_timeout,
+        which apply to every blocking socket operation, sends included)
+        multiplied by the configured retry attempts. Slow but progressing
+        uploads are allowed to continue.
 
         Progress is logged every 5 seconds or every 100 MB. Stalls (no progress for
         30 seconds) are detected and logged as warnings.
@@ -348,58 +348,26 @@ def upload_file(
             file_key=file_key,
             bucket_name=bucket_name,
             size_mb=round(file_size / (1024 * 1024), 1),
-            timeout_seconds=timeout,
         )
 
-        # Create progress tracker with stall detection
+        # Progress tracker with stall detection (logging only)
         progress_tracker = ProgressTracker(file_key, file_size, stall_timeout=30)
 
-        # Use a threading-based timeout to prevent indefinite hangs
-        upload_result: list[bool | None] = [None]
-        upload_exception: list[Exception | None] = [None]
+        client.upload_file(
+            file_path,
+            bucket_name,
+            file_key,
+            Callback=progress_tracker,
+            ExtraArgs={"Metadata": metadata} if metadata else None,
+        )
 
-        def perform_upload() -> None:
-            try:
-                client.upload_file(
-                    file_path,
-                    bucket_name,
-                    file_key,
-                    Callback=progress_tracker,
-                    ExtraArgs={"Metadata": metadata} if metadata else None,
-                )
-                upload_result[0] = True
-            except (ClientError, EndpointConnectionError, BotoCoreError, OSError) as e:
-                upload_exception[0] = e
-
-        upload_thread = threading.Thread(target=perform_upload, daemon=False)
-        upload_thread.start()
-        upload_thread.join(timeout=timeout)
-
-        if upload_thread.is_alive():
-            _log_event(
-                logging.ERROR,
-                "s3.upload.timeout",
-                file_key=file_key,
-                timeout_seconds=timeout,
-                transferred_mb=round(progress_tracker.bytes_transferred / (1024 * 1024), 1),
-                total_mb=round(file_size / (1024 * 1024), 1),
-            )
-            return False
-
-        upload_error = upload_exception[0]
-        if upload_error is not None:
-            raise upload_error
-
-        if upload_result[0]:
-            _log_event(
-                logging.INFO,
-                "s3.upload.completed",
-                file_key=file_key,
-                bucket_name=bucket_name,
-            )
-            return True
-
-        return False
+        _log_event(
+            logging.INFO,
+            "s3.upload.completed",
+            file_key=file_key,
+            bucket_name=bucket_name,
+        )
+        return True
 
     except ClientError as e:
         _log_client_error("s3.upload.client_error", e, file_key=file_key)
