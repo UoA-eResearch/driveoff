@@ -1,0 +1,13 @@
+{
+  "Rules": [
+    {
+      "ID": "deep-archive-transition",
+      "Prefix": "",
+      "Status": "Enabled",
+      "Transition": {
+        "Days": 0,
+        "StorageClass": "DEEP_ARCHIVE"
+      }
+    }
+  ]
+}
